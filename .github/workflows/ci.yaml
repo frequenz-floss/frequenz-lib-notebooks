@@ -43,7 +43,7 @@ jobs:
     steps:
       - name: Setup Git
         uses: frequenz-floss/gh-action-setup-git@v0.x.x
-        # TODO(cookiecutter): Uncomment this for projects with private dependencies
+        # Uncomment this for projects with private dependencies
         # with:
         #   username: ${{ secrets.GIT_USER }}
         #   password: ${{ secrets.GIT_PASS }}
@@ -128,7 +128,7 @@ jobs:
     steps:
       - name: Setup Git
         uses: frequenz-floss/gh-action-setup-git@v0.x.x
-        # TODO(cookiecutter): Uncomment this for projects with private dependencies
+        # Uncomment this for projects with private dependencies
         # with:
         #   username: ${{ secrets.GIT_USER }}
         #   password: ${{ secrets.GIT_PASS }}
@@ -235,7 +235,7 @@ jobs:
     steps:
       - name: Setup Git
         uses: frequenz-floss/gh-action-setup-git@v0.x.x
-        # TODO(cookiecutter): Uncomment this for projects with private dependencies
+        # Uncomment this for projects with private dependencies
         # with:
         #   username: ${{ secrets.GIT_USER }}
         #   password: ${{ secrets.GIT_PASS }}
@@ -274,7 +274,7 @@ jobs:
     steps:
       - name: Setup Git
         uses: frequenz-floss/gh-action-setup-git@v0.x.x
-        # TODO(cookiecutter): Uncomment this for projects with private dependencies
+        # Uncomment this for projects with private dependencies
         # with:
         #   username: ${{ secrets.GIT_USER }}
         #   password: ${{ secrets.GIT_PASS }}
@@ -315,7 +315,7 @@ jobs:
     steps:
       - name: Setup Git
         uses: frequenz-floss/gh-action-setup-git@v0.x.x
-        # TODO(cookiecutter): Uncomment this for projects with private dependencies
+        # Uncomment this for projects with private dependencies
         # with:
         #   username: ${{ secrets.GIT_USER }}
         #   password: ${{ secrets.GIT_PASS }}
@@ -361,7 +361,7 @@ jobs:
     steps:
       - name: Setup Git
         uses: frequenz-floss/gh-action-setup-git@v0.x.x
-        # TODO(cookiecutter): Uncomment this for projects with private dependencies
+        # Uncomment this for projects with private dependencies
         # with:
         #   username: ${{ secrets.GIT_USER }}
         #   password: ${{ secrets.GIT_PASS }}

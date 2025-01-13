@@ -50,9 +50,6 @@ body:
         - Documentation (part:docs)
         - Unit, integration and performance tests (part:tests)
         - Build script, CI, dependencies, etc. (part:tooling)
-        # TODO(cookiecutter): Add other parts
-        # Please have in mind that that the part:xxx labels need to
-        # be created in the GitHub repository.
     validations:
       required: true
   - type: textarea

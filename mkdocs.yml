@@ -8,15 +8,12 @@ site_author: "Frequenz Energy-as-a-Service GmbH"
 copyright: "Copyright © 2025 Frequenz Energy-as-a-Service GmbH"
 repo_name: "frequenz-lib-notebooks"
 repo_url: "https://github.com/frequenz-floss/frequenz-lib-notebooks"
-# TODO(cookiecutter): "v0.x.x" is the GitHub repo default branch, you might want to update it
-# if the project uses a different default branch.
 edit_uri: "edit/v0.x.x/docs/"
 strict: true  # Treat warnings as errors
 
 # Build directories
 theme:
   name: "material"
-  # TODO(cookiecutter): You might want to change the logo, the file is located in "docs/"
   logo: _img/logo.png
   favicon: _img/logo.png
   language: en
@@ -51,7 +48,6 @@ theme:
       name: Switch to light mode
 
 extra:
-  # TODO(cookiecutter): You probably want to update the social links
   social:
   - icon: fontawesome/brands/github
     link: https://github.com/frequenz-floss
@@ -117,8 +113,6 @@ plugins:
             show_symbol_type_toc: true
             signature_crossrefs: true
           import:
-            # TODO(cookiecutter): You might want to add other external references here
-            # See https://mkdocstrings.github.io/python/usage/#import for details
             - https://docs.python.org/3/objects.inv
             - https://typing-extensions.readthedocs.io/en/stable/objects.inv
   # Note this plugin must be loaded after mkdocstrings to be able to use macros
