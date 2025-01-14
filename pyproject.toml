@@ -27,6 +27,15 @@ classifiers = [
 requires-python = ">= 3.11, < 4"
 dependencies = [
   "typing-extensions >= 4.12.2, < 5",
+  "numpy >= 1.26.4, < 1.27.0",
+  "pandas >= 2.1.4, < 2.3.0",
+  "matplotlib >= 3.8.4, < 3.11.0",
+  "ipython == 8.31.0",
+  "pvlib >= 0.11.0, < 0.12.0",
+  "python-dotenv >= 0.21.0, < 1.1.0",
+  "toml >= 0.10.2, < 0.11.0",
+  "frequenz-client-reporting >= 0.13.0, < 0.14.0",
+  "frequenz-api-weather >= 0.9.0, < 0.10.0",
 ]
 dynamic = ["version"]
 
@@ -57,6 +66,8 @@ dev-mkdocs = [
 ]
 dev-mypy = [
   "mypy == 1.14.1",
+  "pandas-stubs == 2.2.3.241126",
+  "types-toml==0.10.8.20240310",
   "types-Markdown == 3.7.0.20241204",
   # For checking the noxfile, docs/ script, and tests
   "frequenz-lib-notebooks[dev-mkdocs,dev-noxfile,dev-pytest]",
@@ -164,7 +175,7 @@ packages = ["frequenz.lib.notebooks"]
 strict = true
 
 [[tool.mypy.overrides]]
-module = ["mkdocs_macros.*", "sybil", "sybil.*"]
+module = ["mkdocs_macros.*", "sybil", "sybil.*", "pvlib", "pvlib.*"]
 ignore_missing_imports = true
 
 [tool.setuptools_scm]
