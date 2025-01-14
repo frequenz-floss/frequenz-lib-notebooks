@@ -107,8 +107,6 @@ class ConfigConstants:
             - efficiency (float): The overall system efficiency. Range: [0.0, 1.0].
             - mid (int): The microgrid ID of the client site.
             - malo_id (str): The MALO ID of the client site.
-            - solar_production_path (str): The path to the solar production data.
-            - dso_full_file_path (str): The path to the DSO full file.
         DEFAULT_ROLLING_VIEW_DURATION (int): Default duration for the rolling
             view plot.
         DEFAULT_ROLLING_VIEW_TIME_FRAME (str): Default time frame for the
@@ -184,8 +182,6 @@ class ConfigConstants:
             "efficiency": (float, 1.0),
             "mid": (int, -1),
             "malo_id": (str, ""),
-            "solar_production_path": (str, ""),
-            "dso_full_file_path": (str, ""),
         }
     ]
     DEFAULT_ROLLING_VIEW_DURATION = 30
@@ -194,6 +190,8 @@ class ConfigConstants:
     DEFAULT_REAL_TIME_VIEW_DURATION_HOURS = 2
     DEFAULT_STAT_PROFILE_GROUPING = [
         "grouped",
+        "continuous",
+        "24h_continuous",
     ]
     DEFAULT_PLOT_THEME = "frequenz-neustrom"
     DEFAULT_FORCE_POSITIVE_VALUES = True
@@ -201,7 +199,6 @@ class ConfigConstants:
     DEFAULT_BASELINE_MODELS = [
         "7-day MA",
         "7-day sampled MA",
-        "simulation",
         "weather-based-forecast",
     ]
     DEFAULT_LANGUAGE = "en"
