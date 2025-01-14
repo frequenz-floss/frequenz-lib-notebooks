@@ -12,3 +12,5 @@ The repo provides tools to monitor and maintain solar energy systems with the fo
 - **Notification Service:** Send alert notifications via email with support for scheduling and retries, including a linear backoff mechanism.
 
 This release provides tools to solar system operators to monitor performance and track trends, and lays the groundwork for identifying potential system issues.
+
+Moreover it includes a microgrid config module that contains component configs to get component IDs and formulas for component types (e.g. PV, battery) and metadata information (e.g. gridpool ID).
