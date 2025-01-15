@@ -1,8 +1,7 @@
-"""
-Test module for the notification service.
+# License: MIT
+# Copyright © 2025 Frequenz Energy-as-a-Service GmbH
 
-Copyright © 2024 Frequenz Energy-as-a-Service GmbH. All rights reserved.
-"""
+"""Test module for the notification service."""
 
 import logging
 import time

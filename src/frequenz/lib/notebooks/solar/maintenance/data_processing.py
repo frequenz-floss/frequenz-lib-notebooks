@@ -1,11 +1,11 @@
+# License: MIT
+# Copyright © 2025 Frequenz Energy-as-a-Service GmbH
+
 """
 Handles all data processing and transformation tasks for the solar maintenance project.
 
 The module contains functions to preprocess solar power production data, calculate
 statistical metrics, segment and analyse the data, and transform weather features.
-
-
-Copyright © 2024 Frequenz Energy-as-a-Service GmbH. All rights reserved.
 """
 
 import re

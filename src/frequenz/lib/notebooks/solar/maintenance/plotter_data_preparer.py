@@ -1,3 +1,6 @@
+# License: MIT
+# Copyright © 2025 Frequenz Energy-as-a-Service GmbH
+
 """
 Module for preparing data for various plot types.
 
@@ -13,9 +16,6 @@ Classes:
     - `ProfilePreparer`: Prepares data for statistical profile plots.
     - `DailyPreparer`: Prepares data for daily production plots.
     - `StatsPreparer`: Generates production statistics.
-
-
-Copyright © 2024 Frequenz Energy-as-a-Service GmbH. All rights reserved.
 """
 
 from abc import ABC, abstractmethod

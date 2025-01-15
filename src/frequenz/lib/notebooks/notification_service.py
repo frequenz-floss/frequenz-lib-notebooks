@@ -1,3 +1,6 @@
+# License: MIT
+# Copyright © 2025 Frequenz Energy-as-a-Service GmbH
+
 """
 This module provides a notification service for sending alert notifications.
 
@@ -57,9 +60,6 @@ email_notification.start_scheduler()
 # Stop the scheduler after some time if needed
 time.sleep(300)
 email_notification.stop_scheduler()
-
-
-Copyright © 2024 Frequenz Energy-as-a-Service GmbH. All rights reserved.
 """
 
 import logging

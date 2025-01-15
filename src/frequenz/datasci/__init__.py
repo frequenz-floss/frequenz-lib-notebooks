@@ -1,5 +1,5 @@
-# License: Proprietary
-# Copyright © 2024 Frequenz Energy-as-a-Service GmbH
+# License: MIT
+# Copyright © 2025 Frequenz Energy-as-a-Service GmbH
 
 """Initialise the datasci module."""
 

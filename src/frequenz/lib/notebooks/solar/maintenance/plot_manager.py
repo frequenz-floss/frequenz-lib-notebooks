@@ -1,3 +1,6 @@
+# License: MIT
+# Copyright © 2025 Frequenz Energy-as-a-Service GmbH
+
 """
 Plot Manager Module.
 
@@ -13,9 +16,6 @@ The PlotManager class allows users to:
 - Update legends for figures based on specified axes and configurations.
 - Apply predefined plot styles to the figures.
 - Display and save all managed figures.
-
-
-Copyright © 2024 Frequenz Energy-as-a-Service GmbH. All rights reserved.
 """
 
 import logging
