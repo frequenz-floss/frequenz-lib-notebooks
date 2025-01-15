@@ -1,11 +1,11 @@
+# License: MIT
+# Copyright © 2025 Frequenz Energy-as-a-Service GmbH
+
 """
 Dedicated to data retrieval functionalities for the solar maintenance project.
 
 This module provides functions that fetch and transform data from the weather
 and reporting APIs or csv files.
-
-
-Copyright © 2024 Frequenz Energy-as-a-Service GmbH. All rights reserved.
 """
 
 from dataclasses import dataclass, field

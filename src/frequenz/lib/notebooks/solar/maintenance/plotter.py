@@ -1,3 +1,6 @@
+# License: MIT
+# Copyright © 2025 Frequenz Energy-as-a-Service GmbH
+
 """
 Module for plotting data.
 
@@ -21,9 +24,6 @@ Classes:
 Functions:
 - `_get_plot_styles`: Retrieves plot styling details for the specified plot type
     and time frame.
-
-
-Copyright © 2024 Frequenz Energy-as-a-Service GmbH. All rights reserved.
 """
 
 from abc import ABC, abstractmethod

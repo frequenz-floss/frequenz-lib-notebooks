@@ -1,3 +1,6 @@
+# License: MIT
+# Copyright © 2025 Frequenz Energy-as-a-Service GmbH
+
 """
 This module provides a TranslationManager class for managing translations.
 
@@ -8,8 +11,6 @@ supports partial translation of strings containing translatable text, numbers
 and special characters. The class uses a dictionary to store translations for
 different languages. Any text that needs to be translated should be added to
 the dictionary with the corresponding translations for each language.
-
-Copyright © 2024 Frequenz Energy-as-a-Service GmbH. All rights reserved.
 """
 
 import re

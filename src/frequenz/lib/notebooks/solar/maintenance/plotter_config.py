@@ -1,3 +1,6 @@
+# License: MIT
+# Copyright © 2025 Frequenz Energy-as-a-Service GmbH
+
 """
 Unified configuration module for plot data preparation and visualisation.
 
@@ -16,9 +19,6 @@ Classes:
 Features:
     - A `create_config` method for merging multiple parameter sources into a
       unified configuration instance.
-
-
-Copyright © 2024 Frequenz Energy-as-a-Service GmbH. All rights reserved.
 """
 
 from dataclasses import dataclass, field, fields

@@ -1,3 +1,6 @@
+# License: MIT
+# Copyright © 2025 Frequenz Energy-as-a-Service GmbH
+
 """
 This module contains the functions to prepare prediction models.
 
@@ -8,8 +11,6 @@ corresponding specifications as values, and a list of model labels to extract
 from the model specifications. It returns a dictionary with model labels as keys
 and dictionaries containing the predictions as values. The predictions are stored
 as pandas Series with the same index as the input data and the name 'predictions'.
-
-Copyright © 2024 Frequenz Energy-as-a-Service GmbH. All rights reserved.
 """
 
 from datetime import datetime, timedelta

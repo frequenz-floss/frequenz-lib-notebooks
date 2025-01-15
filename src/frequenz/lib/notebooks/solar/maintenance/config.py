@@ -1,3 +1,6 @@
+# License: MIT
+# Copyright © 2025 Frequenz Energy-as-a-Service GmbH
+
 """
 This module contains the SolarMaintenanceConfig class.
 
@@ -5,9 +8,6 @@ The SolarMaintenanceConfig class is a configuration class that contains
 parameters and methods to update them dynamically, ensuring consistency and
 preventing unauthorized modifications. The class inherits from ConfigConstants,
 which contains immutable constants for the Solar Maintenance Project.
-
-
-Copyright © 2024 Frequenz Energy-as-a-Service GmbH. All rights reserved.
 """
 
 import datetime

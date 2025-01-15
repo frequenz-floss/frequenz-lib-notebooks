@@ -1,12 +1,12 @@
+# License: MIT
+# Copyright © 2025 Frequenz Energy-as-a-Service GmbH
+
 """
 Module for interacting with the weather API service for fetching historical forecast data.
 
 The module provides a client for the weather API service. The client can be used
 to retrieve historical weather forecast data for multiple locations and a given
 time range.
-
-License: MIT
-Copyright © 2024 Frequenz Energy-as-a-Service GmbH
 """
 
 from datetime import datetime

@@ -1,3 +1,6 @@
+# License: MIT
+# Copyright © 2025 Frequenz Energy-as-a-Service GmbH
+
 """
 This module contains the main entry point for the Solar Maintenance App.
 
@@ -7,9 +10,6 @@ weather and reporting data, generates production statistics, and plots the resul
 
 The app is designed to be executed as a standalone application. The main entry
 point for the Solar Maintenance App is the `run_workflow` function.
-
-
-Copyright © 2024 Frequenz Energy-as-a-Service GmbH. All rights reserved.
 """
 
 # pylint: disable=too-many-lines
