@@ -1,12 +1,14 @@
 # License: MIT
 # Copyright © 2025 Frequenz Energy-as-a-Service GmbH
 
-"""Module for plot style strategies for the plot_functions module.
+"""Module for plot style strategies for the plotter module.
 
 This module contains the PlotStyleStrategy abstract base class and its subclasses
 for different types of solar production profiles. The subclasses implement the
 `get_plot_styles` method to return the plot styles based on the time frame and
-additional parameters.
+additional parameters. It also contains the style_table function to convert a
+DataFrame to a styled HTML table (currently fixed to the Frequenz-Neustrom brand
+colours).
 """
 
 from abc import ABC, abstractmethod
