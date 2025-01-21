@@ -74,6 +74,53 @@ class ComponentTypeConfig:
 
 
 @dataclass(frozen=True)
+class PVConfig:
+    """Configuration of a PV system in a microgrid."""
+
+    peak_power: float | None = None
+    """Peak power of the PV system in Watt."""
+
+    rated_power: float | None = None
+    """Rated power of the inverters in Watt."""
+
+
+@dataclass(frozen=True)
+class WindConfig:
+    """Configuration of a wind turbine in a microgrid."""
+
+    turbine_model: str | None = None
+    """Model name of the wind turbine."""
+
+    rated_power: float | None = None
+    """Rated power of the wind turbine in Watt."""
+
+    turbine_height: float | None = None
+    """Height of the wind turbine in meters."""
+
+
+@dataclass(frozen=True)
+class BatteryConfig:
+    """Configuration of a battery in a microgrid."""
+
+    capacity: float | None = None
+    """Capacity of the battery in Wh."""
+
+
+@dataclass(frozen=True)
+class AssetsConfig:
+    """Configuration of the assets in a microgrid."""
+
+    pv: dict[str, PVConfig] | None = None
+    """Configuration of the PV system."""
+
+    wind: dict[str, WindConfig] | None = None
+    """Configuration of the wind turbines."""
+
+    battery: dict[str, BatteryConfig] | None = None
+    """Configuration of the batteries."""
+
+
+@dataclass(frozen=True)
 class Metadata:
     """Metadata for a microgrid."""
 
@@ -103,6 +150,9 @@ class MicrogridConfig:
     _metadata: Metadata
     """Metadata of the microgrid."""
 
+    _assets_cfg: AssetsConfig
+    """Configuration of the assets in the microgrid."""
+
     _component_types_cfg: dict[str, ComponentTypeConfig]
     """Mapping of component category types to ac power component config."""
 
@@ -114,6 +164,12 @@ class MicrogridConfig:
         """
         self._metadata = Metadata(**(config_dict.get("meta") or {}))
 
+        self._assets_cfg = AssetsConfig(
+            pv=config_dict.get("pv") or {},
+            wind=config_dict.get("wind") or {},
+            battery=config_dict.get("battery") or {},
+        )
+
         self._component_types_cfg = {
             ctype: ComponentTypeConfig(component_type=cast(ComponentType, ctype), **cfg)
             for ctype, cfg in config_dict["ctype"].items()
@@ -124,6 +180,11 @@ class MicrogridConfig:
     def meta(self) -> Metadata:
         """Return the metadata of the microgrid."""
         return self._metadata
+
+    @property
+    def assets(self) -> AssetsConfig:
+        """Return the assets configuration of the microgrid."""
+        return self._assets_cfg
 
     def component_types(self) -> list[str]:
         """Get a list of all component types in the configuration."""
