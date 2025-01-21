@@ -83,6 +83,15 @@ class Metadata:
     delivery_area: str | None = None
     """Delivery area of the microgrid."""
 
+    latitude: float | None = None
+    """Geographic latitude of the microgrid."""
+
+    longitude: float | None = None
+    """Geographic longitude of the microgrid."""
+
+    altitude: float | None = None
+    """Geographic altitude of the microgrid."""
+
 
 @dataclass
 class MicrogridConfig:
