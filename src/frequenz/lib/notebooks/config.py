@@ -10,6 +10,9 @@ from typing import Any, Literal, cast, get_args
 ComponentType = Literal["grid", "pv", "battery", "load", "chp"]
 """Valid component types."""
 
+ComponentCategory = Literal["meter", "inverter", "component"]
+"""Valid component categories."""
+
 
 @dataclass
 class ComponentTypeConfig:
@@ -126,21 +129,37 @@ class MicrogridConfig:
         """Get a list of all component types in the configuration."""
         return list(self._component_types_cfg.keys())
 
-    def component_type_ids(self, component_type: str) -> list[int]:
+    def component_type_ids(
+        self, component_type: str, component_category: str | None = None
+    ) -> list[int]:
         """Get a list of all component IDs for a component type.
 
         Args:
             component_type: Component type to be aggregated.
+            component_category: Specific category of component IDs to retrieve
+                (e.g., "meter", "inverter", or "component"). If not provided,
+                the default logic is used.
 
         Returns:
             List of component IDs for this component type.
 
         Raises:
             ValueError: If the component type is unknown.
+            KeyError: If `component_category` is invalid.
         """
         cfg = self._component_types_cfg.get(component_type)
         if not cfg:
             raise ValueError(f"{component_type} not found in config.")
+
+        if component_category:
+            valid_categories = get_args(ComponentCategory)
+            if component_category not in valid_categories:
+                raise KeyError(
+                    f"Invalid component category: {component_category}. "
+                    f"Valid categories are {valid_categories}"
+                )
+            category_ids = cast(list[int], getattr(cfg, component_category, []))
+            return category_ids
 
         return cfg.cids()
 
