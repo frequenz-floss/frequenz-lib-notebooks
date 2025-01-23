@@ -2,7 +2,7 @@
 
 ## Summary
 
-<!-- Here goes a general summary of what this release is about -->
+This release adds new capabilities to `MicrogridConfig`, including support for location metadata (longitude, latitude, altitude), asset configuration for tracking metadata of components like PV, wind, and battery, and the ability to retrieve component IDs by category (e.g., "meter" or "inverter").
 
 ## Upgrading
 
