@@ -68,7 +68,7 @@ else:
 
 # pylint: disable=too-many-statements, too-many-branches, too-many-locals
 async def run_workflow(
-    user_config_changes: dict[str, Any]
+    user_config_changes: dict[str, Any],
 ) -> dict[str, pd.DataFrame | dict[str, pd.DataFrame]]:
     """Run the Solar Maintenance App workflow.
 
@@ -742,7 +742,7 @@ async def run_workflow(
 
 
 def _load_and_validate_config(
-    user_config_changes: dict[str, Any]
+    user_config_changes: dict[str, Any],
 ) -> tuple[SolarMaintenanceConfig, dict[int, Any]]:
     """Load and validate configuration settings for the Solar Maintenance app.
 
