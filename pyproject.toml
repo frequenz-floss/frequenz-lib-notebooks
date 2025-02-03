@@ -27,7 +27,7 @@ classifiers = [
 requires-python = ">= 3.11, < 4"
 dependencies = [
   "typing-extensions >= 4.12.2, < 5",
-  "numpy >= 1.26.4, < 1.27.0",
+  "numpy >= 1.26.4, < 2.3.0",
   "pandas >= 2.1.4, < 2.3.0",
   "matplotlib >= 3.8.4, < 3.11.0",
   "ipython == 8.32.0",
