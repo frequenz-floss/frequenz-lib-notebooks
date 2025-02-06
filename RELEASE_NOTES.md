@@ -2,11 +2,11 @@
 
 ## Summary
 
-<!-- Here goes a general summary of what this release is about -->
+Renamed the `"load"` component type to `"consumption"` for clarity.
 
 ## Upgrading
 
-<!-- Here goes notes on how to upgrade from previous versions, including deprecations and what they should be replaced with -->
+If your code references `"load"` as a component type, update it to `"consumption"`.
 
 ## New Features
 
