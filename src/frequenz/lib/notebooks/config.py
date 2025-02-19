@@ -172,7 +172,7 @@ class MicrogridConfig:
 
         self._component_types_cfg = {
             ctype: ComponentTypeConfig(component_type=cast(ComponentType, ctype), **cfg)
-            for ctype, cfg in config_dict["ctype"].items()
+            for ctype, cfg in config_dict.get("ctype", {}).items()
             if ComponentTypeConfig.is_valid_type(ctype)
         }
 
