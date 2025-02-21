@@ -30,13 +30,16 @@ class ComponentTypeConfig:
     component: list[int] | None = None
     """List of component IDs for this component."""
 
-    formula: str = ""
+    formula: dict[str, str] | None = None
     """Formula to calculate the power of this component."""
 
     def __post_init__(self) -> None:
         """Set the default formula if none is provided."""
-        if not self.formula:
-            self.formula = self._default_formula()
+        self.formula = self.formula or {}
+        if "AC_ACTIVE_POWER" not in self.formula:
+            self.formula["AC_ACTIVE_POWER"] = "+".join(
+                [f"#{cid}" for cid in self.cids()]
+            )
 
     def cids(self) -> list[int]:
         """Get component IDs for this component.
@@ -58,14 +61,6 @@ class ComponentTypeConfig:
             return self.component
 
         raise ValueError(f"No IDs available for {self.component_type}")
-
-    def _default_formula(self) -> str:
-        """Return the default formula for this component."""
-        return "+".join([f"#{cid}" for cid in self.cids()])
-
-    def has_formula_for(self, metric: str) -> bool:
-        """Return whether this formula is valid for a metric."""
-        return metric in ["AC_ACTIVE_POWER", "AC_REACTIVE_POWER"]
 
     @classmethod
     def is_valid_type(cls, ctype: str) -> bool:
@@ -235,16 +230,18 @@ class MicrogridConfig:
             Formula to be used for this aggregated component as string.
 
         Raises:
-            ValueError: If the component type is unknown.
+            ValueError: If the component type is unknown or formula is missing.
         """
         cfg = self._component_types_cfg.get(component_type)
         if not cfg:
             raise ValueError(f"{component_type} not found in config.")
-
-        if not cfg.has_formula_for(metric):
+        if cfg.formula is None:
+            raise ValueError(f"No formula set for {component_type}")
+        formula = cfg.formula.get(metric)
+        if not formula:
             raise ValueError(f"{metric} not supported for {component_type}")
 
-        return cfg.formula
+        return formula
 
     @staticmethod
     def load_configs(*paths: str) -> dict[str, "MicrogridConfig"]:
