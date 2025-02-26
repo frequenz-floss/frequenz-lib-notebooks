@@ -41,6 +41,12 @@ class ComponentTypeConfig:
             self.formula["AC_ACTIVE_POWER"] = "+".join(
                 [f"#{cid}" for cid in self._default_cids()]
             )
+        if self.component_type == "battery" and "BATTERY_SOC_PCT" not in self.formula:
+            if self.component:
+                cids = self.component
+                form = "+".join([f"#{cid}" for cid in cids])
+                form = f"({form})/({len(cids)})"
+                self.formula["BATTERY_SOC_PCT"] = form
 
     def cids(self, metric: str = "") -> list[int]:
         """Get component IDs for this component.
@@ -275,7 +281,7 @@ class MicrogridConfig:
             raise ValueError(f"No formula set for {component_type}")
         formula = cfg.formula.get(metric)
         if not formula:
-            raise ValueError(f"{metric} not supported for {component_type}")
+            raise ValueError(f"{component_type} is missing formula for {metric}")
 
         return formula
 
