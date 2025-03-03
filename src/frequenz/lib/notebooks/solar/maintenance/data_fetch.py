@@ -380,6 +380,10 @@ def _handle_outliers(
 
     Returns:
         The reporting data after outlier detection and replacement.
+
+    Raises:
+        TypeError: If the bounds, method, or method_params are not of the
+            expected type.
     """
     message_1 = (
         "Columns that denote power values (will use these for outlier detection): "
@@ -393,10 +397,12 @@ def _handle_outliers(
     bounds = params.get("bounds", (0.0, 0.0))
     method = params.get("method", "")
     method_params = params.get("params", {})
-    # sanity checks
-    assert isinstance(bounds, tuple)
-    assert isinstance(method, str)
-    assert isinstance(method_params, dict)
+    if not isinstance(bounds, tuple):
+        raise TypeError("bounds must be a tuple")
+    if not isinstance(method, str):
+        raise TypeError("method must be a string")
+    if not isinstance(method_params, dict):
+        raise TypeError("method_params must be a dictionary")
     data = outlier_removal(
         data=data,
         columns=power_column_labels,

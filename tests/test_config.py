@@ -160,6 +160,10 @@ def _assert_optional_field(value: float | None, expected: float) -> None:
     Args:
         value: The optional field value to check.
         expected: The expected value to assert if `value` is not None.
+
+    Raises:
+        AssertionError: If `value` is not None and does not match `expected`.
     """
     if value is not None:
-        assert value == expected
+        if value != expected:
+            raise AssertionError(f"Expected {expected}, got {value}")

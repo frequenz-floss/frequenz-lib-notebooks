@@ -250,6 +250,9 @@ def sampled_moving_average(
         prediction (i.e. the moving average) corresponding to the ground truth
         does not include the ground truth itself. This can be achieved by
         shifting the Series by sampling_interval.
+
+    Raises:
+        TypeError: If the output is not a pandas Series.
     """
     sampling_interval = abs(int(sampling_interval))
     data_index = pd.to_datetime(data.index).to_series()
@@ -270,7 +273,8 @@ def sampled_moving_average(
     ).apply(lambda x: x[::sampling_interval].mean(), raw=True)
     if isinstance(predictions, pd.DataFrame):
         predictions = predictions.squeeze()
-        assert isinstance(predictions, pd.Series)  # for type checker
+        if not isinstance(predictions, pd.Series):
+            raise TypeError("Output is not a pandas Series.")
     predictions.name = "predictions"
     return predictions
 
@@ -303,7 +307,8 @@ def naive_efficiency_factor_irr_to_power(  # pylint: disable=too-many-arguments
         A pandas Series containing the predicted power (in kilo-Watts) output.
 
     Raises:
-        ValueError: If the input dataframe contains duplicate index entries.
+        ValueError: If the input dataframe contains duplicate index entries or
+            if the validity_ts is not unique.
     """
     data_copy = data.copy(deep=True)
     data_copy.sort_values(by=["creation_ts", "validity_ts"], inplace=True)
@@ -319,9 +324,8 @@ def naive_efficiency_factor_irr_to_power(  # pylint: disable=too-many-arguments
         to_include.loc[to_include.index[position + 1 :]] = True
     data_copy = data_copy[to_include]
 
-    assert (
-        data_copy.validity_ts.nunique() == data_copy.validity_ts.count()
-    ), "validity_ts is not unique"
+    if data_copy.validity_ts.nunique() != data_copy.validity_ts.count():
+        raise ValueError("validity_ts is not unique")
     data_copy.set_index("validity_ts", inplace=True)
     data_copy.index.name = "timestamp"
     if resample_rate:
@@ -450,6 +454,9 @@ def run_pvlib_simulation(  # pylint: disable=unused-argument
         Returns:
             A pandas DataFrame containing the hourly data.
 
+        Raises:
+            ValueError: If the minute values in the index are not unique.
+
         References:
         - https://pvlib-python.readthedocs.io/en/stable/reference/generated/
         pvlib.iotools.get_pvgis_hourly.html
@@ -462,7 +469,8 @@ def run_pvlib_simulation(  # pylint: disable=unused-argument
             raddatabase="PVGIS-SARAH2",
             url="https://re.jrc.ec.europa.eu/api/v5_2/",
         )
-        assert pvgis_df.index.minute.nunique() == 1  # sanity check
+        if pvgis_df.index.minute.nunique() != 1:
+            raise ValueError("Minute values in the index are not unique.")
         pvgis_df.index = pvgis_df.index - pd.Timedelta(
             minutes=pvgis_df.index.minute.unique()[0]
         )
