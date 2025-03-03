@@ -3,8 +3,8 @@
 
 [build-system]
 requires = [
-  "setuptools == 75.8.0",
-  "setuptools_scm[toml] == 8.1.0",
+  "setuptools == 75.8.2",
+  "setuptools_scm[toml] == 8.2.0",
   "frequenz-repo-config[lib] == 0.12.3",
 ]
 build-backend = "setuptools.build_meta"
@@ -45,13 +45,13 @@ email = "floss@frequenz.com"
 
 [project.optional-dependencies]
 dev-flake8 = [
-  "flake8 == 7.1.1",
+  "flake8 == 7.1.2",
   "flake8-docstrings == 1.7.0",
   "flake8-pyproject == 1.2.3",  # For reading the flake8 config from pyproject.toml
-  "pydoclint == 0.6.0",
+  "pydoclint == 0.6.2",
   "pydocstyle == 6.3.0",
 ]
-dev-formatting = ["black == 25.1.0", "isort == 6.0.0"]
+dev-formatting = ["black == 25.1.0", "isort == 6.0.1"]
 dev-mkdocs = [
   "Markdown == 3.7",
   "black == 25.1.0",
@@ -59,13 +59,13 @@ dev-mkdocs = [
   "mkdocs-gen-files == 0.5.0",
   "mkdocs-literate-nav == 0.6.1",
   "mkdocs-macros-plugin == 1.3.7",
-  "mkdocs-material == 9.6.1",
+  "mkdocs-material == 9.6.7",
   "mkdocstrings[python] == 0.28.2",
   "mkdocstrings-python == 1.16.2",
   "frequenz-repo-config[lib] == 0.12.3",
 ]
 dev-mypy = [
-  "mypy == 1.14.1",
+  "mypy == 1.15.0",
   "pandas-stubs == 2.2.3.241126",
   "types-toml==0.10.8.20240310",
   "types-Markdown == 3.7.0.20241204",
@@ -82,7 +82,7 @@ dev-pylint = [
   "frequenz-lib-notebooks[dev-mkdocs,dev-noxfile,dev-pytest]",
 ]
 dev-pytest = [
-  "pytest == 8.3.4",
+  "pytest == 8.3.5",
   "pylint == 3.3.4",       # We need this to check for the examples
   "frequenz-repo-config[extra-lint-examples] == 0.12.3",
   "pytest-mock == 3.14.0",
