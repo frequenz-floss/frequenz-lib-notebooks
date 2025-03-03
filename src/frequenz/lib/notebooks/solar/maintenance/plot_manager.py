@@ -562,13 +562,19 @@ class PlotManager:
             axs: List of matplotlib Axes objects.
             modifications: A dictionary containing modifications.
             **legend_kwargs: Additional keyword arguments for the legend function.
+
+        Raises:
+            TypeError: If the inputs are invalid.
         """
         additional_items, remove_label, replace_label = self._get_modifications(
             modifications
         )
-        assert self._is_additional_items_type(additional_items)
-        assert self._is_text_modification_type(remove_label)
-        assert self._is_replace_label_type(replace_label)
+        if not self._is_additional_items_type(additional_items):
+            raise TypeError("additional_items must be of type AdditionalItemsType")
+        if not self._is_text_modification_type(remove_label):
+            raise TypeError("remove_label must be of type TextModificationType")
+        if not self._is_replace_label_type(replace_label):
+            raise TypeError("replace_label must be of type ReplaceLabelType")
 
         for i, ax in enumerate(axs):
             handles, labels = ax.get_legend_handles_labels()
@@ -602,13 +608,19 @@ class PlotManager:
             axs: List of matplotlib Axes objects.
             modifications: A dictionary containing modifications.
             **legend_kwargs: Additional keyword arguments for the legend function.
+
+        Raises:
+            TypeError: If the inputs are invalid.
         """
         additional_items, remove_label, replace_label = self._get_modifications(
             modifications
         )
-        assert self._is_additional_items_type(additional_items)
-        assert self._is_text_modification_type(remove_label)
-        assert self._is_replace_label_type(replace_label)
+        if not self._is_additional_items_type(additional_items):
+            raise TypeError("additional_items must be of type AdditionalItemsType")
+        if not self._is_text_modification_type(remove_label):
+            raise TypeError("remove_label must be of type TextModificationType")
+        if not self._is_replace_label_type(replace_label):
+            raise TypeError("replace_label must be of type ReplaceLabelType")
 
         all_handles, all_labels = [], []
         for ax in axs:

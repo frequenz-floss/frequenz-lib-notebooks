@@ -135,12 +135,13 @@ def preprocess_data(
     time_diff_seconds_series = time_diff_seconds_arr[
         time_diff_seconds_arr.notna() & (time_diff_seconds_arr != 0)
     ]
-    try:
-        assert (
-            time_diff_seconds_series.nunique() == 1
-        ), "Time differences are not constant. Taking the most frequent value."
+    if time_diff_seconds_series.nunique() == 1:
         time_diff_seconds = time_diff_seconds_series.values[0]
-    except AssertionError:
+    else:
+        warnings.warn(
+            "Detected multiple unique time differences; this may indicate inconsistent "
+            "timestamps. Falling back to the mode of the time differences."
+        )
         time_diff_seconds = time_diff_seconds_series.mode()[0]
     for unit in energy_units:
         energy_factor, base_unit = parse_unit(unit)

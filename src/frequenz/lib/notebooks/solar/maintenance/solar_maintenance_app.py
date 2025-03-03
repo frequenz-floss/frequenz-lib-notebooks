@@ -90,6 +90,8 @@ async def run_workflow(
                 This is not an issue in this version because the column labels
                 (i.e. `short_term_view_col_to_plot` and
                 `stat_profile_view_col_to_plot`) are hardcoded.
+            - If the timezone of the data does not match the timezone in the
+                configuration.
     """
     config, all_client_site_info = _load_and_validate_config(user_config_changes)
 
@@ -221,7 +223,8 @@ async def run_workflow(
             )
             normalisation_factor = 1
         timezone = str(pd.to_datetime(data.index).tzinfo)
-        assert timezone == config.time_zone.key, "Timezone mismatch."  # sanity check
+        if timezone != config.time_zone.key:
+            raise ValueError("Timezone mismatch.")
 
         pv_system = None
         if "simulation" in config.baseline_models:
