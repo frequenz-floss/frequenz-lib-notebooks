@@ -71,7 +71,7 @@ dev-mypy = [
   "frequenz-lib-notebooks[dev-mkdocs,dev-noxfile,dev-pytest]",
 ]
 dev-noxfile = [
-  "nox == 2024.10.9",
+  "nox == 2025.2.9",
   "frequenz-repo-config[lib] == 0.12.3",
 ]
 dev-pylint = [
