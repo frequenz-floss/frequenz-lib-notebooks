@@ -3,6 +3,7 @@
 
 """Configuration for microgrids."""
 
+import re
 import tomllib
 from dataclasses import dataclass
 from typing import Any, Literal, cast, get_args
@@ -30,18 +31,58 @@ class ComponentTypeConfig:
     component: list[int] | None = None
     """List of component IDs for this component."""
 
-    formula: str = ""
+    formula: dict[str, str] | None = None
     """Formula to calculate the power of this component."""
 
     def __post_init__(self) -> None:
         """Set the default formula if none is provided."""
-        if not self.formula:
-            self.formula = self._default_formula()
+        self.formula = self.formula or {}
+        if "AC_ACTIVE_POWER" not in self.formula:
+            self.formula["AC_ACTIVE_POWER"] = "+".join(
+                [f"#{cid}" for cid in self._default_cids()]
+            )
+        if self.component_type == "battery" and "BATTERY_SOC_PCT" not in self.formula:
+            if self.component:
+                cids = self.component
+                form = "+".join([f"#{cid}" for cid in cids])
+                form = f"({form})/({len(cids)})"
+                self.formula["BATTERY_SOC_PCT"] = form
 
-    def cids(self) -> list[int]:
+    def cids(self, metric: str = "") -> list[int]:
         """Get component IDs for this component.
 
         By default, the meter IDs are returned if available, otherwise the inverter IDs.
+        For components without meters or inverters, the component IDs are returned.
+
+        If a metric is provided, the component IDs are extracted from the formula.
+
+        Args:
+            metric: Metric name of the formula.
+
+        Returns:
+            List of component IDs for this component.
+
+        Raises:
+            ValueError: If the metric is not supported or improperly set.
+        """
+        if metric:
+            if not isinstance(self.formula, dict):
+                raise ValueError("Formula must be a dictionary.")
+            formula = self.formula.get(metric)
+            if not formula:
+                raise ValueError(
+                    f"{metric} does not have a formula for {self.component_type}"
+                )
+            # Extract component IDs from the formula which are given as e.g. #123
+            pattern = r"#(\d+)"
+            return [int(e) for e in re.findall(pattern, self.formula[metric])]
+
+        return self._default_cids()
+
+    def _default_cids(self) -> list[int]:
+        """Get the default component IDs for this component.
+
+        If available, the meter IDs are returned, otherwise the inverter IDs.
         For components without meters or inverters, the component IDs are returned.
 
         Returns:
@@ -58,14 +99,6 @@ class ComponentTypeConfig:
             return self.component
 
         raise ValueError(f"No IDs available for {self.component_type}")
-
-    def _default_formula(self) -> str:
-        """Return the default formula for this component."""
-        return "+".join([f"#{cid}" for cid in self.cids()])
-
-    def has_formula_for(self, metric: str) -> bool:
-        """Return whether this formula is valid for a metric."""
-        return metric in ["AC_ACTIVE_POWER", "AC_REACTIVE_POWER"]
 
     @classmethod
     def is_valid_type(cls, ctype: str) -> bool:
@@ -191,7 +224,10 @@ class MicrogridConfig:
         return list(self._component_types_cfg.keys())
 
     def component_type_ids(
-        self, component_type: str, component_category: str | None = None
+        self,
+        component_type: str,
+        component_category: str | None = None,
+        metric: str = "",
     ) -> list[int]:
         """Get a list of all component IDs for a component type.
 
@@ -200,6 +236,7 @@ class MicrogridConfig:
             component_category: Specific category of component IDs to retrieve
                 (e.g., "meter", "inverter", or "component"). If not provided,
                 the default logic is used.
+            metric: Metric name of the formula if CIDs should be extracted from the formula.
 
         Returns:
             List of component IDs for this component type.
@@ -222,7 +259,7 @@ class MicrogridConfig:
             category_ids = cast(list[int], getattr(cfg, component_category, []))
             return category_ids
 
-        return cfg.cids()
+        return cfg.cids(metric)
 
     def formula(self, component_type: str, metric: str) -> str:
         """Get the formula for a component type.
@@ -235,16 +272,18 @@ class MicrogridConfig:
             Formula to be used for this aggregated component as string.
 
         Raises:
-            ValueError: If the component type is unknown.
+            ValueError: If the component type is unknown or formula is missing.
         """
         cfg = self._component_types_cfg.get(component_type)
         if not cfg:
             raise ValueError(f"{component_type} not found in config.")
+        if cfg.formula is None:
+            raise ValueError(f"No formula set for {component_type}")
+        formula = cfg.formula.get(metric)
+        if not formula:
+            raise ValueError(f"{component_type} is missing formula for {metric}")
 
-        if not cfg.has_formula_for(metric):
-            raise ValueError(f"{metric} not supported for {component_type}")
-
-        return cfg.formula
+        return formula
 
     @staticmethod
     def load_configs(*paths: str) -> dict[str, "MicrogridConfig"]:

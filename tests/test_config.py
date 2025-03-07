@@ -14,7 +14,7 @@ VALID_CONFIG: dict[str, dict[str, Any]] = {
     "1": {
         "meta": {"name": "Test Grid", "gid": 1},
         "ctype": {
-            "pv": {"meter": [101, 102], "formula": "AC_ACTIVE_POWER"},
+            "pv": {"meter": [101, 102], "formula": {"AC_ACTIVE_POWER": "#12+#23"}},
             "battery": {
                 "inverter": [201, 202, 203],
                 "component": [301, 302, 303, 304, 305, 306],
@@ -61,19 +61,6 @@ def test_component_type_config_cids() -> None:
         config.cids()
 
 
-def test_component_type_config_default_formula() -> None:
-    """Test that the default formula is generated correctly."""
-    config = ComponentTypeConfig(component_type="pv", meter=[1, 2])
-    assert config._default_formula() == "#1+#2"  # pylint: disable=protected-access
-
-
-def test_component_type_config_has_formula_for() -> None:
-    """Test whether a component type has a valid formula for a metric."""
-    config = ComponentTypeConfig(component_type="pv", formula="AC_ACTIVE_POWER")
-    assert config.has_formula_for("AC_ACTIVE_POWER")
-    assert not config.has_formula_for("INVALID_METRIC")
-
-
 def test_microgrid_config_init(valid_microgrid_config: MicrogridConfig) -> None:
     """Test initialisation of MicrogridConfig with valid configuration data."""
     assert valid_microgrid_config.meta.name == "Test Grid"
@@ -117,7 +104,7 @@ def test_microgrid_config_component_type_ids(
 
 def test_microgrid_config_formula(valid_microgrid_config: MicrogridConfig) -> None:
     """Test retrieval of formula for a given component type and metric."""
-    assert valid_microgrid_config.formula("pv", "AC_ACTIVE_POWER") == "AC_ACTIVE_POWER"
+    assert valid_microgrid_config.formula("pv", "AC_ACTIVE_POWER") == "#12+#23"
 
     with pytest.raises(ValueError):
         valid_microgrid_config.formula("pv", "INVALID_METRIC")
