@@ -10,7 +10,7 @@
 
 ## New Features
 
-<!-- Here goes the main new features and examples or instructions on how to use them -->
+- Improved MIME type detection for email attachments, with a fallback for unknown file types.
 
 ## Bug Fixes
 
