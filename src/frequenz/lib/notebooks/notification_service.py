@@ -568,6 +568,7 @@ class EmailNotification(BaseNotification):
             msg: EmailMessage object.
             attachments: List of file paths to attach.
         """
+        failed_attachments = []
         for file in attachments:
             try:
                 with open(file, "rb") as f:
@@ -579,7 +580,12 @@ class EmailNotification(BaseNotification):
                         filename=os.path.basename(file),
                     )
             except OSError as e:
+                failed_attachments.append(file)
                 _log.error("Failed to attach file %s: %s", file, e)
+        if failed_attachments:
+            _log.warning(
+                "The following attachments could not be added: %s", failed_attachments
+            )
 
     @staticmethod
     def _get_mime_type(file: str) -> tuple[str, str]:
