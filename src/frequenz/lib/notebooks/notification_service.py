@@ -532,88 +532,99 @@ class EmailNotification(BaseNotification):
                 if self._config.scheduler
                 else self._config.max_retry_sleep
             ),
-            subject=self._config.subject,
-            html_body=self._config.message,
-            to_emails=self._config.recipients,
-            from_email=self._config.from_email,
-            smtp_server=self._config.smtp_server,
-            smtp_port=self._config.smtp_port,
-            smtp_user=self._config.smtp_user,
-            smtp_password=self._config.smtp_password,
-            attachments=self._config.attachments,
+            config=self._config,
         )
 
-    @staticmethod
-    def _send_email(  # pylint: disable=too-many-arguments
-        *,
-        subject: str,
-        html_body: str,
-        to_emails: list[str],
-        from_email: str,
-        smtp_server: str,
-        smtp_port: int,
-        smtp_user: str,
-        smtp_password: str,
-        attachments: list[str] | None = None,
+    def _send_email(
+        self,
+        config: EmailConfig,
     ) -> None:
         """Send an HTML email alert with optional attachments.
 
         Args:
-            subject: Email subject.
-            html_body: HTML body content for the email.
+            config: Email configuration object.
+        """
+        msg = EmailMessage()
+        msg["From"] = config.from_email
+        msg["To"] = ", ".join(config.recipients)
+        msg["Subject"] = config.subject
+        msg.add_alternative(config.message, subtype="html")
+
+        if config.attachments:
+            self._attach_files(msg, config.attachments)
+
+        smtp_settings: dict[str, str | int] = {
+            "server": config.smtp_server,
+            "port": config.smtp_port,
+            "user": config.smtp_user,
+            "password": config.smtp_password,
+        }
+        self._connect_and_send(msg, smtp_settings, config.recipients)
+
+    def _attach_files(self, msg: EmailMessage, attachments: list[str]) -> None:
+        """Attach files to the email.
+
+        Args:
+            msg: EmailMessage object.
+            attachments: List of file paths to attach.
+        """
+        for file in attachments:
+            try:
+                with open(file, "rb") as f:
+                    maintype, subtype = self._get_mime_type(file)
+                    msg.add_attachment(
+                        f.read(),
+                        maintype=maintype,
+                        subtype=subtype,
+                        filename=os.path.basename(file),
+                    )
+            except OSError as e:
+                _log.error("Failed to attach file %s: %s", file, e)
+
+    @staticmethod
+    def _get_mime_type(file: str) -> tuple[str, str]:
+        """Determine the MIME type of a file with fallback.
+
+        Args:
+            file: Path to the file.
+
+        Returns:
+            A tuple containing the MIME type (maintype, subtype).
+        """
+        mime_type, _ = mimetypes.guess_type(file)
+        if mime_type:
+            maintype, subtype = mime_type.split("/")
+        else:
+            # generic fallback logic
+            if file.endswith((".csv", ".txt", ".log")):
+                maintype, subtype = "text", "plain"
+            elif file.endswith((".jpg", ".jpeg", ".png", ".gif", ".bmp")):
+                maintype, subtype = "image", "png"
+            else:
+                # default: binary file fallback
+                maintype, subtype = "application", "octet-stream"
+        return maintype, subtype
+
+    @staticmethod
+    def _connect_and_send(
+        msg: EmailMessage, smtp_settings: dict[str, str | int], to_emails: list[str]
+    ) -> None:
+        """Send the email via SMTP.
+
+        Args:
+            msg: EmailMessage object containing the email content.
+            smtp_settings: SMTP server configuration.
             to_emails: List of recipient email addresses.
-            from_email: Sender email address.
-            smtp_server: SMTP server address.
-            smtp_port: SMTP server port.
-            smtp_user: SMTP login username.
-            smtp_password: SMTP login password.
-            attachments: List of files to attach.
 
         Raises:
             SMTPException: If the email fails to send.
         """
-        msg = EmailMessage()
-        msg["From"] = from_email
-        msg["To"] = ", ".join(to_emails)
-        msg["Subject"] = subject
-        msg.add_alternative(html_body, subtype="html")
-
-        if attachments:
-            for file in attachments:
-                try:
-                    with open(file, "rb") as f:
-
-                        # guess MIME type from file extension
-                        mime_type, _ = mimetypes.guess_type(file)
-
-                        if mime_type:
-                            maintype, subtype = mime_type.split("/")
-                        else:
-                            # generic fallback logic
-                            if file.endswith((".csv", ".txt", ".log")):
-                                maintype, subtype = "text", "plain"
-                            elif file.endswith(
-                                (".jpg", ".jpeg", ".png", ".gif", ".bmp")
-                            ):
-                                maintype, subtype = "image", "png"
-                            else:
-                                # default: binary file fallback
-                                maintype, subtype = "application", "octet-stream"
-
-                        print(maintype, subtype)
-                        msg.add_attachment(
-                            f.read(),
-                            maintype=maintype,
-                            subtype=subtype,
-                            filename=os.path.basename(file),
-                        )
-                except OSError as e:
-                    _log.error("Failed to attach file %s: %s", file, e)
-
         try:
-            with smtplib.SMTP(smtp_server, smtp_port) as server:
+            with smtplib.SMTP(
+                str(smtp_settings["server"]), int(smtp_settings["port"])
+            ) as server:
                 server.starttls()
-                server.login(smtp_user, smtp_password)
+                server.login(str(smtp_settings["user"]), str(smtp_settings["password"]))
                 server.send_message(msg)
             _log.info("Email sent successfully to %s", to_emails)
         except SMTPException as e:
