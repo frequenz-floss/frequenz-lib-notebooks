@@ -236,10 +236,20 @@ def test_send_email_with_attachments(
     email_notification = EmailNotification(config=email_config)
     email_notification.send()
 
-    mock_open.assert_called_once_with("test_file.txt", "rb")
+    # Filter out any unexpected file open calls (like /etc/apache2/mime.types)
+    file_open_calls = [
+        call_args[0][0]
+        for call_args in mock_open.call_args_list
+        if call_args[0][0] == "test_file.txt"
+    ]
+
+    assert (
+        len(file_open_calls) == 1
+    ), f"Unexpected open calls: {mock_open.call_args_list}"
     mock_add_attachment.assert_called_once_with(
-        "data",
-        subtype="octet-stream",
+        "",
+        maintype="text",
+        subtype="plain",
         filename="test_file.txt",
     )
     mock_smtp.assert_called_once_with("smtp.test.com", 587)

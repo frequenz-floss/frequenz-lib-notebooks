@@ -63,6 +63,7 @@ email_notification.stop_scheduler()
 """
 
 import logging
+import mimetypes
 import os
 import smtplib
 import threading
@@ -581,9 +582,29 @@ class EmailNotification(BaseNotification):
             for file in attachments:
                 try:
                     with open(file, "rb") as f:
+
+                        # guess MIME type from file extension
+                        mime_type, _ = mimetypes.guess_type(file)
+
+                        if mime_type:
+                            maintype, subtype = mime_type.split("/")
+                        else:
+                            # generic fallback logic
+                            if file.endswith((".csv", ".txt", ".log")):
+                                maintype, subtype = "text", "plain"
+                            elif file.endswith(
+                                (".jpg", ".jpeg", ".png", ".gif", ".bmp")
+                            ):
+                                maintype, subtype = "image", "png"
+                            else:
+                                # default: binary file fallback
+                                maintype, subtype = "application", "octet-stream"
+
+                        print(maintype, subtype)
                         msg.add_attachment(
                             f.read(),
-                            subtype="octet-stream",
+                            maintype=maintype,
+                            subtype=subtype,
                             filename=os.path.basename(file),
                         )
                 except OSError as e:
