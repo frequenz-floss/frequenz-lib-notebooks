@@ -18,6 +18,8 @@ EMAIL_CSS = """
 </style>
 """
 
+SEVERITY_ORDER = ["error", "warning", "state"]
+
 if TYPE_CHECKING:
     SeriesType = Series[Any]
 else:
@@ -150,18 +152,28 @@ def generate_alert_summary(alert_records: pd.DataFrame) -> str:
 def generate_alert_table(
     alert_records: pd.DataFrame,
     displayed_rows: int = 20,
+    sort_by_severity: bool = False,
 ) -> str:
     """Generate a formatted HTML table for alert details.
 
     Args:
         alert_records: DataFrame containing alert records.
         displayed_rows: Number of rows to display.
+        sort_by_severity: Whether to sort alerts by severity.
 
     Returns:
         HTML string of the table.
     """
     if alert_records.empty:
         return "<p>No alerts recorded.</p>"
+
+    if sort_by_severity:
+        alert_records = alert_records.copy()
+        alert_records["state_type"] = alert_records["state_type"].str.lower()
+        alert_records["state_type"] = pd.Categorical(
+            alert_records["state_type"], categories=SEVERITY_ORDER, ordered=True
+        )
+        alert_records = alert_records.sort_values("state_type")
 
     if len(alert_records) > displayed_rows:
         note = f"""
@@ -219,7 +231,7 @@ def generate_alert_email(
             <h2>Summary:</h2>
             {generate_alert_summary(alert_records)}
             <h2>Alert Details:</h2>
-            {generate_alert_table(alert_records, displayed_rows)}
+            {generate_alert_table(alert_records, displayed_rows, sort_by_severity)}
             <hr>
             <div class="footer" style="text-align: center; font-size: 12px; color: #777;">
                 <p>&copy; 2024 Frequenz Energy-as-a-Service GmbH. All rights reserved.</p>
