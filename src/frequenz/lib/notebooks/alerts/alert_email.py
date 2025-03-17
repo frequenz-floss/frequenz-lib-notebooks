@@ -94,11 +94,14 @@ def _parse_and_localize_timestamp(timestamp: Any) -> pd.Timestamp:
     return pd.Timestamp(parsed_time)
 
 
-def generate_alert_summary(alert_records: pd.DataFrame) -> str:
-    """Generate a summary of alerts per microgrid.
+def generate_alert_summary(
+    alert_records: pd.DataFrame, group_by_component: bool = False
+) -> str:
+    """Generate a summary of alerts per microgrid, optionally grouped by component ID.
 
     Args:
         alert_records: DataFrame containing alert records.
+        group_by_component: Whether to group alerts by component ID.
 
     Returns:
         HTML summary string.
@@ -106,26 +109,36 @@ def generate_alert_summary(alert_records: pd.DataFrame) -> str:
     if alert_records.empty:
         return "<p>No alerts recorded.</p>"
 
-    summary_data = alert_records.groupby("microgrid_id").agg(
-        total_errors=(
-            "state_type",
-            lambda x: (x.fillna("").str.lower() == "error").sum(),
-        ),
-        total_warnings=(
-            "state_type",
-            lambda x: (x.fillna("").str.lower() == "warning").sum(),
-        ),
-        unique_states=(
-            "state_value",
-            lambda x: [html.escape(str(s)) for s in x.unique()],
-        ),
-        unique_components=("component_id", lambda x: list(x.unique())),
+    group_columns = ["microgrid_id"]
+    if group_by_component:
+        group_columns.append("component_id")
+
+    summary_data = (
+        alert_records.groupby(group_columns)
+        .agg(
+            total_errors=(
+                "state_type",
+                lambda x: (x.fillna("").str.lower() == "error").sum(),
+            ),
+            total_warnings=(
+                "state_type",
+                lambda x: (x.fillna("").str.lower() == "warning").sum(),
+            ),
+            unique_states=(
+                "state_value",
+                lambda x: [html.escape(str(s)) for s in x.unique()],
+            ),
+            unique_components=("component_id", lambda x: list(x.unique())),
+        )
+        .reset_index()
     )
 
     summary_html = "".join(
         [
             f"""
-        <p><strong>Microgrid {microgrid_id}:</strong></p>
+        <p><strong>Microgrid {row['microgrid_id']}{
+            ", Component " + str(row['component_id']) if group_by_component else ""
+            }:</strong></p>
         <ul>
             <li><strong>Total errors:</strong> {row['total_errors']}</li>
             <li><strong>Total warnings:</strong> {row['total_warnings']}</li>
@@ -135,17 +148,27 @@ def generate_alert_summary(alert_records: pd.DataFrame) -> str:
                     <li>Unique States: {row['unique_states']}</li>
                 </ul>
             </li>
-            <li><strong>Components:</strong>
-                <ul>
-                    <li>Alerts found for {len(row['unique_components'])} components</li>
-                    <li>Components: {row['unique_components']}</li>
-                </ul>
-            </li>
-        </ul>
+            </ul>
         """
-            for microgrid_id, row in summary_data.iterrows()
+            + (
+                f"""
+            <ul>
+                <li><strong>Components:</strong>
+                    <ul>
+                        <li>Alerts found for {len(row['unique_components'])} components</li>
+                        <li>Components: {row['unique_components']}</li>
+                    </ul>
+                </li>
+            </ul>
+            """
+                if not group_by_component
+                else ""
+            )
+            + "</p>"
+            for _, row in summary_data.iterrows()
         ]
     )
+
     return summary_html
 
 
@@ -189,21 +212,31 @@ def generate_alert_table(
     return f"{note}{styled_table}"
 
 
-def generate_alert_json(alert_records: pd.DataFrame) -> dict[str, Any]:
+def generate_alert_json(
+    alert_records: pd.DataFrame, group_by_component: bool = False
+) -> dict[str, Any]:
     """Generate a JSON representation of the alert data.
+
+    The data can be optionally grouped by component ID
 
     Args:
         alert_records: DataFrame containing alert records.
+        group_by_component: Whether to group alerts by component ID.
 
     Returns:
         Dictionary representing the alert data in JSON format.
     """
     if alert_records.empty:
         return {"summary": "<p>No alerts recorded.</p>"}
+
+    group_columns = ["microgrid_id"]
+    if group_by_component:
+        group_columns.append("component_id")
+
     return {
         "summary": {
-            microgrid_id: group.to_dict(orient="records")
-            for microgrid_id, group in alert_records.groupby("microgrid_id")
+            idx: group.to_dict(orient="records")
+            for idx, group in alert_records.groupby(group_columns)
         }
     }
 
@@ -212,6 +245,8 @@ def generate_alert_email(
     alert_records: pd.DataFrame,
     notebook_url: str,
     displayed_rows: int = 20,
+    sort_by_severity: bool = False,
+    group_by_component: bool = False,
 ) -> str:
     """Generate a full HTML email for alerts.
 
@@ -219,6 +254,8 @@ def generate_alert_email(
         alert_records: DataFrame containing alert records.
         notebook_url: URL for managing alert preferences.
         displayed_rows: Number of rows to display in the email.
+        sort_by_severity: Whether to sort alerts by severity.
+        group_by_component: Whether to group alerts by component ID.
 
     Returns:
         Full HTML email body.
@@ -229,7 +266,7 @@ def generate_alert_email(
         <body>
             <h1>Microgrid Alert</h1>
             <h2>Summary:</h2>
-            {generate_alert_summary(alert_records)}
+            {generate_alert_summary(alert_records, group_by_component)}
             <h2>Alert Details:</h2>
             {generate_alert_table(alert_records, displayed_rows, sort_by_severity)}
             <hr>
