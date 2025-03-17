@@ -1,7 +1,59 @@
 # License: MIT
 # Copyright © 2025 Frequenz Energy-as-a-Service GmbH
 
-"""This module provides functionality for generating email alert notifications."""
+"""
+This module provides functionality for generating email alert notifications.
+
+It includes functions for formatting and structuring alert-related emails,
+such as:
+    - Generating a summary of alerts per microgrid (optionally grouped by
+      component ID).
+    - Creating an HTML table representation of alert details.
+    - Constructing a complete alert email with formatted content.
+    - Sorting alerts by severity (optional) and applying color-coded styling.
+    - Generating structured JSON output for alerts.
+    - Filtering groups with no errors or warnings (optional, enabled by default).
+
+### Example Usage:
+```python
+import pandas as pd
+from frequenz.lib.notebooks.alerts.alert_email import generate_alert_email
+
+# Example alert records dataframe
+alert_records = pd.DataFrame(
+    [
+        {
+            "microgrid_id": 1,
+            "component_id": 1,
+            "state_type": "error",
+            "state_value": "UNDERVOLTAGE",
+            "start_time": "2025-03-14 15:06:30",
+            "end_time": "2025-03-14 17:00:00",
+        },
+        {
+            "microgrid_id": 2,
+            "component_id": 1,
+            "state_type": "state",
+            "state_value": "DISCHARGING",
+            "start_time": "2025-03-14 15:06:30",
+            "end_time": None,
+        },
+    ]
+)
+
+email_html = generate_alert_email(
+    alert_records=alert_records,
+    notebook_url="http://alerts.example.com",
+    displayed_rows=10,
+    sort_by_severity=True,
+    group_by_component=False,
+    filter_no_alerts=True,
+)
+
+# Print or send the email content
+print(email_html)
+```
+"""
 import html
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any
