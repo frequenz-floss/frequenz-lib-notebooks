@@ -96,13 +96,16 @@ def _parse_and_localize_timestamp(timestamp: Any) -> pd.Timestamp:
 
 
 def generate_alert_summary(
-    alert_records: pd.DataFrame, group_by_component: bool = False
+    alert_records: pd.DataFrame,
+    group_by_component: bool = False,
+    filter_no_alerts: bool = True,
 ) -> str:
     """Generate a summary of alerts per microgrid, optionally grouped by component ID.
 
     Args:
         alert_records: DataFrame containing alert records.
         group_by_component: Whether to group alerts by component ID.
+        filter_no_alerts: Whether to exclude groups with zero errors and warnings.
 
     Returns:
         HTML summary string.
@@ -133,6 +136,11 @@ def generate_alert_summary(
         )
         .reset_index()
     )
+
+    if filter_no_alerts:
+        summary_data = summary_data[
+            (summary_data["total_errors"] > 0) | (summary_data["total_warnings"] > 0)
+        ]
 
     summary_html = "".join(
         [
@@ -266,12 +274,14 @@ def generate_alert_json(
     }
 
 
-def generate_alert_email(
+def generate_alert_email(  # pylint: disable=too-many-arguments
+    *,
     alert_records: pd.DataFrame,
-    notebook_url: str,
+    notebook_url: str = "",
     displayed_rows: int = 20,
     sort_by_severity: bool = False,
     group_by_component: bool = False,
+    filter_no_alerts: bool = True,
 ) -> str:
     """Generate a full HTML email for alerts.
 
@@ -281,6 +291,7 @@ def generate_alert_email(
         displayed_rows: Number of rows to display in the email.
         sort_by_severity: Whether to sort alerts by severity.
         group_by_component: Whether to group alerts by component ID.
+        filter_no_alerts: Whether to exclude groups with zero errors and warnings.
 
     Returns:
         Full HTML email body.
@@ -291,7 +302,7 @@ def generate_alert_email(
         <body>
             <h1>Microgrid Alert</h1>
             <h2>Summary:</h2>
-            {generate_alert_summary(alert_records, group_by_component)}
+            {generate_alert_summary(alert_records, group_by_component, filter_no_alerts)}
             <h2>Alert Details:</h2>
             {generate_alert_table(alert_records, displayed_rows, sort_by_severity)}
             <hr>
