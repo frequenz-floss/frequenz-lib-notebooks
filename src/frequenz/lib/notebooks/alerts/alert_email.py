@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 from pandas import Series
+from pandas.io.formats.style_render import CSSDict
 
 EMAIL_CSS = """
 <style>
@@ -177,7 +178,7 @@ def generate_alert_table(
     displayed_rows: int = 20,
     sort_by_severity: bool = False,
 ) -> str:
-    """Generate a formatted HTML table for alert details.
+    """Generate a formatted HTML table for alert details with color-coded severity levels.
 
     Args:
         alert_records: DataFrame containing alert records.
@@ -185,7 +186,7 @@ def generate_alert_table(
         sort_by_severity: Whether to sort alerts by severity.
 
     Returns:
-        HTML string of the table.
+        HTML string of the table with color-coded rows.
     """
     if alert_records.empty:
         return "<p>No alerts recorded.</p>"
@@ -206,8 +207,32 @@ def generate_alert_table(
     else:
         note = ""
 
-    styled_table = alert_records.head(displayed_rows).to_html(
-        index=False, classes="table table-bordered"
+    severity_colors = {
+        "error": "background-color: #D32F2F; color: white;",
+        "warning": "background-color: #F57C00; color: black;",
+    }
+
+    # general table styling
+    table_styles: list[CSSDict] = [
+        {
+            "selector": "th",
+            "props": [("background-color", "#f4f4f4"), ("font-weight", "bold")],
+        },
+        {
+            "selector": "td, th",
+            "props": [("border", "1px solid #ddd"), ("padding", "8px")],
+        },
+    ]
+
+    # apply severity color to entire rows
+    styled_table = (
+        alert_records.head(displayed_rows)
+        .style.apply(
+            lambda row: [severity_colors.get(row["state_type"], "")] * len(row), axis=1
+        )
+        .set_table_styles(table_styles, overwrite=False)
+        .hide(axis="index")
+        .to_html()
     )
     return f"{note}{styled_table}"
 
