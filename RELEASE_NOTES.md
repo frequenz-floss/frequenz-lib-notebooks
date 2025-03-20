@@ -10,9 +10,7 @@
 
 ## New Features
 
-- Improved MIME type detection for email attachments, with a fallback for unknown file types.
-- Introduced a new alerts module for generating and formatting alert emails.
-- Added basic Alert and Solar Maintenance notebooks with instructions in English and German. These notebooks are aimed for running in a Deepnote project as they contain Deepnote related UI elements but they can also run in a common jupyter environment if the Deepnote UI elements are discarded.
+<!-- Here goes the main new features and examples or instructions on how to use them -->
 
 ## Bug Fixes
 
