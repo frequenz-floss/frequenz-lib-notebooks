@@ -35,7 +35,7 @@ dependencies = [
   "python-dotenv >= 0.21.0, < 1.1.0",
   "toml >= 0.10.2, < 0.11.0",
   "frequenz-client-reporting >= 0.14.0, < 0.15.0",
-  "frequenz-api-weather >= 0.9.0, < 0.10.0",
+  "frequenz-client-weather >= 0.1.0, < 0.2.0",
 ]
 dynamic = ["version"]
 
