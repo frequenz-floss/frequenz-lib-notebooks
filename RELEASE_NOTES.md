@@ -2,11 +2,11 @@
 
 ## Summary
 
-<!-- Here goes a general summary of what this release is about -->
+The `frequenz-api-weather` package has been removed in favor of `frequenz-client-weather` because the required methods have been moved over to the latter library.
 
 ## Upgrading
 
-<!-- Here goes notes on how to upgrade from previous versions, including deprecations and what they should be replaced with -->
+- The minimum required version of `frequenz-client-reporting` is now `v0.14.0`.
 
 ## New Features
 
