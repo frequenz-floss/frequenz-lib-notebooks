@@ -19,39 +19,40 @@ such as:
 import pandas as pd
 from frequenz.lib.notebooks.alerts.alert_email import generate_alert_email
 
-# Example alert records dataframe
-alert_records = pd.DataFrame(
-    [
-        {
-            "microgrid_id": 1,
-            "component_id": 1,
-            "state_type": "error",
-            "state_value": "UNDERVOLTAGE",
-            "start_time": "2025-03-14 15:06:30",
-            "end_time": "2025-03-14 17:00:00",
-        },
-        {
-            "microgrid_id": 2,
-            "component_id": 1,
-            "state_type": "state",
-            "state_value": "DISCHARGING",
-            "start_time": "2025-03-14 15:06:30",
-            "end_time": None,
-        },
-    ]
-)
+def example():
+    # Example alert records dataframe
+    alert_records = pd.DataFrame(
+        [
+            {
+                "microgrid_id": 1,
+                "component_id": 1,
+                "state_type": "error",
+                "state_value": "UNDERVOLTAGE",
+                "start_time": "2025-03-14 15:06:30",
+                "end_time": "2025-03-14 17:00:00",
+            },
+            {
+                "microgrid_id": 2,
+                "component_id": 1,
+                "state_type": "state",
+                "state_value": "DISCHARGING",
+                "start_time": "2025-03-14 15:06:30",
+                "end_time": None,
+            },
+        ]
+    )
 
-email_html = generate_alert_email(
-    alert_records=alert_records,
-    notebook_url="http://alerts.example.com",
-    displayed_rows=10,
-    sort_by_severity=True,
-    group_by_component=False,
-    filter_no_alerts=True,
-)
+    email_html = generate_alert_email(
+        alert_records=alert_records,
+        notebook_url="http://alerts.example.com",
+        displayed_rows=10,
+        sort_by_severity=True,
+        group_by_component=False,
+        filter_no_alerts=True,
+    )
 
-# Print or send the email content
-print(email_html)
+    # Print or send the email content
+    print(email_html)
 ```
 """
 import html
@@ -364,11 +365,79 @@ def generate_alert_email(  # pylint: disable=too-many-arguments
             {generate_alert_summary(alert_records, group_by_component, filter_no_alerts)}
             <h2>Alert Details:</h2>
             {generate_alert_table(alert_records, displayed_rows, sort_by_severity)}
-            <hr>
-            <div class="footer" style="text-align: center; font-size: 12px; color: #777;">
-                <p>&copy; 2024 Frequenz Energy-as-a-Service GmbH. All rights reserved.</p>
-                <p><a href="{html.escape(notebook_url)}">Manage Alert Preferences</a></p>
-            </div>
+            {_generate_email_footer(notebook_url)}
         </body>
     </html>
+    """
+
+
+def generate_check_status(checks: list[str] | None) -> str:
+    """Generate a clean HTML bullet list summarising what was checked.
+
+    Args:
+        checks: A list of plain text items (e.g. conditions, rules).
+
+    Returns:
+        An HTML unordered list.
+    """
+    if not checks:
+        return ""
+    items = "".join(f"<li>{html.escape(check)}</li>" for check in checks)
+    return (
+        "<h3>✅ Conditions Checked:</h3>"
+        "<ul style='line-height: 1.6;'>"
+        f"{items}"
+        "</ul>"
+    )
+
+
+def generate_no_alerts_email(
+    checks: list[str] | None = None,
+    notebook_url: str = "",
+) -> str:
+    """Generate an HTML email when no alerts are found.
+
+    Args:
+        checks: A list of conditions checked.
+        notebook_url: Optional link to manage preferences.
+
+    Returns:
+        HTML email body.
+    """
+    return f"""
+    <html>
+    <body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333;'>
+        <h2 style='color: #28a745;'>✅ No Alerts Detected</h2>
+        <p>
+        This is a confirmation that the alerting system ran successfully and no
+        alerts were found at this time.
+        </p>
+        {generate_check_status(checks)}
+        <p style='color: #665;'><em>This is an automated notification.</em></p>
+        {_generate_email_footer(notebook_url)}
+    </body>
+    </html>
+    """
+
+
+def _generate_email_footer(notebook_url: str = "") -> str:
+    """Generate a shared footer for email messages.
+
+    Args:
+        notebook_url: Optional URL for managing alert preferences.
+
+    Returns:
+        HTML footer string.
+    """
+    footer = (
+        f"<p><a href='{html.escape(notebook_url)}'>Manage Alert Preferences</a></p>"
+        if notebook_url
+        else ""
+    )
+    return f"""
+    <hr>
+    <div class="footer" style="text-align: center; font-size: 12px; color: #777;">
+        <p>&copy; 2024 Frequenz Energy-as-a-Service GmbH. All rights reserved.</p>
+        {footer}
+    </div>
     """
