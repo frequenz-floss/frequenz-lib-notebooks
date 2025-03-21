@@ -2,7 +2,7 @@
 
 ## Summary
 
-The `frequenz-api-weather` package has been removed in favor of `frequenz-client-weather` because the required methods have been moved over to the latter library.
+The `frequenz-api-weather` package has been removed in favor of `frequenz-client-weather` because the required methods have been moved over to the latter library. Added `notification_utils.py` with validation, preview, and test email helpers. Updated "Alert Notebook.ipynb" in the `examples/` to utilise the new features.
 
 ## Upgrading
 
@@ -11,6 +11,10 @@ The `frequenz-api-weather` package has been removed in favor of `frequenz-client
 ## New Features
 
 * Add an example notebook with a simple PV forecast using weather API.
+Added `notification_utils.py` with:
+- `send_test_email()` for verifying SMTP configuration.
+- `validate_email_config()` for runtime validation of required fields, attachment presence, and optional SMTP connectivity.
+- `format_email_preview()` for generating simple HTML previews.
 
 ## Bug Fixes
 
