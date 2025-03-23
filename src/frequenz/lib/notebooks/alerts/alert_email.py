@@ -17,7 +17,7 @@ such as:
 ### Example Usage:
 ```python
 import pandas as pd
-from frequenz.lib.notebooks.alerts.alert_email import generate_alert_email
+from frequenz.lib.notebooks.alerts.alert_email import AlertEmailConfig, generate_alert_email
 
 def example():
     # Example alert records dataframe
@@ -42,8 +42,8 @@ def example():
         ]
     )
 
-    email_html = generate_alert_email(
-        alert_records=alert_records,
+    # Configuration for email generation
+    alert_email_config = AlertEmailConfig(
         notebook_url="http://alerts.example.com",
         displayed_rows=10,
         sort_by_severity=True,
@@ -51,11 +51,15 @@ def example():
         filter_no_alerts=True,
     )
 
-    # Print or send the email content
-    print(email_html)
+    # Generate the HTML body of the alert email
+    html_email = generate_alert_email(alert_records=alert_records, config=alert_email_config)
+
+    # Output the HTML or send it via email
+    print(html_email)
 ```
 """
 import html
+from dataclasses import dataclass, field
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any, cast
 
@@ -77,6 +81,53 @@ if TYPE_CHECKING:
     SeriesType = Series[Any]
 else:
     SeriesType = Series
+
+
+@dataclass(kw_only=True)
+class AlertEmailConfig:
+    """Configuration for generating alert emails."""
+
+    notebook_url: str = field(
+        default="",
+        metadata={
+            "description": "URL to manage alert preferences.",
+        },
+    )
+
+    displayed_rows: int = field(
+        default=20,
+        metadata={
+            "description": "Number of alert rows to display in the HTML table.",
+            "validate": lambda x: x > 0,
+        },
+    )
+
+    sort_by_severity: bool = field(
+        default=False,
+        metadata={
+            "description": "Whether to sort alerts by severity level in the HTML table.",
+        },
+    )
+
+    group_by_component: bool = field(
+        default=False,
+        metadata={
+            "description": (
+                "Whether to group summary by component_id in addition to "
+                "microgrid_id in the HTML table."
+            ),
+        },
+    )
+
+    filter_no_alerts: bool = field(
+        default=True,
+        metadata={
+            "description": (
+                "Whether to exclude groups with no errors or warnings "
+                "in the alert email."
+            ),
+        },
+    )
 
 
 def compute_time_since(row: SeriesType, ts_column: str) -> str:
@@ -334,24 +385,12 @@ def generate_alert_json(
     }
 
 
-def generate_alert_email(  # pylint: disable=too-many-arguments
-    *,
-    alert_records: pd.DataFrame,
-    notebook_url: str = "",
-    displayed_rows: int = 20,
-    sort_by_severity: bool = False,
-    group_by_component: bool = False,
-    filter_no_alerts: bool = True,
-) -> str:
+def generate_alert_email(alert_records: pd.DataFrame, config: AlertEmailConfig) -> str:
     """Generate a full HTML email for alerts.
 
     Args:
         alert_records: DataFrame containing alert records.
-        notebook_url: URL for managing alert preferences.
-        displayed_rows: Number of rows to display in the email.
-        sort_by_severity: Whether to sort alerts by severity.
-        group_by_component: Whether to group alerts by component ID.
-        filter_no_alerts: Whether to exclude groups with zero errors and warnings.
+        config: Configuration object for email generation.
 
     Returns:
         Full HTML email body.
@@ -362,10 +401,11 @@ def generate_alert_email(  # pylint: disable=too-many-arguments
         <body>
             <h1>Microgrid Alert</h1>
             <h2>Summary:</h2>
-            {generate_alert_summary(alert_records, group_by_component, filter_no_alerts)}
+            {generate_alert_summary(alert_records, config.group_by_component,
+                                    config.filter_no_alerts)}
             <h2>Alert Details:</h2>
-            {generate_alert_table(alert_records, displayed_rows, sort_by_severity)}
-            {_generate_email_footer(notebook_url)}
+            {generate_alert_table(alert_records, config.displayed_rows, config.sort_by_severity)}
+            {_generate_email_footer(config.notebook_url)}
         </body>
     </html>
     """
