@@ -1,10 +1,10 @@
-"""
-Alerts module for handling alert-related logic.
+# License: MIT
+# Copyright © 2025 Frequenz Energy-as-a-Service GmbH
 
-This includes email generation, processing, and formatting. This module
-provides utilities to generate alert summaries, format alert details, and
-create structured HTML emails.
+"""Initialise the alerts module."""
 
-Modules:
-    - alert_email: Functions to generate alert-related emails.
-"""
+from . import alert_email
+
+__all__ = [
+    "alert_email",
+]

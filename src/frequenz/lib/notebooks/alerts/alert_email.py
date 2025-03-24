@@ -56,11 +56,10 @@ print(email_html)
 """
 import html
 from datetime import timedelta
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import pandas as pd
 from pandas import Series
-from pandas.io.formats.style_render import CSSDict
 
 EMAIL_CSS = """
 <style>
@@ -273,16 +272,24 @@ def generate_alert_table(
     }
 
     # general table styling
-    table_styles: list[CSSDict] = [
-        {
-            "selector": "th",
-            "props": [("background-color", "#f4f4f4"), ("font-weight", "bold")],
-        },
-        {
-            "selector": "td, th",
-            "props": [("border", "1px solid #ddd"), ("padding", "8px")],
-        },
-    ]
+    # We use cast(Any, ...) here to bypass mypy's strict type checking on .set_table_styles().
+    # Pandas internally expects CSSDict, which we want to avoid importing to prevent
+    # unnecessary dependencies (like with Jinja2 library).
+    # Since the structure is guaranteed to be correct for Pandas at runtime, using Any
+    # ensures type flexibility while avoiding compatibility issues with future Pandas versions.
+    table_styles = cast(
+        Any,
+        [
+            {
+                "selector": "th",
+                "props": [("background-color", "#f4f4f4"), ("font-weight", "bold")],
+            },
+            {
+                "selector": "td, th",
+                "props": [("border", "1px solid #ddd"), ("padding", "8px")],
+            },
+        ],
+    )
 
     # apply severity color to entire rows
     styled_table = (
