@@ -10,7 +10,7 @@ The `frequenz-api-weather` package has been removed in favor of `frequenz-client
 
 ## New Features
 
-<!-- Here goes the main new features and examples or instructions on how to use them -->
+* Add an example notebook with a simple PV forecast using weather API.
 
 ## Bug Fixes
 
