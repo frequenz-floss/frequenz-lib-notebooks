@@ -385,12 +385,17 @@ def generate_alert_json(
     }
 
 
-def generate_alert_email(alert_records: pd.DataFrame, config: AlertEmailConfig) -> str:
+def generate_alert_email(
+    alert_records: pd.DataFrame,
+    config: AlertEmailConfig,
+    checks: list[str] | None = None,
+) -> str:
     """Generate a full HTML email for alerts.
 
     Args:
         alert_records: DataFrame containing alert records.
         config: Configuration object for email generation.
+        checks: A list of conditions checked by the alert system.
 
     Returns:
         Full HTML email body.
@@ -405,6 +410,8 @@ def generate_alert_email(alert_records: pd.DataFrame, config: AlertEmailConfig) 
                                     config.filter_no_alerts)}
             <h2>Alert Details:</h2>
             {generate_alert_table(alert_records, config.displayed_rows, config.sort_by_severity)}
+            {generate_check_status(checks)}
+            <p style='color: #665;'><em>This is an automated notification.</em></p>
             {_generate_email_footer(config.notebook_url)}
         </body>
     </html>
