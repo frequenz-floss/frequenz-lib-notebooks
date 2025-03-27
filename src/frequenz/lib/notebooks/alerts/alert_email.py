@@ -59,12 +59,19 @@ def example():
 ```
 """
 import html
+import logging
+import os
 from dataclasses import dataclass, field
 from datetime import timedelta
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Literal, cast, get_args
 
 import pandas as pd
+import plotly.colors as pc
+import plotly.graph_objects as go
+import plotly.io as pio
 from pandas import Series
+
+_log = logging.getLogger(__name__)
 
 EMAIL_CSS = """
 <style>
@@ -76,6 +83,7 @@ EMAIL_CSS = """
 """
 
 SEVERITY_ORDER = ["error", "warning", "state"]
+AlertPlotType = Literal["summary", "state_transitions", "all"]
 
 if TYPE_CHECKING:
     SeriesType = Series[Any]
@@ -488,3 +496,207 @@ def _generate_email_footer(notebook_url: str = "") -> str:
         {footer}
     </div>
     """
+
+
+def plot_alerts(
+    records: pd.DataFrame,
+    *,
+    plot_type: AlertPlotType = "summary",
+    save_to_file: bool = False,
+    **kwargs: Any,
+) -> list[str] | None:
+    """Generate alert visualisations and optionally save them as image files.
+
+    Args:
+        records: DataFrame containing alert records with expected columns
+            "microgrid_id", "component_id", "state_value", and "start_time".
+        plot_type: Which plot to create. Options:
+            - 'summary': Plot of alert counts per microgrid/component.
+            - 'state_transitions': Plot of state transitions over time.
+            - 'all': Generate both types.
+        save_to_file: Whether to save plot(s) to temporary PNG file(s). If True,
+            the file paths will be returned and the plots will not be shown.
+            If False, the plots will be displayed interactively.
+        **kwargs: Additional arguments for the plot functions.
+            - 'stacked': Whether to use a stacked bar representation per microgrid
+                (only for 'summary' plot type).
+
+    Returns:
+        - None if records are empty or if save_to_file is False.
+        - A list of file paths (list[str]) if save_to_file is True.
+
+    Raises:
+        ValueError: If an invalid plot type is specified.
+    """
+    if records.empty:
+        _log.info("Records are empty, no plots generated.")
+        return None
+
+    if plot_type.lower() not in get_args(AlertPlotType):
+        raise ValueError(
+            f"Invalid plot type '{plot_type}'. Expected one of {get_args(AlertPlotType)}."
+        )
+    plot_type_str = plot_type.lower()
+
+    figs = {}
+    if plot_type_str in ("summary", "all"):
+        figs["alert_summary.html"] = _plot_alert_summary(records, **kwargs)
+    if plot_type_str in ("state_transitions", "all"):
+        figs["state_transitions.html"] = _plot_state_transitions(records)
+
+    if save_to_file:
+        filepaths = []
+        for filename, fig in figs.items():
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            file_path = os.path.join(base_dir, filename)
+            pio.write_html(fig, file=file_path, include_plotlyjs="cdn", full_html=False)
+            _log.info("Plot saved to %s", file_path)
+            filepaths.append(file_path)
+        return filepaths
+
+    for fig in figs.values():
+        fig.show()
+
+    return None
+
+
+def _plot_alert_summary(df: pd.DataFrame, stacked: bool = True) -> go.Figure:
+    """Plot alert summary by microgrid and component.
+
+    Args:
+        df: DataFrame containing alert records with these expected columns:
+            "microgrid_id" and "component_id".
+        stacked: Whether to use a stacked bar representation per microgrid.
+
+    Returns:
+        A Plotly figure.
+    """
+
+    def norm(x: float, bounds: tuple[float, float]) -> float:
+        """Normalize x to a value between 0 and 1.
+
+        Args:
+            x: The value to normalize.
+            bounds: A tuple containing the minimum and maximum values for
+                normalization.
+
+        Returns:
+            Normalized value between 0 and 1.
+        """
+        min_count, max_count = bounds
+        return (
+            (x - min_count) / (max_count - min_count) if max_count != min_count else 0.5
+        )
+
+    grouped = (
+        df.groupby(["microgrid_id", "component_id"])
+        .size()
+        .reset_index(name="alert_count")
+    ).sort_values(by=["microgrid_id", "alert_count"], ascending=[True, False])
+
+    labels = grouped.apply(
+        lambda row: f"{row['microgrid_id']}.{row['component_id']}", axis=1
+    )
+
+    fig = go.Figure()
+    if not stacked:
+        fig.add_trace(
+            go.Bar(x=labels, y=grouped["alert_count"], marker_color="#607d8b")
+        )
+    else:
+        for i, microgrid_id in enumerate(grouped["microgrid_id"].unique()):
+            blues_r = pc.sequential.Blues
+            microgrid_data = grouped[grouped["microgrid_id"] == microgrid_id]
+            alert_counts = microgrid_data["alert_count"].values
+            min_count, max_count = alert_counts.min(), alert_counts.max()
+
+            fig.add_trace(
+                go.Bar(
+                    x=[str(microgrid_id)] * len(microgrid_data),
+                    y=alert_counts,
+                    name=f"Microgrid {microgrid_id}",
+                    text=[
+                        f"CID {comp_id}: {count} alerts"
+                        for comp_id, count in zip(
+                            microgrid_data["component_id"], alert_counts
+                        )
+                    ],
+                    customdata=microgrid_data["component_id"],
+                    hovertemplate=(
+                        "Microgrid: %{x}<br>Component: %{customdata}<br>Alerts: %{y}<extra></extra>"
+                    ),
+                    textposition="inside" if stacked else "auto",
+                    marker_color=[
+                        pc.sample_colorscale(blues_r, norm(v, (min_count, max_count)))[
+                            0
+                        ]
+                        for v in alert_counts
+                    ],
+                )
+            )
+
+    fig.update_layout(
+        barmode="stack" if stacked else "group",
+        title="Alert Breakdown by Component",
+        xaxis_title="Microgrid ID" if stacked else "Microgrid ID.Component ID",
+        yaxis_title="Number of Alerts",
+    )
+    return fig
+
+
+def _plot_state_transitions(df: pd.DataFrame) -> go.Figure:
+    """Plot state transitions over time for each microgrid and component.
+
+    Args:
+        df: DataFrame containing alert records with these expected columns:
+            "microgrid_id", "component_id", "state_value", and "start_time".
+
+    Returns:
+        A Plotly figure.
+    """
+    df = df.copy()
+    df["start_time"] = pd.to_datetime(df["start_time"], errors="coerce")
+
+    # Extend the last state for each microgrid.component to now
+    last_rows = (
+        df.sort_values("start_time")
+        .groupby(["microgrid_id", "component_id"], as_index=False)
+        .tail(1)
+        .copy()
+    )
+    last_rows["start_time"] = pd.Timestamp.now(tz="UTC")
+    df = pd.concat([df, last_rows], ignore_index=True)
+    df["timestamp"] = pd.to_datetime(df["start_time"], utc=True)
+    df = df.dropna(subset=["timestamp"])
+
+    # Sort states by frequency for improved readability
+    state_order = (
+        df["state_value"]
+        .dropna()
+        .value_counts()
+        .sort_values(ascending=False)
+        .index.tolist()
+    )
+    state_map = {state: i for i, state in enumerate(state_order)}
+
+    fig = go.Figure()
+    for (mg_id, comp_id), group in df.groupby(["microgrid_id", "component_id"]):
+        fig.add_trace(
+            go.Scatter(
+                x=group["timestamp"],
+                y=group["state_value"].map(state_map),
+                mode="lines+markers",
+                name=f"{mg_id}.{comp_id}",
+            )
+        )
+    fig.update_layout(
+        title="Alert State Transitions Over Time",
+        xaxis_title="Time",
+        yaxis_title="State",
+        yaxis={
+            "tickmode": "array",
+            "tickvals": list(state_map.values()),
+            "ticktext": list(state_map.keys()),
+        },
+    )
+    return fig
