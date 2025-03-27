@@ -11,11 +11,11 @@ The `frequenz-api-weather` package has been removed in favor of `frequenz-client
 ## New Features
 
 * Add an example notebook with a simple PV forecast using weather API.
-Added `notification_utils.py` with:
-- `send_test_email()` for verifying SMTP configuration.
-- `validate_email_config()` for runtime validation of required fields, attachment presence, and optional SMTP connectivity.
-- `format_email_preview()` for generating simple HTML previews.
-
+* Added `notification_utils.py` with:
+    - `send_test_email()` for verifying SMTP configuration.
+    - `validate_email_config()` for runtime validation of required fields, attachment presence, and optional SMTP connectivity.
+    - `format_email_preview()` for generating simple HTML previews.
+* Enhanced alert email generation with helpers for status and no-alert messages, and a new `AlertEmailConfig` dataclass for modularity and a cleaner interface.
 ## Bug Fixes
 
 <!-- Here goes notable bug fixes that are worth a special mention or explanation -->
