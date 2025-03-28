@@ -63,7 +63,8 @@ import logging
 import os
 from dataclasses import dataclass, field
 from datetime import timedelta
-from typing import TYPE_CHECKING, Any, Literal, cast, get_args
+from enum import Enum
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 import pandas as pd
 import plotly.colors as pc
@@ -83,12 +84,25 @@ EMAIL_CSS = """
 """
 
 SEVERITY_ORDER = ["error", "warning", "state"]
-AlertPlotType = Literal["summary", "state_transitions", "all"]
+T = TypeVar("T", bound=Enum)
 
 if TYPE_CHECKING:
     SeriesType = Series[Any]
 else:
     SeriesType = Series
+
+
+class AlertPlotType(str, Enum):
+    """Possible plot types for alert visualisations."""
+
+    SUMMARY = "summary"
+    """Plot of alert counts per microgrid/component."""
+
+    STATE_TRANSITIONS = "state_transitions"
+    """Plot of state transitions over time."""
+
+    ALL = "all"
+    """Generate all available plots."""
 
 
 @dataclass(kw_only=True)
@@ -501,7 +515,7 @@ def _generate_email_footer(notebook_url: str = "") -> str:
 def plot_alerts(
     records: pd.DataFrame,
     *,
-    plot_type: AlertPlotType = "summary",
+    plot_type: str | AlertPlotType = AlertPlotType.SUMMARY,
     save_to_file: bool = False,
     **kwargs: Any,
 ) -> list[str] | None:
@@ -524,24 +538,16 @@ def plot_alerts(
     Returns:
         - None if records are empty or if save_to_file is False.
         - A list of file paths (list[str]) if save_to_file is True.
-
-    Raises:
-        ValueError: If an invalid plot type is specified.
     """
     if records.empty:
         _log.info("Records are empty, no plots generated.")
         return None
 
-    if plot_type.lower() not in get_args(AlertPlotType):
-        raise ValueError(
-            f"Invalid plot type '{plot_type}'. Expected one of {get_args(AlertPlotType)}."
-        )
-    plot_type_str = plot_type.lower()
-
+    plot_type = _coerce_enum(plot_type, AlertPlotType, "plot_type")
     figs = {}
-    if plot_type_str in ("summary", "all"):
+    if plot_type in (AlertPlotType.SUMMARY, AlertPlotType.ALL):
         figs["alert_summary.html"] = _plot_alert_summary(records, **kwargs)
-    if plot_type_str in ("state_transitions", "all"):
+    if plot_type in (AlertPlotType.STATE_TRANSITIONS, AlertPlotType.ALL):
         figs["state_transitions.html"] = _plot_state_transitions(records)
 
     if save_to_file:
@@ -558,6 +564,36 @@ def plot_alerts(
         fig.show()
 
     return None
+
+
+def _coerce_enum(value: str | T, enum_type: type[T], param_name: str) -> T:
+    """Coerce a value to an enum type.
+
+    Args:
+        value: The value to coerce.
+        enum_type: The enum type to coerce to.
+        param_name: The name of the parameter for error messages.
+
+    Returns:
+        The coerced enum value.
+
+    Raises:
+        ValueError: If the value is not a valid enum member or string.
+        TypeError: If the value is not a string or enum type.
+    """
+    if isinstance(value, enum_type):
+        return value
+    if isinstance(value, str):
+        try:
+            return enum_type(value.lower())
+        except ValueError as er:
+            valid = [e.value for e in enum_type]
+            raise ValueError(
+                f"Invalid {param_name} '{value}'. Expected one of: {valid}"
+            ) from er
+    raise TypeError(
+        f"{param_name!r} must be a string or {enum_type.__name__}, got {type(value).__name__}"
+    )
 
 
 def _plot_alert_summary(df: pd.DataFrame, stacked: bool = True) -> go.Figure:
