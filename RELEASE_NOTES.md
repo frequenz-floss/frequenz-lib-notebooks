@@ -16,7 +16,7 @@ The `frequenz-api-weather` package has been removed in favor of `frequenz-client
     - `validate_email_config()` for runtime validation of required fields, attachment presence, and optional SMTP connectivity.
     - `format_email_preview()` for generating simple HTML previews.
 * Enhanced alert email generation with helpers for status and no-alert messages, and a new `AlertEmailConfig` dataclass for modularity and a cleaner interface.
-* Added alert visualisation support via `alert_email.plot_alerts()`, enabling interactive summary and state transition plots (using `plotly`) with optional HTML export for email integration.
+* Added alert visualisation support via `alert_email.plot_alerts()`, enabling interactive summary and state transition plots (using `plotly`) with optional image export to various supported formats.
 
 ## Bug Fixes
 
