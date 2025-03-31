@@ -63,7 +63,9 @@ import logging
 import os
 from dataclasses import dataclass, field
 from datetime import timedelta
-from typing import TYPE_CHECKING, Any, Literal, cast, get_args
+from enum import Enum
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 import pandas as pd
 import plotly.colors as pc
@@ -83,12 +85,67 @@ EMAIL_CSS = """
 """
 
 SEVERITY_ORDER = ["error", "warning", "state"]
-AlertPlotType = Literal["summary", "state_transitions", "all"]
+T = TypeVar("T", bound=Enum)
 
 if TYPE_CHECKING:
     SeriesType = Series[Any]
 else:
     SeriesType = Series
+
+
+class AlertPlotType(str, Enum):
+    """Possible plot types for alert visualisations."""
+
+    SUMMARY = "summary"
+    """Plot of alert counts per microgrid/component."""
+
+    STATE_TRANSITIONS = "state_transitions"
+    """Plot of state transitions over time."""
+
+    ALL = "all"
+    """Generate all available plots."""
+
+
+class ImageExportFormat(str, Enum):
+    """Export formats for images."""
+
+    PNG = "png"
+    HTML = "html"
+    SVG = "svg"
+    PDF = "pdf"
+    JPEG = "jpeg"
+    JSON = "json"
+
+
+@dataclass
+class ExportOptions:
+    """Configuration for exporting and/or displaying plots."""
+
+    format: str | ImageExportFormat | list[str | ImageExportFormat] | None = field(
+        default=None,
+        metadata={
+            "description": (
+                "Export format(s) for the plots. Examples: 'png', ['html', 'svg']. "
+                "All options: 'png', 'html', 'svg', 'pdf', 'jpeg', 'json'. "
+                "If None, plots will not be saved."
+            ),
+        },
+    )
+
+    output_dir: str | Path | None = field(
+        default=None,
+        metadata={
+            "description": (
+                "Directory to save the exported plots. "
+                "If None, uses the current directory."
+            ),
+        },
+    )
+
+    show: bool = field(
+        default=True,
+        metadata={"description": "Whether to display the plots interactively."},
+    )
 
 
 @dataclass(kw_only=True)
@@ -501,11 +558,17 @@ def _generate_email_footer(notebook_url: str = "") -> str:
 def plot_alerts(
     records: pd.DataFrame,
     *,
-    plot_type: AlertPlotType = "summary",
-    save_to_file: bool = False,
+    plot_type: str | AlertPlotType = AlertPlotType.SUMMARY,
+    export_options: ExportOptions | None = None,
     **kwargs: Any,
 ) -> list[str] | None:
     """Generate alert visualisations and optionally save them as image files.
+
+    Behaviour based on `export_options` `format` and `show` fields:
+        - format=None, show=False: Do nothing.
+        - format=None, show=True: Display plots only (default).
+        - format=[...], show=False: Save plots to multiple formats only.
+        - format=[...], show=True: Save plots to multiple formats and display them.
 
     Args:
         records: DataFrame containing alert records with expected columns
@@ -514,50 +577,128 @@ def plot_alerts(
             - 'summary': Plot of alert counts per microgrid/component.
             - 'state_transitions': Plot of state transitions over time.
             - 'all': Generate both types.
-        save_to_file: Whether to save plot(s) to temporary PNG file(s). If True,
-            the file paths will be returned and the plots will not be shown.
-            If False, the plots will be displayed interactively.
+        export_options: Configuration for exporting and/or displaying the plots.
         **kwargs: Additional arguments for the plot functions.
             - 'stacked': Whether to use a stacked bar representation per microgrid
                 (only for 'summary' plot type).
 
     Returns:
-        - None if records are empty or if save_to_file is False.
-        - A list of file paths (list[str]) if save_to_file is True.
-
-    Raises:
-        ValueError: If an invalid plot type is specified.
+        List of file paths if plots are exported, otherwise None.
     """
     if records.empty:
         _log.info("Records are empty, no plots generated.")
         return None
 
-    if plot_type.lower() not in get_args(AlertPlotType):
-        raise ValueError(
-            f"Invalid plot type '{plot_type}'. Expected one of {get_args(AlertPlotType)}."
-        )
-    plot_type_str = plot_type.lower()
+    if (
+        export_options is not None
+        and export_options.format is None
+        and not export_options.show
+    ):
+        _log.info("No export format and show=False: no plots generated.")
+        return None
 
+    plot_type = _coerce_enum(plot_type, AlertPlotType, "plot_type")
     figs = {}
-    if plot_type_str in ("summary", "all"):
+    if plot_type in (AlertPlotType.SUMMARY, AlertPlotType.ALL):
         figs["alert_summary.html"] = _plot_alert_summary(records, **kwargs)
-    if plot_type_str in ("state_transitions", "all"):
+    if plot_type in (AlertPlotType.STATE_TRANSITIONS, AlertPlotType.ALL):
         figs["state_transitions.html"] = _plot_state_transitions(records)
 
-    if save_to_file:
-        filepaths = []
-        for filename, fig in figs.items():
-            base_dir = os.path.dirname(os.path.abspath(__file__))
-            file_path = os.path.join(base_dir, filename)
+    filepaths = None
+    if export_options is not None:
+        if export_options.format is not None:
+            export_formats = _coerce_formats(export_options.format)
+            filepaths = []
+            for fmt in export_formats:
+                filepaths += _save_figures(figs, fmt, export_options.output_dir)
+
+        if export_options.show:
+            for fig in figs.values():
+                fig.show()
+    return filepaths
+
+
+def _save_figures(
+    figs: dict[str, go.Figure],
+    export_format: ImageExportFormat,
+    output_dir: str | Path | None = None,
+) -> list[str]:
+    """Save Plotly figures to files in the specified format.
+
+    Args:
+        figs: Dictionary of figure names and Plotly figures.
+        export_format: The format to export the figures.
+        output_dir: Directory to save the files. If the directory does not exist,
+            it will be created. If None, uses the current directory.
+
+    Returns:
+        A list of file paths where the figures were saved.
+    """
+    if output_dir is None:
+        output_dir = os.path.dirname(os.path.abspath(__file__))
+    os.makedirs(output_dir, exist_ok=True)
+
+    filepaths: list[str] = []
+    for name, fig in figs.items():
+        filename = f"{name}.{export_format.value}"
+        file_path = os.path.join(output_dir, filename)
+
+        if export_format == ImageExportFormat.HTML:
             pio.write_html(fig, file=file_path, include_plotlyjs="cdn", full_html=False)
-            _log.info("Plot saved to %s", file_path)
-            filepaths.append(file_path)
-        return filepaths
+        elif export_format == ImageExportFormat.JSON:
+            pio.write_json(fig, file=file_path)
+        else:
+            pio.write_image(fig, file=file_path, format=export_format.value)
 
-    for fig in figs.values():
-        fig.show()
+        _log.info("Plot saved to %s", file_path)
+        filepaths.append(file_path)
+    return filepaths
 
-    return None
+
+def _coerce_formats(
+    formats: str | ImageExportFormat | list[str | ImageExportFormat],
+) -> list[ImageExportFormat]:
+    """Coerce a format or list of formats to a list of ImageExportFormat enums.
+
+    Args:
+        formats: A format string, an ImageExportFormat enum, or a list of either.
+
+    Returns:
+        A list of ImageExportFormat enums.
+    """
+    if isinstance(formats, (str, Enum)):
+        formats = [formats]
+    return [_coerce_enum(fmt, ImageExportFormat, "format") for fmt in formats]
+
+
+def _coerce_enum(value: str | T, enum_type: type[T], param_name: str) -> T:
+    """Coerce a value to an enum type.
+
+    Args:
+        value: The value to coerce.
+        enum_type: The enum type to coerce to.
+        param_name: The name of the parameter for error messages.
+
+    Returns:
+        The coerced enum value.
+
+    Raises:
+        ValueError: If the value is not a valid enum member or string.
+        TypeError: If the value is not a string or enum type.
+    """
+    if isinstance(value, enum_type):
+        return value
+    if isinstance(value, str):
+        try:
+            return enum_type(value.lower())
+        except ValueError as er:
+            valid = [e.value for e in enum_type]
+            raise ValueError(
+                f"Invalid {param_name} '{value}'. Expected one of: {valid}"
+            ) from er
+    raise TypeError(
+        f"{param_name!r} must be a string or {enum_type.__name__}, got {type(value).__name__}"
+    )
 
 
 def _plot_alert_summary(df: pd.DataFrame, stacked: bool = True) -> go.Figure:
