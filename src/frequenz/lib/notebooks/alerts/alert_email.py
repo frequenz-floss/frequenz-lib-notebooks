@@ -313,31 +313,31 @@ def generate_alert_summary(
     summary_html = "".join(
         [
             f"""
-        <p><strong>Microgrid {row['microgrid_id']}{
-            ", Component " + str(row['component_id']) if group_by_component else ""
-            }:</strong></p>
-        <ul>
-            <li><strong>Total errors:</strong> {row['total_errors']}</li>
-            <li><strong>Total warnings:</strong> {row['total_warnings']}</li>
-            <li><strong>States:</strong>
-                <ul>
-                    <li>Unique states found: {len(row['unique_states'])}</li>
-                    <li>Unique States: {row['unique_states']}</li>
-                </ul>
-            </li>
-            </ul>
-        """
-            + (
-                f"""
+            <p><strong>Microgrid {row['microgrid_id']}{
+                ", Component " + str(row['component_id']) if group_by_component else ""
+                }:</strong></p>
             <ul>
-                <li><strong>Components:</strong>
+                <li><strong>Total errors:</strong> {row['total_errors']}</li>
+                <li><strong>Total warnings:</strong> {row['total_warnings']}</li>
+                <li><strong>States:</strong>
                     <ul>
-                        <li>Alerts found for {len(row['unique_components'])} components</li>
-                        <li>Components: {row['unique_components']}</li>
+                        <li>Unique states found: {len(row['unique_states'])}</li>
+                        <li>Unique States: {row['unique_states']}</li>
                     </ul>
                 </li>
             </ul>
             """
+            + (
+                f"""
+                <ul>
+                    <li><strong>Components:</strong>
+                        <ul>
+                            <li>Alerts found for {len(row['unique_components'])} components</li>
+                            <li>Components: {row['unique_components']}</li>
+                        </ul>
+                    </li>
+                </ul>
+                """
                 if not group_by_component
                 else ""
             )
