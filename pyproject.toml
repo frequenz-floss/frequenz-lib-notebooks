@@ -70,7 +70,7 @@ dev-mypy = [
   "mypy == 1.15.0",
   "pandas-stubs == 2.2.3.250308",
   "types-toml==0.10.8.20240310",
-  "types-Markdown == 3.7.0.20241204",
+  "types-Markdown == 3.7.0.20250322",
   # For checking the noxfile, docs/ script, and tests
   "frequenz-lib-notebooks[dev-mkdocs,dev-noxfile,dev-pytest]",
 ]
