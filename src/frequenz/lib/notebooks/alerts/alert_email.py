@@ -72,6 +72,7 @@ import plotly.colors as pc
 import plotly.graph_objects as go
 import plotly.io as pio
 from pandas import Series
+from pandas.api.types import is_scalar
 
 _log = logging.getLogger(__name__)
 
@@ -248,15 +249,17 @@ def _format_timedelta(delta: timedelta) -> str:
     return " ".join(parts) if parts else "0s"
 
 
-def _parse_and_localize_timestamp(timestamp: Any) -> pd.Timestamp:
+def _parse_and_localize_timestamp(timestamp: Any) -> pd.Timestamp | None:
     """Parse a timestamp, coerce errors to NaT, and localize to UTC if naive.
 
     Args:
         timestamp: The timestamp value to process.
 
     Returns:
-        A timezone-aware Pandas Timestamp, or NaT if parsing fails.
+        A timezone-aware Pandas Timestamp, or None if the input is not a scalar.
     """
+    if not is_scalar(timestamp):
+        return None
     parsed_time = pd.to_datetime(timestamp, errors="coerce")
     if pd.notna(parsed_time) and parsed_time.tz is None:
         return pd.Timestamp(parsed_time.tz_localize("UTC"))

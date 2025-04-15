@@ -2,12 +2,14 @@
 # Copyright © 2025 Frequenz Energy-as-a-Service GmbH
 
 """Tests for the frequenz.lib.notebooks.alerts module."""
+from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 import pandas as pd
 import pytest
+from pandas.api.types import is_scalar
 
 from frequenz.lib.notebooks.alerts.alert_email import (
     AlertPlotType,
@@ -15,6 +17,7 @@ from frequenz.lib.notebooks.alerts.alert_email import (
     ImageExportFormat,
     _coerce_enum,
     _coerce_formats,
+    _parse_and_localize_timestamp,
     plot_alerts,
 )
 
@@ -105,3 +108,51 @@ def test_plot_alerts_empty_df_does_nothing(caplog: pytest.LogCaptureFixture) -> 
     result = plot_alerts(df)
     assert result is None
     assert any("no plots generated" in msg.lower() for msg in caplog.text.splitlines())
+
+
+@pytest.mark.parametrize(
+    "input_value, expected_output",
+    [
+        ("2024-01-01 12:00", pd.Timestamp("2024-01-01 12:00", tz="UTC")),
+        (datetime(2024, 1, 1, 12, 0), pd.Timestamp("2024-01-01 12:00", tz="UTC")),
+        (pd.Timestamp("2024-01-01 12:00"), pd.Timestamp("2024-01-01 12:00", tz="UTC")),
+        (
+            pd.Timestamp("2024-01-01 12:00", tz="UTC"),
+            pd.Timestamp("2024-01-01 12:00", tz="UTC"),
+        ),
+        (None, pd.NaT),
+        ("not-a-timestamp", pd.NaT),
+        (pd.NaT, pd.NaT),
+        (float("nan"), pd.NaT),
+    ],
+)
+def test_parse_and_localize_timestamp_valid(
+    input_value: str | datetime | pd.Timestamp, expected_output: pd.Timestamp
+) -> None:
+    """Test scalar inputs are correctly parsed and localized or coerced to NaT."""
+    result = _parse_and_localize_timestamp(input_value)
+    if pd.isna(expected_output):
+        assert pd.isna(result)
+    else:
+        assert result == expected_output
+        assert result.tzinfo is not None and str(result.tzinfo) == "UTC"
+
+
+@pytest.mark.parametrize(
+    "invalid_input",
+    [
+        {"boom": "dict"},
+        ["2024-01-01"],
+        pd.Series(["2024-01-01"]),
+        pd.DataFrame({"a": [1]}),
+        set(["2024-01-01"]),
+        object(),
+    ],
+)
+def test_parse_and_localize_timestamp_invalid_inputs_return_nat(
+    invalid_input: object,
+) -> None:
+    """Test non-scalar inputs return NaT."""
+    assert not is_scalar(invalid_input)
+    result = _parse_and_localize_timestamp(invalid_input)
+    assert pd.isna(result)
