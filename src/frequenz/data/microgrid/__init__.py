@@ -3,8 +3,10 @@
 
 """Initialize the microgrid data module."""
 
+from .component_data import MicrogridData
 from .config import MicrogridConfig
 
 __all__ = [
     "MicrogridConfig",
+    "MicrogridData",
 ]
