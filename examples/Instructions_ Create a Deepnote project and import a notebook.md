@@ -27,6 +27,19 @@ To do this, click on the dropdown field at the bottom left where the Python vers
 <img src="images/image3.png" width="25%">
 <img src="images/image4.png" width="50%">
 
+**Note**: Deepnote may occasionally update or rename their environments, or add/remove some of them. So don't worry if you see different names or more than one option showing "Python 3.11".
+
+If you see multiple environments that say "Python 3.11", just pick one. After selecting one:
+
+1. Try installing any libraries you need, such as pandas, matplotlib, etc.
+2. Then, try importing them in a new cell.
+
+If everything works without error messages, you're all set.
+
+If you run into any issues installing or importing libraries, go back and try a different Python 3.11 environment (if available), and repeat the steps above.
+
+Refreshing the page can also help if things seem stuck or unresponsive.
+
 ### **4\. Upload Python Notebook**
 
 Click on the \+ in the Files tab on the left menu and select the **Upload .ipynb file option.** Then upload the Python notebook file (.ipynb).
