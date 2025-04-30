@@ -8,7 +8,8 @@ from typing import Any, cast
 import pytest
 from pytest_mock import MockerFixture
 
-from frequenz.lib.notebooks.config import ComponentTypeConfig, MicrogridConfig
+from frequenz.data.microgrid import MicrogridConfig
+from frequenz.data.microgrid.config import ComponentTypeConfig
 
 VALID_CONFIG: dict[str, dict[str, Any]] = {
     "1": {
