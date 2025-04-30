@@ -466,6 +466,9 @@ class BaseNotification:
             backoff_factor: Delay factor for (linear) backoff calculation.
             max_sleep: Maximum sleep time in seconds.
             **kwargs: Keyword arguments for the send_func.
+
+        Raises:
+            NotificationSendError: If the notification fails after all retry attempts.
         """
         for attempt in range(retries + 1):
             try:
@@ -473,11 +476,16 @@ class BaseNotification:
                 _log.info("Successfully sent notification on attempt %d", attempt + 1)
                 return
             except Exception as e:  # pylint: disable=broad-except
+                last_exception = e
                 _log.error("Attempt %d failed: %s", attempt + 1, e)
                 if attempt < retries - 1:
                     linear_backoff = backoff_factor * (attempt + 1)
                     time.sleep(min(max_sleep, linear_backoff))
         _log.error("Failed to send notification after %d retries", retries)
+        raise NotificationSendError(
+            "Notification failed after all retry attempts.",
+            last_exception=last_exception,
+        )
 
     def start_scheduler(self) -> None:
         """Start the scheduler if configured."""
@@ -636,3 +644,24 @@ class EmailNotification(BaseNotification):
         except SMTPException as e:
             _log.error("Failed to send email: %s", e)
             raise
+
+
+class NotificationSendError(Exception):
+    """Raised when sending a notification fails after all retry attempts."""
+
+    def __init__(self, message: str, last_exception: Exception | None = None) -> None:
+        """Initialise the error with a message and optional last exception.
+
+        Args:
+            message: Error message.
+            last_exception: The last exception encountered during the send process.
+        """
+        super().__init__(message)
+        self.last_exception = last_exception
+
+    def __str__(self) -> str:
+        """Return a string representation of the error."""
+        base = super().__str__()
+        if self.last_exception:
+            return f"{base} (Caused by: {self.last_exception})"
+        return base

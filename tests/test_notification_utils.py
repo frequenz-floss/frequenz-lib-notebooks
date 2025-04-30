@@ -6,9 +6,13 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+from _pytest.logging import LogCaptureFixture
 
 from frequenz.lib.notebooks import notification_utils
-from frequenz.lib.notebooks.notification_service import EmailConfig
+from frequenz.lib.notebooks.notification_service import (
+    EmailConfig,
+    NotificationSendError,
+)
 
 
 @pytest.fixture
@@ -177,19 +181,26 @@ def test_format_email_preview_without_attachments() -> None:
 
 @patch("frequenz.lib.notebooks.notification_service.EmailNotification.send")
 def test_send_test_email_success(basic_email_config: EmailConfig) -> None:
-    """Test that send_test_email reports success correctly."""
-    success, msg = notification_utils.send_test_email(basic_email_config)
+    """Test that send_test_email logs success correctly."""
+    success = notification_utils.send_test_email(basic_email_config, verbose=False)
     assert success is True
-    assert "successfully" in msg.lower()
 
 
 @patch("frequenz.lib.notebooks.notification_service.EmailNotification.send")
 def test_send_test_email_handles_failure(
-    mock_send: MagicMock, basic_email_config: EmailConfig
+    mock_send: MagicMock,
+    caplog: LogCaptureFixture,
+    basic_email_config: EmailConfig,
 ) -> None:
-    """Test that send_test_email catches and reports errors."""
-    mock_send.side_effect = Exception("Failed to send")
+    """Test that send_test_email logs error and traceback on failure."""
+    cause = RuntimeError("timeout")
+    exception = NotificationSendError("Retry failed", last_exception=cause)
+    mock_send.side_effect = exception  # Important: patch `send`, not `send_with_retry`
 
-    success, msg = notification_utils.send_test_email(basic_email_config)
+    with caplog.at_level("DEBUG", logger="frequenz.lib.notebooks.notification_utils"):
+        success = notification_utils.send_test_email(basic_email_config, verbose=False)
+
     assert success is False
-    assert "error" in msg.lower()
+    assert any("retry failed" in msg.lower() for msg in caplog.messages)
+    assert any("traceback" in msg.lower() for msg in caplog.messages)
+    assert any("timeout" in msg.lower() for msg in caplog.messages)

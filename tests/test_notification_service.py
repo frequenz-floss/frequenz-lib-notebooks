@@ -15,6 +15,7 @@ from frequenz.lib.notebooks.notification_service import (
     EmailConfig,
     EmailNotification,
     FromDictMixin,
+    NotificationSendError,
     Scheduler,
     SchedulerConfig,
 )
@@ -140,13 +141,16 @@ def test_send_with_retry_failure(
     """Test that send_with_retry raises after all retries fail."""
     mock_send.side_effect = Exception("Always fails")
     with caplog.at_level(logging.ERROR):
-        BaseNotification.send_with_retry(
-            send_func=mock_send,
-            retries=3,
-            backoff_factor=1,
-            max_sleep=2,
-        )
+        with pytest.raises(NotificationSendError) as exc_info:
+            BaseNotification.send_with_retry(
+                send_func=mock_send,
+                retries=3,
+                backoff_factor=1,
+                max_sleep=2,
+            )
         assert "Failed to send notification after 3 retries" in caplog.text
+        assert "Always fails" in str(exc_info.value)
+        assert "notification failed" in str(exc_info.value).lower()
     assert mock_send.call_count == 4
 
 
@@ -168,12 +172,13 @@ def test_send_with_retry_backoff(mock_send: MagicMock, mock_sleep: MagicMock) ->
     retries = 3
     backoff_factor = 2
     max_sleep = 3
-    BaseNotification.send_with_retry(
-        send_func=mock_send,
-        retries=retries,
-        backoff_factor=backoff_factor,
-        max_sleep=max_sleep,
-    )
+    with pytest.raises(NotificationSendError):
+        BaseNotification.send_with_retry(
+            send_func=mock_send,
+            retries=retries,
+            backoff_factor=backoff_factor,
+            max_sleep=max_sleep,
+        )
 
     # Expected sleep durations for each retry
     expected_sleep_calls = [
@@ -344,3 +349,19 @@ def test_from_dict_not_implemented() -> None:
 
     with pytest.raises(AttributeError, match="has no attribute 'from_dict'"):
         TestClass.from_dict({})  # type: ignore
+
+
+# Tests for the NotificationSendError class
+def test_notification_send_error_str_with_cause() -> None:
+    """Test NotificationSendError string representation with a cause."""
+    original_error = ValueError("invalid email address")
+    exc = NotificationSendError(
+        "Failed to send notification", last_exception=original_error
+    )
+    assert str(exc) == "Failed to send notification (Caused by: invalid email address)"
+
+
+def test_notification_send_error_str_without_cause() -> None:
+    """Test NotificationSendError string representation without a cause."""
+    exc = NotificationSendError("Retry attempts exhausted")
+    assert str(exc) == "Retry attempts exhausted"

@@ -8,18 +8,26 @@ These are intended to be used in notebooks, Streamlit apps, or other tools that
 help users configure and debug their notification settings interactively.
 """
 import html
+import logging
 import os
 import re
 import smtplib
+import traceback
 from dataclasses import fields
 from datetime import UTC, datetime
 
-from frequenz.lib.notebooks.notification_service import EmailConfig, EmailNotification
+from frequenz.lib.notebooks.notification_service import (
+    EmailConfig,
+    EmailNotification,
+    NotificationSendError,
+)
+
+_log = logging.getLogger(__name__)
 
 EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
-def send_test_email(config: EmailConfig) -> tuple[bool, str]:
+def send_test_email(config: EmailConfig, verbose: bool = True) -> bool:
     """Send a test email using the given EmailConfig.
 
     The email message is generated automatically based on the provided
@@ -27,9 +35,10 @@ def send_test_email(config: EmailConfig) -> tuple[bool, str]:
 
     Args:
         config: An EmailConfig instance.
+        verbose: If True, prints the result to stdout.
 
     Returns:
-        Tuple of (success_flag, message).
+        True if the email was sent successfully, False otherwise.
     """
     if config.subject is None:
         config.subject = "Test Email"
@@ -65,9 +74,21 @@ def send_test_email(config: EmailConfig) -> tuple[bool, str]:
     try:
         email_notification = EmailNotification(config=config)
         email_notification.send()
-        return True, "✅ Test email sent successfully!"
-    except Exception as e:  # pylint: disable=broad-except
-        return False, f"❌ Error sending test email: {e}"
+        msg = "✅ Test email sent successfully!"
+        _log.info(msg)
+        if verbose:
+            print(msg)
+        return True
+    except NotificationSendError as e:
+        msg = f"❌ Error sending test email: {e}"
+        _log.error(msg)
+        if e.last_exception:
+            _log.debug(
+                "Traceback:\n%s", "".join(traceback.format_exception(e.last_exception))
+            )
+        if verbose:
+            print(msg)
+        return False
 
 
 def format_email_preview(
