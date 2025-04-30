@@ -4,11 +4,9 @@
 
 ## Upgrading
 
-* Move microgrid config to new data namespace
+* Expose MicrogridData from microgrid namespace.
 
 ## New Features
-
-* Introduces the MicrogridData class which brings functionality to fetch ac active power and SoC data aggregate over multiple components of the same type from the reporting API.
 
 ## Bug Fixes
 
