@@ -27,6 +27,19 @@ Dazu klicken sie unten links auf das Dropdown Feld in dem die Python Version ang
 <img src="images/image3.png" width="25%">
 <img src="images/image4.png" width="50%">
 
+**Hinweis**: Deepnote kann gelegentlich seine Umgebungen umbenennen, aktualisieren oder neue hinzufügen bzw. bestehende entfernen. Mach dir also keine Sorgen, wenn du andere Namen siehst oder mehrere Optionen mit "Python 3.11" angezeigt werden.
+
+Wenn mehrere Umgebungen mit der Bezeichnung "Python 3.11" verfügbar sind, wähle einfach eine davon aus. Nachdem du eine ausgewählt hast:
+
+1. Versuche, alle benötigten Bibliotheken zu installieren, z. B. pandas, matplotlib usw.
+2. Versuche anschließend, sie in einer neuen Zelle zu importieren.
+
+Wenn dabei keine Fehlermeldungen erscheinen, ist alles bereit.
+
+Falls es Probleme beim Installieren oder Importieren gibt, kannst du eine andere Python-3.11-Umgebung ausprobieren (falls vorhanden) und die Schritte wiederholen.
+
+Ein Neuladen der Seite kann ebenfalls helfen, wenn etwas festzuhängen scheint oder nicht richtig lädt.
+
 ### **4\. Python Notebook hochladen**
 
 Klicken Sie im Menü Links im Reiter **Files** auf das **\+**, wählen sie die Option **Upload .ipynb file**
