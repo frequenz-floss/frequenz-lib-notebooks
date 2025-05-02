@@ -16,3 +16,4 @@
 
 - Introduced `NoDataAvailableError` exception to represent situations where no data is available and to skip such cases during workflow execution and plotting.
 - Fixed a bug introduced in version `v0.5.2` where the microgrid tabular overview excluded current-day values from the total production for the past 30 and 365 days, causing inconsistencies with metrics that included today's data.
+- Fixed a crash in statistical plot style generation when the input data index is empty or contains only a single timestamp. Duration is now set to `None` when no `mode` can be determined.

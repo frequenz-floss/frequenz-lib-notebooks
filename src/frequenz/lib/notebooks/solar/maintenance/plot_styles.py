@@ -164,6 +164,8 @@ class StatisticalPlotStyle(PlotStyleStrategy):
                 .total_seconds()
                 / 60
             )
+        except KeyError:
+            duration = None  # occurs when data_index is empty or has a single value
 
         axes_params: dict[str, dict[str, str | int | list[str] | None]] = {
             "grouped": {
