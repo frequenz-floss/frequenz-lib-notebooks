@@ -10,6 +10,7 @@
 
 ## New Features
 * Notification service: Introduced `NotificationSendError` for structured retry failure handling and updated the logging in `send_test_email()` utility function.
+* Rolling and profile plots now include production data up to the latest available timestamp, even if the current day is incomplete. This provides more real-time views of today's production without waiting for the day to finish.
 
 ## Bug Fixes
 
