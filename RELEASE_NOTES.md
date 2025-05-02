@@ -14,3 +14,4 @@
 ## Bug Fixes
 
 * Fixed a bug where the Solar Maintenance app would crash if some requested inverter components were missing from the reporting data. Missing components are now handled gracefully with a warning.
+* Fixed a bug in prediction model preparation where predictions could fail or mismatch the expected index when using minimal data and a large moving average window. Predictions are now correctly aligned with the data index, with missing values padded with NaN.

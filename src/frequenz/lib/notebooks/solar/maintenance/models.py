@@ -145,15 +145,7 @@ def prepare_prediction_models(
         predictions = model_function(data=data_to_use, **model_params)
 
         if not isinstance(predictions, pd.Series):
-            if len(data_to_use) - len(predictions) > 0:
-                tmp_series = pd.Series(data=np.nan, index=data_to_use.index)
-                tmp_series.iloc[-len(predictions) :] = predictions
-                predictions = tmp_series
-            else:
-                predictions = pd.Series(
-                    data=predictions, index=data_to_use.index[-len(predictions) :]
-                )
-            predictions.name = "predictions"
+            predictions = _align_predictions_to_index(predictions, data_to_use.index)
 
         prediction_models[label] = {"predictions": predictions}
 
@@ -558,3 +550,34 @@ def run_pvlib_simulation(  # pylint: disable=unused-argument
     predictions: SeriesFloat = simulation_data["power_W"]
     predictions.name = "predictions"
     return predictions
+
+
+def _align_predictions_to_index(
+    predictions: NDArray[np.float64],
+    reference_index: pd.Index[Any],
+) -> SeriesFloat:
+    """Align predictions to a reference index, padding with NaNs if necessary.
+
+    Args:
+        predictions: The prediction outputs.
+        reference_index: The DataFrame index to align to.
+
+    Returns:
+        A pandas Series with predictions aligned to the reference index.
+
+    Note:
+        If predictions are longer than the reference index, predictions will
+        be truncated from the left. If predictions are shorter, they are
+        right-aligned and earlier entries are filled with NaN.
+    """
+    reference_length = len(reference_index)
+    prediction_length = len(predictions)
+
+    if prediction_length > reference_length:
+        predictions = predictions[-reference_length:]
+    elif prediction_length < reference_length:
+        padded_predictions = np.full(reference_length, np.nan, dtype=np.float64)
+        padded_predictions[-prediction_length:] = predictions
+        predictions = padded_predictions
+
+    return pd.Series(data=predictions, index=reference_index, name="predictions")
