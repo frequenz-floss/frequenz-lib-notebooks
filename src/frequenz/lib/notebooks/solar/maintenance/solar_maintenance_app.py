@@ -210,6 +210,16 @@ async def run_workflow(
                 if components[0] == mid
                 for cid in components[1]
             ]
+            if missing_cols := set(real_time_view_col_to_plot) - set(
+                reporting_data_higher_fs.columns
+            ):
+                real_time_view_col_to_plot = list(
+                    set(real_time_view_col_to_plot) - set(missing_cols)
+                )
+                if config.verbose:
+                    print(
+                        f"Warning: Data is missing for the following components: {missing_cols}"
+                    )
             data_higher_fs = _filter_and_rename_columns(
                 reporting_data_higher_fs,
                 real_time_view_col_to_plot,

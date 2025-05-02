@@ -11,4 +11,4 @@
 
 ## Bug Fixes
 
-<!-- Here goes notable bug fixes that are worth a special mention or explanation -->
+* Fixed a bug where the Solar Maintenance app would crash if some requested inverter components were missing from the reporting data. Missing components are now handled gracefully with a warning.
