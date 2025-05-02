@@ -5,6 +5,7 @@
 ## Upgrading
 
 * Expose MicrogridData from microgrid namespace.
+* Upgrade `frequenz-client-reporting` to minimum `v0.16.0`.
 
 ## New Features
 
