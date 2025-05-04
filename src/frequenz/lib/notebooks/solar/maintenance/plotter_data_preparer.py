@@ -236,10 +236,7 @@ class RollingPreparer(BasePreparer):
             start = current.replace(hour=0, minute=0, second=0) - pd.Timedelta(
                 days=time
             )
-            stop = current.replace(
-                hour=23, minute=59, second=59, microsecond=1
-            ) - pd.Timedelta(days=1)
-            df_to_plot = df.loc[start:stop, :].resample("D").sum()
+            df_to_plot = df.loc[start:current, :].resample("D").sum()
             df_to_plot[self.config.x_axis_label] = [
                 item.strftime(self._date_format) for item in df_to_plot.index
             ]
@@ -250,8 +247,7 @@ class RollingPreparer(BasePreparer):
                 for item in pd.to_datetime(df_to_plot.index)
             ]
             start = current - pd.Timedelta(hours=time) + pd.Timedelta(microseconds=1)
-            stop = current
-            df_to_plot = df_to_plot.loc[start:stop, :]
+            df_to_plot = df_to_plot.loc[start:current, :]
         else:
             raise ValueError("Invalid time frame.")
         return df_to_plot
@@ -301,10 +297,7 @@ class ProfilePreparer(BasePreparer):
         current = df.index[-1]
         past_n_days = df.loc[
             current.replace(hour=0, minute=0, second=0)
-            - pd.Timedelta(days=self.config.duration) : current.replace(
-                hour=23, minute=59, second=59, microsecond=1
-            )
-            - pd.Timedelta(days=1)
+            - pd.Timedelta(days=self.config.duration) : current
         ]
 
         supported_groupings = {
