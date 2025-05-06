@@ -192,6 +192,7 @@ async def run_workflow(
         "x_axis_label": "x-axis",
         "verbose": config.verbose,
     }
+    production_table_view_list = []
     # pylint: disable-next=too-many-nested-blocks
     for mid in reporting_data.microgrid_id.unique():
         message = f"Generating plots for microgrid ID: {mid}"
@@ -352,8 +353,10 @@ async def run_workflow(
         # ------------------- #
 
         # --- generate the production statistics table --- #
-        production_statistics_table_df = StatsPreparer(stats_view_config).prepare(data)
-        style_table(production_statistics_table_df, show=True)
+        _prod_table = StatsPreparer(stats_view_config).prepare(data)
+        _prod_table.index = pd.Index([mid])
+        _prod_table.index.name = "Microgrid ID"
+        production_table_view_list.append(_prod_table)
         # ------------------- #
 
         # --- short-term view --- #
@@ -743,6 +746,12 @@ async def run_workflow(
         for fig in figures_and_axes.keys():
             plot_manager.adjust_axes_spacing(fig_id=fig, pixels=100.0)
 
+    if production_table_view_list:
+        production_table_view = pd.concat(production_table_view_list, axis=0)
+        production_table_view.reset_index(inplace=True)
+        style_table(production_table_view, show=True)
+    else:
+        production_table_view = pd.DataFrame()
     return {
         "real_time_view": rolling_view_real_time,
         "rolling_view_short_term": rolling_view_short_term,
@@ -750,7 +759,7 @@ async def run_workflow(
         "rolling_view_average": rolling_view_average,
         "daily_production": daily_production_view,
         "statistical_profiles": statistical_view,
-        "production_statistics_table": production_statistics_table_df,
+        "production_statistics_table": production_table_view,
     }
 
 

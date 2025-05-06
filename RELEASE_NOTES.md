@@ -5,8 +5,7 @@
 <!-- Here goes a general summary of what this release is about -->
 
 ## Upgrading
-
-<!-- Here goes notes on how to upgrade from previous versions, including deprecations and what they should be replaced with -->
+* Refactored the solar maintenance workflow to aggregate production statistics from all requested microgrids into a single table instead of creating one table per microgrid.
 
 ## New Features
 
