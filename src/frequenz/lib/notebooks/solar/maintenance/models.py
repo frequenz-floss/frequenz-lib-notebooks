@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 import pvlib
 from numpy.typing import NDArray
-from pandas import Series
+from pandas import Index, Series
 from pvlib.location import Location
 from pvlib.modelchain import ModelChain
 from pvlib.pvsystem import Array, FixedMount, PVSystem
@@ -554,7 +554,7 @@ def run_pvlib_simulation(  # pylint: disable=unused-argument
 
 def _align_predictions_to_index(
     predictions: NDArray[np.float64],
-    reference_index: pd.Index[Any],
+    reference_index: "Index[Any]",
 ) -> SeriesFloat:
     """Align predictions to a reference index, padding with NaNs if necessary.
 
