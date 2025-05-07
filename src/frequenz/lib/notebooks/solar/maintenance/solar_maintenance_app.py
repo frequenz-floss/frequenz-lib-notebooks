@@ -16,6 +16,7 @@ point for the Solar Maintenance App is the `run_workflow` function.
 
 import datetime
 import os
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 import matplotlib.pyplot as plt
@@ -66,10 +67,60 @@ else:
     SeriesFloat = pd.Series  # Treated generically at runtime.
 
 
+@dataclass
+class SolarAnalysisData:
+    """Structured output of the Solar Maintenance workflow."""
+
+    real_time_view: dict[int, pd.DataFrame] = field(
+        default_factory=dict,
+        metadata={"description": "Plot data for real-time view, per microgrid ID."},
+    )
+
+    rolling_view_short_term: dict[int, pd.DataFrame] = field(
+        default_factory=dict,
+        metadata={
+            "description": "Plot data for short-term rolling view, per microgrid ID."
+        },
+    )
+
+    rolling_view_long_term: dict[int, pd.DataFrame] = field(
+        default_factory=dict,
+        metadata={
+            "description": "Plot data for long-term rolling view, per microgrid ID."
+        },
+    )
+
+    rolling_view_average: dict[int, pd.DataFrame] = field(
+        default_factory=dict,
+        metadata={
+            "description": "Plot data for averaged rolling view, per microgrid ID."
+        },
+    )
+
+    daily_production: dict[int, pd.DataFrame] = field(
+        default_factory=dict,
+        metadata={
+            "description": "Plot data for daily production view, per microgrid ID."
+        },
+    )
+
+    statistical_profiles: dict[int, dict[str, pd.DataFrame]] = field(
+        default_factory=dict,
+        metadata={
+            "description": "Plot data for statistical profiles, per microgrid ID."
+        },
+    )
+
+    production_table_view: pd.DataFrame | None = field(
+        default=None,
+        metadata={
+            "description": "Table data for production statistics, per microgrid ID.",
+        },
+    )
+
+
 # pylint: disable=too-many-statements, too-many-branches, too-many-locals
-async def run_workflow(
-    user_config_changes: dict[str, Any],
-) -> dict[str, pd.DataFrame | dict[str, pd.DataFrame]]:
+async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData:
     """Run the Solar Maintenance App workflow.
 
     This function fetches and processes the necessary data, generates production
@@ -79,8 +130,7 @@ async def run_workflow(
         user_config_changes: A dictionary of user configuration changes.
 
     Returns:
-        A dictionary containing the data for the plots and the production
-        statistics table.
+        A SolarAnalysisData object containing the plot data of the workflow.
 
     Raises:
         ValueError:
@@ -192,6 +242,8 @@ async def run_workflow(
         "x_axis_label": "x-axis",
         "verbose": config.verbose,
     }
+    # initialize the output data structure
+    output = SolarAnalysisData()
     production_table_view_list = []
     # pylint: disable-next=too-many-nested-blocks
     for mid in reporting_data.microgrid_id.unique():
@@ -746,21 +798,21 @@ async def run_workflow(
         for fig in figures_and_axes.keys():
             plot_manager.adjust_axes_spacing(fig_id=fig, pixels=100.0)
 
+        output.real_time_view[mid] = rolling_view_real_time
+        output.rolling_view_short_term[mid] = rolling_view_short_term
+        output.rolling_view_long_term[mid] = rolling_view_long_term
+        output.rolling_view_average[mid] = rolling_view_average
+        output.daily_production[mid] = daily_production_view
+        output.statistical_profiles[mid] = statistical_view
+
     if production_table_view_list:
         production_table_view = pd.concat(production_table_view_list, axis=0)
         production_table_view.reset_index(inplace=True)
         style_table(production_table_view, show=True)
     else:
         production_table_view = pd.DataFrame()
-    return {
-        "real_time_view": rolling_view_real_time,
-        "rolling_view_short_term": rolling_view_short_term,
-        "rolling_view_long_term": rolling_view_long_term,
-        "rolling_view_average": rolling_view_average,
-        "daily_production": daily_production_view,
-        "statistical_profiles": statistical_view,
-        "production_statistics_table": production_table_view,
-    }
+    output.production_table_view = production_table_view
+    return output
 
 
 def _load_and_validate_config(
