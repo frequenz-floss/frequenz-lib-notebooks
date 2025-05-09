@@ -9,7 +9,7 @@
 
 ## New Features
 
-<!-- Here goes the main new features and examples or instructions on how to use them -->
+- Introduced a `SolarAnalysisData` dataclass to structure the output of the `solar_maintenance_app.run_workflow()` function. This introduces a breaking change in the `Solar Maintenance.ipynb` notebook.
 
 ## Bug Fixes
 
