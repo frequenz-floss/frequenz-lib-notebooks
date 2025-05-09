@@ -201,12 +201,16 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
     if reporting_data.empty and reporting_data_higher_fs.empty:
         raise NoDataAvailableError("No reporting data available. Cannot proceed.")
 
-    weather_data = transform_weather_data(
-        data=weather_data,
-        weather_feature_names_mapping=config.weather_feature_names_mapping,
-        time_zone=config.time_zone,
-        verbose=config.verbose,
-    )
+    if not weather_data.empty:
+        weather_data = transform_weather_data(
+            data=weather_data,
+            weather_feature_names_mapping=config.weather_feature_names_mapping,
+            time_zone=config.time_zone,
+            verbose=config.verbose,
+        )
+        lat_lon_pairs = _create_lat_lon_pairs(
+            weather_data["latitude"].unique(), weather_data["longitude"].unique()
+        )
 
     reporting_data = transform_reporting_data(
         data=reporting_data,
@@ -231,10 +235,6 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
         reporting_data_higher_fs = reporting_data_higher_fs.map(
             lambda x: abs(x) if np.issubdtype(type(x), np.number) else x
         )
-
-    lat_lon_pairs = _create_lat_lon_pairs(
-        weather_data["latitude"].unique(), weather_data["longitude"].unique()
-    )
 
     # display the results for each microgrid separately
     production_legend_label = tm.translate("production")
@@ -314,25 +314,31 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
             [k for k in config.baseline_models if k != "weather-based-forecast"],
         )
         if "weather-based-forecast" in config.baseline_models:
-            closest_grid_point = _find_closest_grid_point(
-                all_client_site_info[mid]["latitude"],
-                all_client_site_info[mid]["longitude"],
-                lat_lon_pairs,
-            )
-            prediction_models.update(
-                prepare_prediction_models(
-                    weather_data[
-                        (weather_data["latitude"] == closest_grid_point[0])
-                        & (weather_data["longitude"] == closest_grid_point[1])
-                        & (
-                            weather_data["validity_ts"]
-                            <= config.end_timestamp + datetime.timedelta(hours=1)
-                        )
-                    ],
-                    model_specs,
-                    ["weather-based-forecast"],
+            if weather_data.empty:
+                reason = NoDataAvailableError("No weather data available.")
+                print(
+                    f"{type(reason).__name__}: {reason} Skipping weather-based-forecast model."
                 )
-            )
+            else:
+                closest_grid_point = _find_closest_grid_point(
+                    all_client_site_info[mid]["latitude"],
+                    all_client_site_info[mid]["longitude"],
+                    lat_lon_pairs,
+                )
+                prediction_models.update(
+                    prepare_prediction_models(
+                        weather_data[
+                            (weather_data["latitude"] == closest_grid_point[0])
+                            & (weather_data["longitude"] == closest_grid_point[1])
+                            & (
+                                weather_data["validity_ts"]
+                                <= config.end_timestamp + datetime.timedelta(hours=1)
+                            )
+                        ],
+                        model_specs,
+                        ["weather-based-forecast"],
+                    )
+                )
         # NOTE: the below is a hack until PV lib simulation is properly set up
         # (i.e. needs user input for the PV system parameters)
         if "simulation" in prediction_models:
