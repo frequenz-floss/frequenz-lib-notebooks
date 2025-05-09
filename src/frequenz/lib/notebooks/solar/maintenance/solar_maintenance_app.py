@@ -119,6 +119,10 @@ class SolarAnalysisData:
     )
 
 
+class NoDataAvailableError(Exception):
+    """Raised when there is no available data."""
+
+
 # pylint: disable=too-many-statements, too-many-branches, too-many-locals
 async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData:
     """Run the Solar Maintenance App workflow.
@@ -142,6 +146,7 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
                 `stat_profile_view_col_to_plot`) are hardcoded.
             - If the timezone of the data does not match the timezone in the
                 configuration.
+        NoDataAvailableError: If no reporting data is available.
     """
     config, all_client_site_info = _load_and_validate_config(user_config_changes)
 
@@ -192,6 +197,9 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
             f"{config.small_resample_period_seconds}..."
         )
     reporting_data_higher_fs = await retrieve_data(reporting_config)
+
+    if reporting_data.empty and reporting_data_higher_fs.empty:
+        raise NoDataAvailableError("No reporting data available. Cannot proceed.")
 
     weather_data = transform_weather_data(
         data=weather_data,
