@@ -293,6 +293,10 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
                 reporting_data_higher_fs, col_text, verbose=config.verbose
             )
             normalisation_factor = 1
+        if data.empty:
+            reason = NoDataAvailableError(f"No data available for microgrid ID {mid}.")
+            print(f"{type(reason).__name__}: {reason} Skipping...")
+            continue
         timezone = str(pd.to_datetime(data.index).tzinfo)
         if timezone != config.time_zone.key:
             raise ValueError("Timezone mismatch.")
