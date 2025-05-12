@@ -13,4 +13,4 @@
 
 ## Bug Fixes
 
-<!-- Here goes notable bug fixes that are worth a special mention or explanation -->
+- Introduced `NoDataAvailableError` exception to represent situations where no data is available and to skip such cases during workflow execution and plotting.

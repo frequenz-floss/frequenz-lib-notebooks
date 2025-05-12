@@ -119,6 +119,10 @@ class SolarAnalysisData:
     )
 
 
+class NoDataAvailableError(Exception):
+    """Raised when there is no available data."""
+
+
 # pylint: disable=too-many-statements, too-many-branches, too-many-locals
 async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData:
     """Run the Solar Maintenance App workflow.
@@ -142,6 +146,7 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
                 `stat_profile_view_col_to_plot`) are hardcoded.
             - If the timezone of the data does not match the timezone in the
                 configuration.
+        NoDataAvailableError: If no reporting data is available.
     """
     config, all_client_site_info = _load_and_validate_config(user_config_changes)
 
@@ -193,12 +198,19 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
         )
     reporting_data_higher_fs = await retrieve_data(reporting_config)
 
-    weather_data = transform_weather_data(
-        data=weather_data,
-        weather_feature_names_mapping=config.weather_feature_names_mapping,
-        time_zone=config.time_zone,
-        verbose=config.verbose,
-    )
+    if reporting_data.empty and reporting_data_higher_fs.empty:
+        raise NoDataAvailableError("No reporting data available. Cannot proceed.")
+
+    if not weather_data.empty:
+        weather_data = transform_weather_data(
+            data=weather_data,
+            weather_feature_names_mapping=config.weather_feature_names_mapping,
+            time_zone=config.time_zone,
+            verbose=config.verbose,
+        )
+        lat_lon_pairs = _create_lat_lon_pairs(
+            weather_data["latitude"].unique(), weather_data["longitude"].unique()
+        )
 
     reporting_data = transform_reporting_data(
         data=reporting_data,
@@ -223,10 +235,6 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
         reporting_data_higher_fs = reporting_data_higher_fs.map(
             lambda x: abs(x) if np.issubdtype(type(x), np.number) else x
         )
-
-    lat_lon_pairs = _create_lat_lon_pairs(
-        weather_data["latitude"].unique(), weather_data["longitude"].unique()
-    )
 
     # display the results for each microgrid separately
     production_legend_label = tm.translate("production")
@@ -285,6 +293,10 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
                 reporting_data_higher_fs, col_text, verbose=config.verbose
             )
             normalisation_factor = 1
+        if data.empty:
+            reason = NoDataAvailableError(f"No data available for microgrid ID {mid}.")
+            print(f"{type(reason).__name__}: {reason} Skipping...")
+            continue
         timezone = str(pd.to_datetime(data.index).tzinfo)
         if timezone != config.time_zone.key:
             raise ValueError("Timezone mismatch.")
@@ -302,25 +314,31 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
             [k for k in config.baseline_models if k != "weather-based-forecast"],
         )
         if "weather-based-forecast" in config.baseline_models:
-            closest_grid_point = _find_closest_grid_point(
-                all_client_site_info[mid]["latitude"],
-                all_client_site_info[mid]["longitude"],
-                lat_lon_pairs,
-            )
-            prediction_models.update(
-                prepare_prediction_models(
-                    weather_data[
-                        (weather_data["latitude"] == closest_grid_point[0])
-                        & (weather_data["longitude"] == closest_grid_point[1])
-                        & (
-                            weather_data["validity_ts"]
-                            <= config.end_timestamp + datetime.timedelta(hours=1)
-                        )
-                    ],
-                    model_specs,
-                    ["weather-based-forecast"],
+            if weather_data.empty:
+                reason = NoDataAvailableError("No weather data available.")
+                print(
+                    f"{type(reason).__name__}: {reason} Skipping weather-based-forecast model."
                 )
-            )
+            else:
+                closest_grid_point = _find_closest_grid_point(
+                    all_client_site_info[mid]["latitude"],
+                    all_client_site_info[mid]["longitude"],
+                    lat_lon_pairs,
+                )
+                prediction_models.update(
+                    prepare_prediction_models(
+                        weather_data[
+                            (weather_data["latitude"] == closest_grid_point[0])
+                            & (weather_data["longitude"] == closest_grid_point[1])
+                            & (
+                                weather_data["validity_ts"]
+                                <= config.end_timestamp + datetime.timedelta(hours=1)
+                            )
+                        ],
+                        model_specs,
+                        ["weather-based-forecast"],
+                    )
+                )
         # NOTE: the below is a hack until PV lib simulation is properly set up
         # (i.e. needs user input for the PV system parameters)
         if "simulation" in prediction_models:
@@ -397,8 +415,12 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
         rolling_view_average = RollingPreparer(rolling_view_average_config).prepare(
             data[[long_term_view_col_to_plot]]
         )
-        rolling_view_real_time = RollingPreparer(rolling_view_real_time_config).prepare(
-            data_higher_fs[real_time_view_col_to_plot] / normalisation_factor
+        rolling_view_real_time = (
+            pd.DataFrame()
+            if data_higher_fs.empty
+            else RollingPreparer(rolling_view_real_time_config).prepare(
+                data_higher_fs[real_time_view_col_to_plot] / normalisation_factor
+            )
         )
         daily_production_view = DailyPreparer(daily_plot_config).prepare(data)
         statistical_view = ProfilePreparer(statistical_plot_config).prepare(data)
@@ -481,54 +503,67 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
             fig=figures_and_axes["fig_real_time"]["figure"],
             ax=figures_and_axes["fig_real_time"]["axes"][0],
         )
-        if plot_settings["show_annotation"]:
-            if len(real_time_view_col_to_plot) == 1:
-                for col in real_time_view_col_to_plot:
-                    recent_y = rolling_view_real_time[str(col)].iloc[-2]
-                    _annotate_last_point(
-                        figures_and_axes["fig_real_time"]["axes"][0], recent_y
-                    )
-                    patch = Patch(
-                        color=plot_settings["patch_colour"], label=patch_label
-                    )
-        figures_and_axes["fig_real_time"]["axes"][0].set_ylabel(real_time_view_ylabel)
-
-        if plot_settings["legend_update_on"] == "figure":
-            _legend_kwargs_copy = plot_settings["legend_kwargs"].copy()
-            # divide legend labels into groups of 2 if needed
-            _legend_kwargs_copy["ncol"] = max(
-                _legend_kwargs_copy["ncol"],
-                (
-                    len(
-                        figures_and_axes["fig_real_time"]["axes"][
-                            0
-                        ].get_legend_handles_labels()[1]
-                    )
-                    + 1
-                )
-                // 2,
-            )
+        if data_higher_fs.empty:
+            reason = NoDataAvailableError("No data available for real-time view.")
+            print(f"{reason} Skipping this plot.")
+            print(f"{type(reason).__name__}: {reason}. Skipping this plot.")
+            # the plotter automatically hides the axis when data is empty
+            # but we need to deal with the figure itself
+            # we can safely clear the figure like this because it only plots rolling_view_real_time
+            figures_and_axes["fig_real_time"]["figure"].clf()
         else:
-            _legend_kwargs_copy = plot_settings["legend_kwargs"]
-        plot_manager.update_legend(
-            fig_id="fig_real_time",
-            axs=[figures_and_axes["fig_real_time"]["axes"][0]],
-            on=plot_settings["legend_update_on"],
-            modifications={
-                "additional_items": (
-                    [(patch, patch_label)] if plot_settings["show_annotation"] else None
-                ),
-                "replace_label": {
-                    str(col): (
-                        tm.translate("component_{value}", value=col)
-                        if config.split_real_time_view_per_inverter
-                        else production_legend_label
+            if plot_settings["show_annotation"]:
+                if len(real_time_view_col_to_plot) == 1:
+                    for col in real_time_view_col_to_plot:
+                        recent_y = rolling_view_real_time[str(col)].iloc[-2]
+                        _annotate_last_point(
+                            figures_and_axes["fig_real_time"]["axes"][0], recent_y
+                        )
+                        patch = Patch(
+                            color=plot_settings["patch_colour"], label=patch_label
+                        )
+            figures_and_axes["fig_real_time"]["axes"][0].set_ylabel(
+                real_time_view_ylabel
+            )
+
+            if plot_settings["legend_update_on"] == "figure":
+                _legend_kwargs_copy = plot_settings["legend_kwargs"].copy()
+                # divide legend labels into groups of 2 if needed
+                _legend_kwargs_copy["ncol"] = max(
+                    _legend_kwargs_copy["ncol"],
+                    (
+                        len(
+                            figures_and_axes["fig_real_time"]["axes"][
+                                0
+                            ].get_legend_handles_labels()[1]
+                        )
+                        + 1
                     )
-                    for col in real_time_view_col_to_plot
+                    // 2,
+                )
+            else:
+                _legend_kwargs_copy = plot_settings["legend_kwargs"]
+            plot_manager.update_legend(
+                fig_id="fig_real_time",
+                axs=[figures_and_axes["fig_real_time"]["axes"][0]],
+                on=plot_settings["legend_update_on"],
+                modifications={
+                    "additional_items": (
+                        [(patch, patch_label)]
+                        if plot_settings["show_annotation"]
+                        else None
+                    ),
+                    "replace_label": {
+                        str(col): (
+                            tm.translate("component_{value}", value=col)
+                            if config.split_real_time_view_per_inverter
+                            else production_legend_label
+                        )
+                        for col in real_time_view_col_to_plot
+                    },
                 },
-            },
-            **_legend_kwargs_copy,
-        )
+                **_legend_kwargs_copy,
+            )
         # ------------------- #
 
         # --- plot the statistical production profile --- #
@@ -798,7 +833,9 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
         for fig in figures_and_axes.keys():
             plot_manager.adjust_axes_spacing(fig_id=fig, pixels=100.0)
 
-        output.real_time_view[mid] = rolling_view_real_time
+        output.real_time_view[mid] = (
+            pd.DataFrame() if data_higher_fs.empty else rolling_view_real_time
+        )
         output.rolling_view_short_term[mid] = rolling_view_short_term
         output.rolling_view_long_term[mid] = rolling_view_long_term
         output.rolling_view_average[mid] = rolling_view_average
