@@ -2,18 +2,16 @@
 
 ## Summary
 
-This release refactors the solar maintenance workflow to return structured data via a new `SolarAnalysisData` dataclass and aggregates production statistics across multiple microgrids into a single table. The microgrid overview interface was updated to support multiple grids using a modular layout. Several fixes improve robustness against missing data and correct inconsistencies in production totals involving current-day values.
+<!-- Here goes a general summary of what this release is about -->
 
 ## Upgrading
-- Refactored the solar maintenance workflow to aggregate production statistics from all requested microgrids into a single table instead of creating one table per microgrid.
+
+<!-- Here goes notes on how to upgrade from previous versions, including deprecations and what they should be replaced with -->
 
 ## New Features
 
-- Introduced the `SolarAnalysisData` dataclass to structure the output of the `solar_maintenance_app.run_workflow()` function.
-- Added a modular `MicrogridOverviewDashboard` for dynamic multi-microgrid production display with light/dark theme support. Replaces the current hardcoded single-microgrid layout.
+<!-- Here goes the main new features and examples or instructions on how to use them -->
 
 ## Bug Fixes
 
-- Introduced `NoDataAvailableError` exception to represent situations where no data is available and to skip such cases during workflow execution and plotting.
-- Fixed a bug introduced in version `v0.5.2` where the microgrid tabular overview excluded current-day values from the total production for the past 30 and 365 days, causing inconsistencies with metrics that included today's data.
-- Fixed a crash in statistical plot style generation when the input data index is empty or contains only a single timestamp. Duration is now set to `None` when no `mode` can be determined.
+<!-- Here goes notable bug fixes that are worth a special mention or explanation -->
