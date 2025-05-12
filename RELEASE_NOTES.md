@@ -2,14 +2,14 @@
 
 ## Summary
 
-<!-- Here goes a general summary of what this release is about -->
+This release refactors the solar maintenance workflow to return structured data via a new `SolarAnalysisData` dataclass and aggregates production statistics across multiple microgrids into a single table. The microgrid overview interface was updated to support multiple grids using a modular layout. Several fixes improve robustness against missing data and correct inconsistencies in production totals involving current-day values.
 
 ## Upgrading
-* Refactored the solar maintenance workflow to aggregate production statistics from all requested microgrids into a single table instead of creating one table per microgrid.
+- Refactored the solar maintenance workflow to aggregate production statistics from all requested microgrids into a single table instead of creating one table per microgrid.
 
 ## New Features
 
-- Introduced a `SolarAnalysisData` dataclass to structure the output of the `solar_maintenance_app.run_workflow()` function. This introduces a breaking change in the `Solar Maintenance.ipynb` notebook.
+- Introduced the `SolarAnalysisData` dataclass to structure the output of the `solar_maintenance_app.run_workflow()` function.
 - Added a modular `MicrogridOverviewDashboard` for dynamic multi-microgrid production display with light/dark theme support. Replaces the current hardcoded single-microgrid layout.
 
 ## Bug Fixes
