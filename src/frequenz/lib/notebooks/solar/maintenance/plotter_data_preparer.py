@@ -477,10 +477,7 @@ class StatsPreparer(BasePreparer):
                         "{:.2f}".format(
                             df.loc[
                                 current.replace(hour=0, minute=0, second=0)
-                                - pd.Timedelta(days=30) : current.replace(
-                                    hour=23, minute=59, second=59
-                                )
-                                - pd.Timedelta(days=1)
+                                - pd.Timedelta(days=30) : current
                             ].energy_kWh.sum()
                         )
                     )
@@ -503,10 +500,7 @@ class StatsPreparer(BasePreparer):
                         "{:.2f}".format(
                             df.loc[
                                 current.replace(hour=0, minute=0, second=0)
-                                - pd.Timedelta(days=365) : current.replace(
-                                    hour=23, minute=59, second=59
-                                )
-                                - pd.Timedelta(days=1)
+                                - pd.Timedelta(days=365) : current
                             ].energy_MWh.sum()
                         )
                     )
