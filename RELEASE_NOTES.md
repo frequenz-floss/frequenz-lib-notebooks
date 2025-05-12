@@ -10,6 +10,7 @@
 ## New Features
 
 - Introduced a `SolarAnalysisData` dataclass to structure the output of the `solar_maintenance_app.run_workflow()` function. This introduces a breaking change in the `Solar Maintenance.ipynb` notebook.
+- Added a modular `MicrogridOverviewDashboard` for dynamic multi-microgrid production display with light/dark theme support. Replaces the current hardcoded single-microgrid layout.
 
 ## Bug Fixes
 
