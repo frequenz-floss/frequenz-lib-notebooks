@@ -95,7 +95,7 @@ def prepare_prediction_models(
     """
     data_copy = data.copy()
 
-    supported_models: dict[str, Callable[..., SeriesFloat | NDArray[np.float64]]] = {
+    supported_models: dict[str, Callable[..., SeriesFloat | NDArray[np.floating]]] = {
         "wma": weighted_moving_average,
         "sampled_ma": sampled_moving_average,
         "naive_eff_irr2power": naive_efficiency_factor_irr_to_power,
@@ -158,7 +158,7 @@ def weighted_moving_average(
     mode: str | None = None,
     win_size: int | None = None,
     weights: NDArray[np.float64] | None = None,
-) -> NDArray[np.float64]:
+) -> NDArray[np.floating]:
     """Perform moving average with different weighting schemes.
 
     Args:
