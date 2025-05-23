@@ -6,14 +6,11 @@
 
 ## Upgrading
 
-
-* Includes a major dependency upgrade of the numpy library to version 2.
-
 <!-- Here goes notes on how to upgrade from previous versions, including deprecations and what they should be replaced with -->
 
 ## New Features
 
-* Add plotter for reporting notebooks.
+<!-- Here goes the main new features and examples or instructions on how to use them -->
 
 ## Bug Fixes
 
