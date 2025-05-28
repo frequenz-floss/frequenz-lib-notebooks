@@ -10,7 +10,7 @@
 
 ## New Features
 
-* Add reporting module for asset optimization.
+* Add reporting module for asset optimization and example notebook.
 
 <!-- Here goes the main new features and examples or instructions on how to use them -->
 
