@@ -27,7 +27,7 @@ classifiers = [
 requires-python = ">= 3.11, < 4"
 dependencies = [
   "typing-extensions >= 4.12.2, < 5",
-  "numpy >= 2.0, < 3",
+  "numpy >= 1.26.4, < 3",
   "pandas >= 2.2.2, < 3",
   "matplotlib >= 3.8.4, < 3.11.0",
   "ipython == 9.3.0",
@@ -37,7 +37,7 @@ dependencies = [
   "plotly >= 6.0.0, < 6.2.0",
   "kaleido >= 0.2.1, < 0.3.0",
   "frequenz-client-reporting >= 0.16.0, < 0.17.0",
-  "frequenz-client-weather >= 0.2.0, < 0.3.0",
+  "frequenz-client-weather >= 0.2.1, < 0.3.0",
 ]
 dynamic = ["version"]
 
