@@ -424,7 +424,7 @@ def transform_weather_features(
     data_out["validity_ts"] = pd.to_datetime(
         data_out["validity_ts"], errors="coerce"
     ).astype("datetime64[us]")
-    nat_present = data_out["validity_ts"].isna().any()
+    nat_present = bool(data_out["validity_ts"].isna().any())
     if nat_present:
         message = (
             "Missing or invalid date entries found in 'validity_ts'. "
