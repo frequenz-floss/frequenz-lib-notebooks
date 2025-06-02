@@ -244,7 +244,7 @@ def sampled_moving_average(
         shifting the Series by sampling_interval.
 
     Raises:
-        TypeError: If the output is not a pandas Series.
+        ValueError: If the input is a DataFrame with more than one column.
     """
     sampling_interval = abs(int(sampling_interval))
     data_index = pd.to_datetime(data.index).to_series()
@@ -264,9 +264,9 @@ def sampled_moving_average(
         window=window, min_periods=total_steps, closed="left"
     ).apply(lambda x: x[::sampling_interval].mean(), raw=True)
     if isinstance(predictions, pd.DataFrame):
-        predictions = predictions.squeeze()
-        if not isinstance(predictions, pd.Series):
-            raise TypeError("Output is not a pandas Series.")
+        if predictions.shape[1] != 1:
+            raise ValueError("Expected predictions DataFrame to have one column.")
+        predictions = predictions.iloc[:, 0]
     predictions.name = "predictions"
     return predictions
 
