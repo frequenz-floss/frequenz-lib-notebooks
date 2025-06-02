@@ -3,7 +3,7 @@
 
 [build-system]
 requires = [
-  "setuptools == 80.1.0",
+  "setuptools == 80.9.0",
   "setuptools_scm[toml] == 8.3.1",
   "frequenz-repo-config[lib] == 0.13.4",
 ]
@@ -30,7 +30,7 @@ dependencies = [
   "numpy >= 2.0, < 3",
   "pandas >= 2.2.2, < 3",
   "matplotlib >= 3.8.4, < 3.11.0",
-  "ipython == 9.2.0",
+  "ipython == 9.3.0",
   "pvlib >= 0.11.0, < 0.12.0",
   "python-dotenv >= 0.21.0, < 1.2.0",
   "toml >= 0.10.2, < 0.11.0",
@@ -67,7 +67,7 @@ dev-mkdocs = [
   "frequenz-repo-config[lib] == 0.13.4",
 ]
 dev-mypy = [
-  "mypy == 1.15.0",
+  "mypy == 1.16.0",
   "pandas-stubs == 2.2.3.250308",
   "types-toml==0.10.8.20240310",
   "types-Markdown == 3.8.0.20250415",
