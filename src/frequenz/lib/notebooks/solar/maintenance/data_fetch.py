@@ -153,7 +153,6 @@ async def retrieve_data(
         ValueError:
             - If no service address or file path provided for weather or
                 reporting data.
-            - If no data is retrieved from the reporting API.
             - If the file path does not end with '.csv'.
         TypeError: If an unknown configuration type is provided.
     """
@@ -193,8 +192,6 @@ async def retrieve_data(
                     resampling_period=timedelta(seconds=config.resample_period_seconds),
                 )
             ]
-            if not reporting_data:
-                raise ValueError("No data retrieved from the reporting API.")
             return pd.DataFrame(reporting_data)
         if config.file_path:
             if config.verbose:
