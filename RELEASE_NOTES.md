@@ -14,4 +14,4 @@
 
 ## Bug Fixes
 
-- Removed internal empty-data check from `data_fetch.retrieve_data()`. The app now consistently handles missing reporting data by raising `NoDataAvailableError`.
+<!-- Here goes notable bug fixes that are worth a special mention or explanation -->
