@@ -66,6 +66,22 @@ async def fetch_data(
 
     print(f"Received {df.shape[0]} rows and {df.shape[1]} columns")
 
+    # For later vizualization we default to zero
+    df["battery"] = df.get("battery", 0)
+    df["chp"] = df["chp"].clip(upper=0) if "chp" in df.columns else 0
+    df["pv"] = df["pv"].clip(upper=0) if "pv" in df.columns else 0
+
+    # Determine consumption if not present
+    if "consumption" not in df.columns:
+        if any(
+            ct not in ["grid", "pv", "battery", "chp", "consumption"]
+            for ct in df.columns
+        ):
+            raise ValueError(
+                f"Consumption not found in data and unexpected component types present: {df.columns.tolist()}"
+            )
+        df["consumption"] = df["grid"] - (df["chp"] + df["pv"] + df["battery"])
+
     if fetch_soc:
         soc_df = await mdata.soc(
             microgrid_id=mid,
@@ -81,21 +97,6 @@ async def fetch_data(
         df = pd.concat([df, soc_df.rename(columns={"battery": "soc"})[["soc"]]], axis=1)
 
     df["soc"] = df.get("soc", np.nan)
-    # For later vizualization we default to zero
-    df["battery"] = df.get("battery", 0)
-    df["chp"] = df["chp"].clip(upper=0) if "chp" in df.columns else 0
-    df["pv"] = df["pv"].clip(upper=0) if "pv" in df.columns else 0
-
-    # Determine consumption if not present
-    if "consumption" not in df.columns:
-        if any(
-            ct not in ["grid", "pv", "battery", "chp", "consumption"]
-            for ct in df.columns
-        ):
-            raise ValueError(
-                "Consumption not found in data and unexpected component types present."
-            )
-        df["consumption"] = df["grid"] - (df["chp"] + df["pv"] + df["battery"])
 
     return df
 
