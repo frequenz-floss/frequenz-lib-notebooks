@@ -11,6 +11,7 @@
 ## New Features
 
 - Added EV to component types
+- Support multiple config files in MicrogridData.
 
 ## Bug Fixes
 
