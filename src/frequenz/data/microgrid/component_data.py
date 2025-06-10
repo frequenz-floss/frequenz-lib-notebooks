@@ -19,17 +19,19 @@ _logger = logging.getLogger(__name__)
 class MicrogridData:
     """Fetch power data for component types of a microgrid."""
 
-    def __init__(self, server_url: str, key: str, microgrid_config_path: str) -> None:
+    def __init__(self, server_url: str, key: str, microgrid_config_path: str | list[str]) -> None:
         """Initialize microgrid data.
 
         Args:
             server_url: URL of the reporting service.
             key: Authentication key to the service.
-            microgrid_config_path: Path to the config file with microgrid components.
+            microgrid_config_path: Path(s) to the config file with microgrid components.
         """
         self._client = ReportingApiClient(server_url=server_url, key=key)
-
-        self._microgrid_configs = MicrogridConfig.load_configs(microgrid_config_path)
+        paths = [microgrid_config_path] if isinstance(microgrid_config_path, str) else microgrid_config_path
+        if len(paths) < 1:
+            raise ValueError("At least one microgrid config path must be provided")
+        self._microgrid_configs = MicrogridConfig.load_configs(*paths)
 
     @property
     def microgrid_ids(self) -> list[str]:
