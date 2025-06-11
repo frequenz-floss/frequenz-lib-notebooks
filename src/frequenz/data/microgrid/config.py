@@ -8,7 +8,7 @@ import tomllib
 from dataclasses import dataclass
 from typing import Any, Literal, cast, get_args
 
-ComponentType = Literal["grid", "pv", "battery", "consumption", "chp"]
+ComponentType = Literal["grid", "pv", "battery", "consumption", "chp", "ev"]
 """Valid component types."""
 
 ComponentCategory = Literal["meter", "inverter", "component"]
