@@ -12,6 +12,7 @@
 
 - Added EV to component types
 - Support multiple config files in MicrogridData.
+- Added data_processing module to reporting
 
 ## Bug Fixes
 
