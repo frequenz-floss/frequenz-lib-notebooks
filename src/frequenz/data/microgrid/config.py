@@ -3,10 +3,14 @@
 
 """Configuration for microgrids."""
 
+import logging
 import re
 import tomllib
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Literal, cast, get_args
+
+_logger = logging.getLogger(__name__)
 
 ComponentType = Literal["grid", "pv", "battery", "consumption", "chp", "ev"]
 """Valid component types."""
@@ -286,22 +290,71 @@ class MicrogridConfig:
         return formula
 
     @staticmethod
-    def load_configs(*paths: str) -> dict[str, "MicrogridConfig"]:
+    def load_configs(
+        microgrid_config_files: str | Path | list[str | Path] | None = None,
+        microgrid_config_dir: str | Path | None = None,
+    ) -> dict[str, "MicrogridConfig"]:
         """Load multiple microgrid configurations from a file.
 
         Configs for a single microgrid are expected to be in a single file.
         Later files with the same microgrid ID will overwrite the previous configs.
 
         Args:
-            *paths: Path(es) to the config file(s).
+            microgrid_config_files: Path to a single microgrid config file or list of paths.
+            microgrid_config_dir: Directory containing multiple microgrid config files.
 
         Returns:
             Dictionary of single microgrid formula configs with microgrid IDs as keys.
+
+        Raises:
+            ValueError: If no config files or dir is provided, or if no config files are found.
         """
-        microgrid_configs = {}
-        for config_path in paths:
-            with open(config_path, "rb") as f:
+        if microgrid_config_files is None and microgrid_config_dir is None:
+            raise ValueError(
+                "No microgrid config path or directory provided. "
+                "Please provide at least one."
+            )
+
+        config_files: list[Path] = []
+
+        if microgrid_config_files:
+            if isinstance(microgrid_config_files, str):
+                config_files = [Path(microgrid_config_files)]
+            elif isinstance(microgrid_config_files, Path):
+                config_files = [microgrid_config_files]
+            elif isinstance(microgrid_config_files, list):
+                config_files = [Path(f) for f in microgrid_config_files]
+
+        if microgrid_config_dir:
+            if Path(microgrid_config_dir).is_dir():
+                config_files += list(Path(microgrid_config_dir).glob("*.toml"))
+            else:
+                raise ValueError(
+                    f"Microgrid config directory {microgrid_config_dir} "
+                    "is not a directory"
+                )
+
+        if len(config_files) == 0:
+            raise ValueError(
+                "No microgrid config files found. "
+                "Please provide at least one valid config file."
+            )
+
+        microgrid_configs: dict[str, "MicrogridConfig"] = {}
+
+        for config_path in config_files:
+            if not config_path.is_file():
+                _logger.warning("Config path %s is not a file, skipping.", config_path)
+                continue
+
+            with config_path.open("rb") as f:
                 cfg_dict = tomllib.load(f)
                 for microgrid_id, mcfg in cfg_dict.items():
+                    _logger.debug(
+                        "Loading microgrid config for ID %s from %s",
+                        microgrid_id,
+                        config_path,
+                    )
                     microgrid_configs[microgrid_id] = MicrogridConfig(mcfg)
+
         return microgrid_configs
