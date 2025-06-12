@@ -96,11 +96,11 @@ Give the integration a name of your choice and add the key value pairs listed be
 
 **Key**						**Value**
 
-REPORTING\_SERVER\_URL		grpc://reporting.api.frequenz.com:443
+REPORTING\_SERVER\_URL		grpc://reporting.url.goes.here.example.com
 
 REPORTING\_API\_KEY			You can find your API key in Kuiper ([Anleitung](https://docs.google.com/document/u/0/d/1ePlCtr92pA1fRt2kt1PbyPs636ADk1r4PeuIOMBCM18/edit))
 
-WEATHER\_SERVER\_URL			grpc://fz-0003.frequenz.io:50052?ssl=false
+WEATHER\_SERVER\_URL			grpc://weather.url.goes.here.example.com
 
 Confirm your entry by clicking on **Create integration**.
 
