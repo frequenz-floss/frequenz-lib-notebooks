@@ -1,7 +1,45 @@
 # License: MIT
 # Copyright © 2025 Frequenz Energy-as-a-Service GmbH
 
-"""Data processing functions for the reporting module."""
+"""Data processing functions for the reporting module.
+
+Overview:
+---------
+This module contains a series of data transformation functions used to generate
+energy reports from microgrid component data, such as PV (photovoltaic), battery,
+and grid consumption metrics. These functions are typically executed in a specific
+order within the reporting notebook. The output of one function is often used as
+input to the next, forming a processing pipeline.
+
+The functions handle:
+- Timezone normalization
+- Data enrichment (e.g., PV metrics, grid net usage)
+- Column renaming based on component configuration
+- Aggregation and summarization of energy data
+- Generation of overview tables and analysis-ready DataFrames
+
+Assumptions and Requirements:
+-----------------------------
+- Input `df` must contain at least the columns: `"timestamp"`, `"grid"`
+- Additional columns like `"pv_neg"` and `"battery_pos"` are required
+  for PV and battery metrics.
+- Timestamps must be in datetime format; timezone-naive timestamps
+  are assumed to be in UTC.
+- Component configuration `mcfg` must implement
+  `component_type_ids(...)` returning a list of IDs.
+- `component_types` is a list containing any of: `"grid"`, `"consumption"`,
+  `"pv"`, `"battery"`, `"chp"`, `"ev"`.
+
+Output:
+-------
+Most functions return either:
+- A modified `pd.DataFrame` with new or renamed columns,
+- A summary `dict` of computed statistics,
+- Or a reshaped long-format DataFrame for visual inspection or plotting.
+
+This modular pipeline ensures flexibility while maintaining clear structure
+for preparing reproducible, component-aware energy reporting.
+"""
 
 from datetime import datetime
 from typing import Any, Dict, List, Tuple, Union
@@ -9,6 +47,32 @@ from zoneinfo import ZoneInfo
 
 import numpy as np
 import pandas as pd
+
+
+def _get_rename_map(component_types: List[str]) -> Dict[str, str]:
+    """Return a mapping from raw column names to human-readable German names."""
+    rename_map: Dict[str, str] = {
+        "timestamp": "Zeitpunkt",
+        "grid": "Netzanschluss",
+        "consumption": "Brutto Gesamtverbrauch",
+    }
+
+    if "battery" in component_types:
+        rename_map["battery"] = "Batterie Durchsatz"
+
+    if "pv" in component_types:
+        rename_map.update(
+            {
+                "pv": "PV Durchsatz",
+                "pv_prod": "PV Produktion",
+                "pv_self": "PV Eigenverbrauch",
+                "pv_bat": "PV in Batterie",
+                "pv_feedin": "PV Einspeisung",
+                "pv_self_consumption_share": "PV Eigenverbrauchsanteil",
+            }
+        )
+
+    return rename_map
 
 
 def convert_timezone(df: pd.DataFrame) -> pd.DataFrame:
@@ -42,12 +106,15 @@ def compute_pv_metrics(df: pd.DataFrame, component_types: List[str]) -> pd.DataF
     return df
 
 
-def rename_component_columns(
+def apply_renaming(
     df: pd.DataFrame, component_types: List[str], mcfg: Any
 ) -> pd.DataFrame:
-    """Rename component columns based on configuration."""
+    """Apply full renaming: static columns and dynamic component columns."""
+    # Step 1: Static column renaming
+    rename_map = _get_rename_map(component_types)
+
+    # Step 2: Dynamic component column renaming
     single_comp = [col for col in df.columns if col.isdigit()]
-    rename_comp: Dict[str, str] = {}
     if "battery" in component_types:
         battery_ids = {
             str(i)
@@ -55,7 +122,7 @@ def rename_component_columns(
                 component_type="battery", component_category="meter"
             )
         }
-        rename_comp.update(
+        rename_map.update(
             {col: f"Batterie #{col}" for col in single_comp if col in battery_ids}
         )
     if "pv" in component_types:
@@ -65,59 +132,48 @@ def rename_component_columns(
                 component_type="pv", component_category="meter"
             )
         }
-        rename_comp.update({col: f"PV #{col}" for col in single_comp if col in pv_ids})
-    return df.rename(columns=rename_comp)
+        rename_map.update({col: f"PV #{col}" for col in single_comp if col in pv_ids})
+
+    return df.rename(columns=rename_map)
 
 
-def create_master_dfs(
+def prepare_reporting_dfs(
     df: pd.DataFrame, component_types: List[str], mcfg: Any
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """Create master DataFrame and renamed DataFrame from raw data."""
+    """Create master and renamed DataFrames based on component types and config."""
     df = df.reset_index()
     df = convert_timezone(df)
-    rename_map: Dict[str, str] = {
-        "timestamp": "Zeitpunkt",
-        "grid": "Netzanschluss",
-        "consumption": "Netto Gesamtverbrauch",
-    }
-    if "battery" in component_types:
-        rename_map["battery"] = "Batterie Durchsatz"
-    if "pv" in component_types:
-        rename_map.update(
-            {
-                "pv": "PV Durchsatz",
-                "pv_prod": "PV Produktion",
-                "pv_self": "PV Eigenverbrauch",
-                "pv_bat": "PV in Batterie",
-                "pv_feedin": "PV Einspeisung",
-                "pv_self_consumption_share": "PV Eigenverbrauchsanteil",
-            }
-        )
-    df_renamed = df.rename(columns=rename_map)
+
+    df_renamed = apply_renaming(df, component_types, mcfg)
     df_renamed = process_grid_data(df_renamed)
-    df_renamed = rename_component_columns(df_renamed, component_types, mcfg)
-    single_components = [c for c in df_renamed.columns if "#" in c]
-    cols = [
-        "Zeitpunkt",
-        "Netzanschluss",
-        "Netzbezug",
-        "Netto Gesamtverbrauch",
-    ] + single_components
+
+    master_df = df_renamed[_get_master_columns(df_renamed.columns, component_types)]
+    return master_df, df_renamed
+
+
+def _get_master_columns(
+    columns: pd.Index[str], component_types: List[str]
+) -> List[str]:
+    """Determine relevant columns for the master DataFrame based on component types."""
+    cols = ["Zeitpunkt", "Netzanschluss", "Netzbezug", "Brutto Gesamtverbrauch"]
+
     if "battery" in component_types:
         cols.append("Batterie Durchsatz")
-        if "pv" in component_types:
-            cols += [
-                "PV Durchsatz",
-                "PV Produktion",
-                "PV Eigenverbrauch",
-                "PV Einspeisung",
-                "PV in Batterie",
-                "PV Eigenverbrauchsanteil",
-            ]
-    elif "pv" in component_types:
-        cols += ["PV Durchsatz", "PV Produktion", "PV Eigenverbrauch", "PV Einspeisung"]
-    master_df = df_renamed[cols]
-    return master_df, df_renamed
+
+    if "pv" in component_types:
+        cols += [
+            "PV Durchsatz",
+            "PV Produktion",
+            "PV Eigenverbrauch",
+            "PV Einspeisung",
+        ]
+        if "battery" in component_types:
+            cols += ["PV in Batterie", "PV Eigenverbrauchsanteil"]
+
+    # Add individual components like "PV#1", "Battery#3", etc.
+    cols += [col for col in columns if "#" in col]
+
+    return cols
 
 
 def create_overview_df(
@@ -129,7 +185,7 @@ def create_overview_df(
             [
                 "Zeitpunkt",
                 "Netzbezug",
-                "Netto Gesamtverbrauch",
+                "Brutto Gesamtverbrauch",
                 "PV Produktion",
                 "PV Einspeisung",
                 "Batterie Durchsatz",
@@ -137,19 +193,19 @@ def create_overview_df(
         ]
     if "battery" in component_types:
         return master_df[
-            ["Zeitpunkt", "Netzbezug", "Netto Gesamtverbrauch", "Batterie Durchsatz"]
+            ["Zeitpunkt", "Netzbezug", "Brutto Gesamtverbrauch", "Batterie Durchsatz"]
         ]
     if "pv" in component_types:
         return master_df[
             [
                 "Zeitpunkt",
                 "Netzbezug",
-                "Netto Gesamtverbrauch",
+                "Brutto Gesamtverbrauch",
                 "PV Produktion",
                 "PV Einspeisung",
             ]
         ]
-    return master_df[["Zeitpunkt", "Netzbezug", "Netto Gesamtverbrauch"]]
+    return master_df[["Zeitpunkt", "Netzbezug", "Brutto Gesamtverbrauch"]]
 
 
 def compute_power_df(
@@ -240,7 +296,7 @@ def compute_peak_usage(
         "peak": peak,
         "peak_date": peak_date_str,
         "net_site_consumption_sum": round(
-            master_df["Netto Gesamtverbrauch"].sum() * hours, 2
+            master_df["Brutto Gesamtverbrauch"].sum() * hours, 2
         ),
         "grid_consumption_sum": round(master_df["Netzbezug"].sum() * hours, 2),
     }
