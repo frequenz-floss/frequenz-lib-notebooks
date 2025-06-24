@@ -20,19 +20,26 @@ class MicrogridData:
     """Fetch power data for component types of a microgrid."""
 
     def __init__(
-        self, server_url: str, key: str, microgrid_config_path: str | list[str]
+        self,
+        server_url: str,
+        auth_key: str,
+        sign_secret: str,
+        microgrid_config_path: str | list[str],
     ) -> None:
         """Initialize microgrid data.
 
         Args:
             server_url: URL of the reporting service.
-            key: Authentication key to the service.
+            auth_key: Authentication key to the service.
+            sign_secret: Secret for signing requests.
             microgrid_config_path: Path(s) to the config file with microgrid components.
 
         Raises:
             ValueError: If no microgrid config path is provided.
         """
-        self._client = ReportingApiClient(server_url=server_url, key=key)
+        self._client = ReportingApiClient(
+            server_url=server_url, auth_key=auth_key, sign_secret=sign_secret
+        )
         paths = (
             [microgrid_config_path]
             if isinstance(microgrid_config_path, str)
@@ -99,8 +106,8 @@ class MicrogridData:
                 microgrid_id=microgrid_id,
                 metric=metric_enum,
                 aggregation_formula=formula,
-                start=start,
-                end=end,
+                start_time=start,
+                end_time=end,
                 resampling_period=resampling_period,
             )
         ]
@@ -118,11 +125,11 @@ class MicrogridData:
             ]
             data_comp = [
                 sample
-                async for sample in self._client.list_microgrid_components_data(
+                async for sample in self._client.receive_microgrid_components_data(
                     microgrid_components=microgrid_components,
                     metrics=metric_enum,
-                    start_dt=start,
-                    end_dt=end,
+                    start_time=start,
+                    end_time=end,
                     resampling_period=resampling_period,
                 )
             ]

@@ -114,6 +114,13 @@ class ReportingRetrievalConfig(BaseRetrievalConfig):
         },
     )
 
+    api_secret: str = field(
+        metadata={
+            "description": "API secret for reporting service",
+            "required": True,
+        },
+    )
+
     microgrid_components: list[tuple[int, list[int]]] = field(
         metadata={
             "description": "List of microgrid-component ID pairs",
@@ -180,15 +187,17 @@ async def retrieve_data(
             if config.verbose:
                 print("Retrieving data from the reporting api...")
             reporting_client = ReportingApiClient(
-                server_url=config.service_address, key=config.api_key
+                server_url=config.service_address,
+                auth_key=config.api_key,
+                sign_secret=config.api_secret,
             )
             reporting_data = [
                 sample
-                async for sample in reporting_client.list_microgrid_components_data(
+                async for sample in reporting_client.receive_microgrid_components_data(
                     microgrid_components=config.microgrid_components,
                     metrics=config.metrics_to_fetch,
-                    start_dt=config.start_timestamp,
-                    end_dt=config.end_timestamp,
+                    start_time=config.start_timestamp,
+                    end_time=config.end_timestamp,
                     resampling_period=timedelta(seconds=config.resample_period_seconds),
                 )
             ]
