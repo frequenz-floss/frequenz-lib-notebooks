@@ -6,14 +6,12 @@
 
 ## Upgrading
 
-- The microgrid component data class and solar maintenance now requires an API secret to sign requests to the reporting API.
-- The reporting API client version is updated to v0.18.x.
+<!-- Here goes notes on how to upgrade from previous versions, including deprecations and what they should be replaced with -->
 
 ## New Features
 
-- Added EV to component types
-- Support multiple config files in MicrogridData.
+<!-- Here goes the main new features and examples or instructions on how to use them -->
 
 ## Bug Fixes
 
-- Fixed a few wrong links in "Alerts Notebook.ipynb".
+<!-- Here goes notable bug fixes that are worth a special mention or explanation -->
