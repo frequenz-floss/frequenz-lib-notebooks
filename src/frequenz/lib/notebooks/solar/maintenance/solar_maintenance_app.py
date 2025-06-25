@@ -152,9 +152,11 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
 
     load_dotenv(override=False)
     api_key = os.getenv("REPORTING_API_KEY")
-    if api_key is None:
+    api_secret = os.getenv("REPORTING_API_SECRET")
+    if api_key is None or api_secret is None:
         raise ValueError(
-            "No API key found. Please set the REPORTING_API_KEY in the .env file."
+            "No API key or secret found. "
+            "Please set the REPORTING_API_KEY and REPORTING_API_SECRET in the .env file."
         )
 
     tm = TranslationManager(lang=config.language)
@@ -176,6 +178,7 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
     reporting_config = ReportingRetrievalConfig(
         service_address=config.reporting_service_address,
         api_key=api_key,
+        api_secret=api_secret,
         microgrid_components=config.microgrid_components,
         metrics_to_fetch=config.metrics_to_fetch,
         resample_period_seconds=config.large_resample_period_seconds,

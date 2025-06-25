@@ -6,7 +6,8 @@
 
 ## Upgrading
 
-<!-- Here goes notes on how to upgrade from previous versions, including deprecations and what they should be replaced with -->
+- The microgrid component data class and solar maintenance now requires an API secret to sign requests to the reporting API.
+- The reporting API client version is updated to v0.18.x.
 
 ## New Features
 
