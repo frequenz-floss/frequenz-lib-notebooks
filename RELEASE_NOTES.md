@@ -6,7 +6,7 @@
 
 ## Upgrading
 
-- Updated default weather feature to `SURFACE_SOLAR_RADIATION_DOWNWARDS` ([feature info](https://codes.ecmwf.int/grib/param-db/169)).
+<!-- Here goes notes on how to upgrade from previous versions, including deprecations and what they should be replaced with -->
 
 ## New Features
 
@@ -14,4 +14,4 @@
 
 ## Bug Fixes
 
-- Updated the `Alerts Notebook` example to work with the updated reporting API client version.
+<!-- Here goes notable bug fixes that are worth a special mention or explanation -->
