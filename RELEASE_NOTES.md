@@ -6,7 +6,7 @@
 
 ## Upgrading
 
-<!-- Here goes notes on how to upgrade from previous versions, including deprecations and what they should be replaced with -->
+- Updated default weather feature to `SURFACE_SOLAR_RADIATION_DOWNWARDS` ([feature info](https://codes.ecmwf.int/grib/param-db/169)).
 
 ## New Features
 
