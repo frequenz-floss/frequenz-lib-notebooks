@@ -99,11 +99,13 @@ Geben Sie der Integration einen Namen ihrer Wahl und fügen Sie die unten aufgel
 
 **Key**						**Value**
 
-REPORTING\_SERVER\_URL		grpc://reporting.url.goes.here.example.com
+REPORTING\_SERVER\_URL		`grpc://reporting.url.goes.here.example.com`
 
 REPORTING\_API\_KEY			Sie finden ihren API Key in Kuiper ([Anleitung](https://docs.google.com/document/u/0/d/1ePlCtr92pA1fRt2kt1PbyPs636ADk1r4PeuIOMBCM18/edit))
 
-WEATHER\_SERVER\_URL			grpc://weather.url.goes.here.example.com
+REPORTING\_API\_SECRET	Sie finden ihren API secret in Kuiper ([Anleitung](https://docs.google.com/document/u/0/d/1ePlCtr92pA1fRt2kt1PbyPs636ADk1r4PeuIOMBCM18/edit))
+
+WEATHER\_SERVER\_URL			`grpc://weather.url.goes.here.example.com`
 
 Bestätigen Sie ihre Eingabe durch klicken auf **Create integration**
 
