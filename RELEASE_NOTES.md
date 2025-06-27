@@ -14,4 +14,4 @@
 
 ## Bug Fixes
 
-<!-- Here goes notable bug fixes that are worth a special mention or explanation -->
+- Last release updated the default weather feature to `SURFACE_SOLAR_RADIATION_DOWNWARDS` but missed one place.

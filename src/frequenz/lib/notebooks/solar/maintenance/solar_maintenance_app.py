@@ -1249,7 +1249,7 @@ def _prepare_model_specs(
                     "resample_params": None,
                     "model_params": {
                         "col_label": config.weather_feature_names_mapping[
-                            "SURFACE_NET_SOLAR_RADIATION"
+                            "SURFACE_SOLAR_RADIATION_DOWNWARDS"
                         ],
                         "eff": client_site_info["efficiency"],
                         "peak_power_watts": client_site_info["peak_power_watts"],
