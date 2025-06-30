@@ -3,6 +3,7 @@
 
 """Tests for the frequenz.lib.notebooks.config module."""
 
+from pathlib import Path
 from typing import Any, cast
 
 import pytest
@@ -122,12 +123,14 @@ def test_load_configs(mocker: MockerFixture) -> None:
     1.ctype.battery.component = [301, 302, 303, 304, 305, 306]
     1.pv.PV1.peak_power = 5000
     1.pv.PV1.rated_power = 4500
-    1.pv.PV2peak_power = 8000
-    1.pv.PV2rated_power = 7000
+    1.pv.PV2.peak_power = 8000
+    1.pv.PV2.rated_power = 7000
     1.battery.BAT1.capacity = 10000
     """
-    mocker.patch("builtins.open", mocker.mock_open(read_data=toml_data.encode("utf-8")))
-    configs = MicrogridConfig.load_configs("mock_path.toml")
+    mock_file = mocker.mock_open(read_data=toml_data.encode("utf-8"))
+    mocker.patch("pathlib.Path.open", mock_file)
+    mocker.patch("pathlib.Path.is_file", mocker.Mock(return_value=True))
+    configs = MicrogridConfig.load_configs(Path("mock_path.toml"))
 
     assert "1" in configs
     assert configs["1"].meta.name == "Test Grid"
