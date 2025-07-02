@@ -413,7 +413,7 @@ def run_pvlib_simulation(  # pylint: disable=unused-argument
         - https://pvlib-python.readthedocs.io/en/stable/reference/generated/
         pvlib.iotools.get_pvgis_tmy.html
         """
-        tmy_df, _, _, _ = pvlib.iotools.get_pvgis_tmy(
+        tmy_df, _ = pvlib.iotools.get_pvgis_tmy(
             latitude=latitude,
             longitude=longitude,
             startyear=start_year,
@@ -453,7 +453,7 @@ def run_pvlib_simulation(  # pylint: disable=unused-argument
         - https://pvlib-python.readthedocs.io/en/stable/reference/generated/
         pvlib.iotools.get_pvgis_hourly.html
         """
-        pvgis_df, inputs, metadata = pvlib.iotools.get_pvgis_hourly(
+        pvgis_df, _ = pvlib.iotools.get_pvgis_hourly(
             latitude=latitude,
             longitude=longitude,
             start=start_year,
