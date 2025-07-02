@@ -6,7 +6,7 @@
 
 ## Upgrading
 
-<!-- Here goes notes on how to upgrade from previous versions, including deprecations and what they should be replaced with -->
+- Updated `pvlib` requirement to >=0.13.0, <0.14.0
 
 ## New Features
 
