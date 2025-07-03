@@ -7,6 +7,7 @@
 ## Upgrading
 
 - Updated `pvlib` requirement to >=0.13.0, <0.14.0
+- Updated `README.md` to improve project visibility and clarity.
 
 ## New Features
 
