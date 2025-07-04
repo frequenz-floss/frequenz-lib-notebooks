@@ -6,7 +6,7 @@
 
 ## Upgrading
 
-<!-- Here goes notes on how to upgrade from previous versions, including deprecations and what they should be replaced with -->
+- Updated the Alerts Notebook. You can now process multiple microgrid TOML files.
 
 ## New Features
 
@@ -14,4 +14,4 @@
 
 ## Bug Fixes
 
-<!-- Here goes notable bug fixes that are worth a special mention or explanation -->
+- Updated the Solar Maintenance notebook to fix the expected environment variable name for the reporting server url.
