@@ -26,6 +26,7 @@ Functions:
     and time frame.
 """
 
+import logging
 from abc import ABC, abstractmethod
 from typing import Any, Callable
 from warnings import warn
@@ -44,6 +45,8 @@ from frequenz.lib.notebooks.solar.maintenance.plotter_config import (
     RollingViewConfig,
 )
 from frequenz.lib.notebooks.solar.maintenance.translator import TranslationManager
+
+_logger = logging.getLogger(__name__)
 
 
 class BasePlotter(ABC):
@@ -75,20 +78,18 @@ class BasePlotter(ABC):
         """
         raise NotImplementedError("Subclasses must implement the plot method.")
 
-    def _is_data_empty(self, df: pd.DataFrame, text: str, verbose: bool) -> bool:
+    def _is_data_empty(self, df: pd.DataFrame, text: str) -> bool:
         """Check if the DataFrame is empty.
 
         Args:
             df: DataFrame to check for emptiness.
             text: Text to display if the DataFrame is empty.
-            verbose: A boolean flag to display the text if the DataFrame is empty.
 
         Returns:
             A boolean flag indicating if the DataFrame is empty.
         """
         if df.empty:
-            if verbose:
-                print(f"No data to plot. {text}")
+            _logger.info("No data to plot. %s", text)
             return True
         return False
 
@@ -321,7 +322,7 @@ class CalendarPlotter(BasePlotter):
             ax: The matplotlib axis to plot the data. If not provided, a new plot
                 is created. Note that both fig and ax must be provided together.
         """
-        if self._is_data_empty(data, "(CalendarPlotter)", self.config.verbose):
+        if self._is_data_empty(data, "(CalendarPlotter)"):
             self._hide_axes(ax)
             return
         fig, ax = self._initialise_figure(fig=fig, ax=ax)
@@ -431,7 +432,7 @@ class RollingPlotter(BasePlotter):
             ax: The matplotlib axis to plot the data. If not provided, a new plot
                 is created. Note that both fig and ax must be provided together.
         """
-        if self._is_data_empty(data, "(RollingPlotter)", self.config.verbose):
+        if self._is_data_empty(data, "(RollingPlotter)"):
             self._hide_axes(ax)
             return
         fig, ax = self._initialise_figure(fig=fig, ax=ax)
@@ -582,7 +583,7 @@ class ProfilePlotter(BasePlotter):
             group_label: The grouping label used for the statistical analysis
                 that generated the data to be plotted.
         """
-        if self._is_data_empty(data, "(statistical profile view)", self.config.verbose):
+        if self._is_data_empty(data, "(statistical profile view)"):
             self._hide_axes(ax)
             return
         fig, ax = self._initialise_figure(fig=fig, ax=ax)
@@ -726,7 +727,7 @@ class DailyPlotter(BasePlotter):
             ax: The matplotlib axis to plot the data. If not provided, a new plot
                 is created. Note that both fig and ax must be provided together.
         """
-        if self._is_data_empty(data, "(daily view)", self.config.verbose):
+        if self._is_data_empty(data, "(daily view)"):
             self._hide_axes(ax)
             return
         fig, ax = self._initialise_figure(fig=fig, ax=ax)

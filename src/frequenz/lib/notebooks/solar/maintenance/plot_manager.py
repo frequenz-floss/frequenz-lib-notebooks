@@ -30,8 +30,7 @@ from matplotlib.axes import Axes
 from matplotlib.colors import ListedColormap
 from matplotlib.figure import Figure
 
-logging.basicConfig(level=logging.ERROR)
-logger = logging.getLogger(__name__)
+_logger = logging.getLogger(__name__)
 
 TextModificationType = str | None
 ReplaceLabelType = dict[str, str] | None
@@ -159,7 +158,7 @@ class PlotManager:
             mpl.colormaps.register(cmap=my_cmap, name=self._freqstrom_cmap_name)
 
         self.apply_plot_theme(theme)
-        logger.info("PlotManager initialised with theme: %s", theme)
+        _logger.info("PlotManager initialised with theme: %s", theme)
 
     def apply_plot_theme(self, theme: str) -> None:
         """Apply a predefined style to the plots.
@@ -327,7 +326,7 @@ class PlotManager:
             plt.style.use(base_theme)
             plt.rcParams.update(theme_params)
             self.current_style_params = theme_params
-            logger.info("Applied theme: %s", theme)
+            _logger.info("Applied theme: %s", theme)
         else:
             raise ValueError(f"Style '{theme}' is not recognized.")
 
@@ -361,7 +360,7 @@ class PlotManager:
         fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=figsize)
         self.figures[fig_id] = fig
         self.axes[fig_id] = [axs] if nrows * ncols == 1 else list(axs.flatten())
-        logger.info(
+        _logger.debug(
             "Created figure '%s' with %s rows and %s columns.", fig_id, nrows, ncols
         )
         return fig, self.axes[fig_id]
@@ -423,7 +422,7 @@ class PlotManager:
             for row in range(nrows)
             for col in range(ncols)
         ]
-        logger.info(
+        _logger.debug(
             "Created GridSpec figure '%s' with %s rows and %s columns.",
             fig_id,
             nrows,
@@ -540,10 +539,10 @@ class PlotManager:
         fig.legends.clear()
         if on == "axes":
             self._update_axes_legends(list(axs), modifications, **legend_kwargs)
-            logger.info("Updated legend for axes in figure '%s'.", fig_id)
+            _logger.debug("Updated legend for axes in figure '%s'.", fig_id)
         elif on == "figure":
             self._update_figure_legend(fig, list(axs), modifications, **legend_kwargs)
-            logger.info("Updated legend for figure '%s'.", fig_id)
+            _logger.debug("Updated legend for figure '%s'.", fig_id)
         else:
             raise ValueError(
                 "Invalid value for 'on' parameter. Must be 'figure' or 'axes'."
@@ -687,7 +686,7 @@ class PlotManager:
                 handles.append(additional_items[0])
                 labels.append(additional_items[1])
             except IndexError as e:
-                logger.warning("Failed to add additional items to legend: %s", e)
+                _logger.warning("Failed to add additional items to legend: %s", e)
         return list(handles), list(labels)
 
     def _get_modifications(
@@ -833,7 +832,7 @@ class PlotManager:
         for fig in self.figures.values():
             fig.tight_layout()
             fig.show()
-        logger.info("Displayed all figures.")
+        _logger.info("Displayed all figures.")
 
     def save_all(self, directory: str) -> None:
         """Save all the figures managed by PlotManager to the specified directory.
@@ -848,12 +847,12 @@ class PlotManager:
             raise ValueError("Directory not specified.")
 
         if not self.figures:
-            logger.info("No figures to save.")
+            _logger.info("No figures to save.")
 
         os.makedirs(directory, exist_ok=True)
         for fig_id, fig in self.figures.items():
             fig.savefig(f"{directory}/{fig_id}.png")
-        logger.info("Saved all figures to directory %s", directory)
+        _logger.info("Saved all figures to directory %s", directory)
 
     @contextmanager
     def manage_figure(
@@ -881,6 +880,6 @@ class PlotManager:
                     self.save_all(directory)
                 else:
                     raise ValueError("Directory must be specified if save is True.")
-            logger.info(
+            _logger.debug(
                 "Managed figure '%s' with automatic display and optional save.", fig_id
             )

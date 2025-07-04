@@ -12,7 +12,7 @@ from the model specifications. It returns a dictionary with model labels as keys
 and dictionaries containing the predictions as values. The predictions are stored
 as pandas Series with the same index as the input data and the name 'predictions'.
 """
-
+import logging
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, Callable, cast
 from zoneinfo import ZoneInfo
@@ -25,6 +25,8 @@ from pandas import Index, Series
 from pvlib.location import Location
 from pvlib.modelchain import ModelChain
 from pvlib.pvsystem import Array, FixedMount, PVSystem
+
+_logger = logging.getLogger(__name__)
 
 ModelFunctionCallable = Callable[..., Any]
 ModelFunction = ModelFunctionCallable | str
@@ -219,7 +221,6 @@ def sampled_moving_average(
     *,
     window: pd.Timedelta,
     sampling_interval: int,
-    verbose: bool = False,
 ) -> SeriesFloat:
     """Compute the moving average of a time series.
 
@@ -231,7 +232,6 @@ def sampled_moving_average(
         window: The moving window as a pandas Timedelta object.
         sampling_interval: The interval at which to sample the data within each
             window. Forced to be a positive integer.
-        verbose: A boolean flag to print additional information.
 
     Returns:
         A pandas Series containing the moving averages, with the same index as
@@ -250,12 +250,10 @@ def sampled_moving_average(
     data_index = pd.to_datetime(data.index).to_series()
     frequency = data_index.diff().median().total_seconds()
     if data_index.diff().std().total_seconds() > frequency * 0.1:
-        message = (
+        _logger.debug(
             "The input series does not have a consistent frequency. "
             "Taking the most common frequency."
         )
-        if verbose:
-            print(message)
         frequency = data_index.diff().dt.total_seconds().mode().values[0]
 
     total_steps = int(window.total_seconds() / frequency)

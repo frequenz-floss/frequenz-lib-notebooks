@@ -7,7 +7,7 @@ This module provides a class to create a card-based dashboard for microgrid
 production overview. The dashboard can display information about one or more
 mircogrids.
 """
-
+import logging
 from typing import TYPE_CHECKING, cast
 
 import pandas as pd
@@ -27,6 +27,8 @@ from .dashboard_templates import (
     CARD_TEMPLATE,
     STAT_TEMPLATE,
 )
+
+_logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     SeriesString = Series[str]
@@ -59,7 +61,9 @@ class MicrogridOverviewDashboard:
         self.df = df
         self.top_producer_column_idx = top_producer_column_idx
         if default_theme not in ["light", "dark"]:
-            raise ValueError("default_theme must be 'light' or 'dark'")
+            raise ValueError(
+                f"Invalid default_theme: {default_theme}. Must be 'light' or 'dark'."
+            )
         self.default_theme = default_theme
         self.checked = "checked" if self.default_theme == "dark" else ""
 

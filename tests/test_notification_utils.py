@@ -182,7 +182,7 @@ def test_format_email_preview_without_attachments() -> None:
 @patch("frequenz.lib.notebooks.notification_service.EmailNotification.send")
 def test_send_test_email_success(basic_email_config: EmailConfig) -> None:
     """Test that send_test_email logs success correctly."""
-    success = notification_utils.send_test_email(basic_email_config, verbose=False)
+    success = notification_utils.send_test_email(basic_email_config)
     assert success is True
 
 
@@ -198,7 +198,7 @@ def test_send_test_email_handles_failure(
     mock_send.side_effect = exception  # Important: patch `send`, not `send_with_retry`
 
     with caplog.at_level("DEBUG", logger="frequenz.lib.notebooks.notification_utils"):
-        success = notification_utils.send_test_email(basic_email_config, verbose=False)
+        success = notification_utils.send_test_email(basic_email_config)
 
     assert success is False
     assert any("retry failed" in msg.lower() for msg in caplog.messages)

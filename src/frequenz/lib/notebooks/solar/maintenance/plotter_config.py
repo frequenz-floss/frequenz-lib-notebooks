@@ -21,12 +21,15 @@ Features:
       unified configuration instance.
 """
 
+import logging
 from dataclasses import dataclass, field, fields
 from typing import Any, Type, TypeVar
 
 import matplotlib.pyplot as plt
 
 from frequenz.lib.notebooks.solar.maintenance.translator import TranslationManager
+
+_logger = logging.getLogger(__name__)
 
 T = TypeVar("T", bound="BaseViewConfig")
 
@@ -53,13 +56,6 @@ class BaseViewConfig:
         default="\n",
         metadata={
             "description": "Separator for string concatenation",
-        },
-    )
-
-    verbose: bool = field(  # temporary field; will be replaced by a logger
-        default=False,
-        metadata={
-            "description": "Verbosity flag for logging and debugging",
         },
     )
 
