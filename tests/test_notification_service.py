@@ -4,6 +4,7 @@
 """Test module for the notification service."""
 
 import logging
+import os
 import time
 from typing import Generator
 from unittest.mock import MagicMock, mock_open, patch
@@ -18,6 +19,8 @@ from frequenz.lib.notebooks.notification_service import (
     NotificationSendError,
     Scheduler,
     SchedulerConfig,
+    SlackConfig,
+    SlackNotification,
 )
 
 
@@ -349,6 +352,179 @@ def test_from_dict_not_implemented() -> None:
 
     with pytest.raises(AttributeError, match="has no attribute 'from_dict'"):
         TestClass.from_dict({})  # type: ignore
+
+
+# Tests for the SlackNotification class
+@pytest.fixture
+def mock_slack_client() -> Generator[MagicMock, None, None]:
+    """Fixture to provide a mock Slack client."""
+    with patch("frequenz.lib.notebooks.notification_service.WebClient") as mock_client:
+        mock_instance = MagicMock()
+        mock_instance.chat_postMessage.return_value = {"ts": "12345.6789"}
+        mock_instance.files_upload.return_value = {}
+        mock_client.return_value = mock_instance
+        yield mock_instance
+
+
+@pytest.fixture
+def slack_config() -> SlackConfig:
+    """Fixture to provide a reusable SlackConfig."""
+    return SlackConfig(
+        subject="Test Slack Notification",
+        message="This is a test Slack message.",
+        slack_token="xoxb-test-token",
+        channels=["channel1", "channel2"],
+        retries=3,
+        backoff_factor=2,
+        max_retry_sleep=10,
+        attachments=None,
+    )
+
+
+@pytest.fixture
+def mock_slack_notification(
+    mock_slack_client: MagicMock, slack_config: SlackConfig
+) -> SlackNotification:
+    """Fixture to provide a reusable SlackNotification instance."""
+    assert mock_slack_client is not None
+    return SlackNotification(config=slack_config)
+
+
+# Tests for the SlackNotification class
+def test_send_message_without_thread(  # pylint: disable=protected-access
+    mock_slack_notification: SlackNotification, mock_slack_client: MagicMock
+) -> None:
+    """Test sending a Slack message without opening a thread."""
+    mock_slack_notification.send()
+    assert mock_slack_notification._config.channels is not None
+    assert mock_slack_client.chat_postMessage.call_count == len(
+        mock_slack_notification._config.channels
+    )
+    for call_args in mock_slack_client.chat_postMessage.call_args_list:
+        assert call_args.kwargs["text"] == mock_slack_notification._config.message
+        assert (
+            mock_slack_notification._thread_ts.get(call_args.kwargs["channel"]) is None
+        )
+
+
+def test_send_message_with_thread(  # pylint: disable=protected-access
+    mock_slack_notification: SlackNotification, mock_slack_client: MagicMock
+) -> None:
+    """Test sending a Slack message with a thread."""
+    thread_message = "Detailed calculations for the issue."
+    mock_slack_notification.send(thread_message=thread_message)
+
+    assert mock_slack_notification._config.channels is not None
+    main_calls = len(mock_slack_notification._config.channels)
+    assert (
+        mock_slack_client.chat_postMessage.call_count == 2 * main_calls
+    )  # times 2 due to sending extra 1 thread message per recipient
+
+    for call, expected_text in zip(
+        mock_slack_client.chat_postMessage.call_args_list,
+        [
+            mock_slack_notification._config.message,
+            thread_message,
+            mock_slack_notification._config.message,
+            thread_message,
+        ],
+    ):
+        assert call.kwargs["text"] == expected_text
+
+
+@patch("os.path.exists", return_value=True)
+def test_send_message_with_attachments(  # pylint: disable=protected-access
+    mock_slack_notification: SlackNotification, mock_slack_client: MagicMock
+) -> None:
+    """Test sending a Slack message with attachments."""
+    mock_slack_notification._config.attachments = ["mock_file_path.txt"]
+    mock_slack_notification.send()
+
+    # Verify the main message is sent
+    assert mock_slack_notification._config.channels is not None
+    assert mock_slack_client.chat_postMessage.call_count == len(
+        mock_slack_notification._config.channels
+    )
+
+    # Verify files are uploaded in threads
+    assert mock_slack_notification._config.channels is not None
+    assert mock_slack_client.files_upload.call_count == len(
+        mock_slack_notification._config.channels
+    )
+    for call_args in mock_slack_client.files_upload.call_args_list:
+        assert call_args.kwargs["file"] == "mock_file_path.txt"
+        assert call_args.kwargs["title"] == os.path.basename("mock_file_path.txt")
+
+
+@patch("os.path.exists", return_value=True)
+@pytest.mark.parametrize(
+    "attachments, thread_message",
+    [
+        ([], ""),
+        (["mock_file_path.txt"], ""),
+        ([], "Thread details"),
+        (
+            ["mock_file_path.txt"],
+            "Thread details",
+        ),
+    ],
+)
+def test_send_message_conditions(  # pylint: disable=protected-access
+    mock_slack_notification: SlackNotification,
+    mock_slack_client: MagicMock,
+    attachments: list[str],
+    thread_message: str,
+) -> None:
+    """Test message sending under various conditions."""
+    mock_slack_notification._config.attachments = attachments
+    mock_slack_notification.send(thread_message=thread_message)
+    assert mock_slack_notification._config.channels is not None
+    n_channels = len(mock_slack_notification._config.channels)
+    main_message_calls = n_channels
+    thread_calls = n_channels if thread_message else 0
+    attachment_calls = n_channels * len(attachments)
+    assert (
+        mock_slack_client.chat_postMessage.call_count
+        == main_message_calls + thread_calls
+    )
+    assert mock_slack_client.files_upload.call_count == attachment_calls
+
+
+def test_send_message_with_blocks(
+    mock_slack_notification: SlackNotification, mock_slack_client: MagicMock
+) -> None:
+    """Test sending a message with Slack block kit format (list of blocks)."""
+    blocks = [
+        {"type": "section", "text": {"type": "mrkdwn", "text": "*This is an Alert!*"}},
+    ]
+    mock_slack_notification.send(message=blocks)
+
+    for call_args in mock_slack_client.chat_postMessage.call_args_list:
+        assert "blocks" in call_args.kwargs
+        assert call_args.kwargs["blocks"] == blocks
+
+
+# pylint: disable=protected-access
+def test_find_thread_ts(mock_slack_notification: SlackNotification) -> None:
+    """Test the _find_thread_ts method."""
+    mock_slack_notification._thread_ts = {
+        "#general": "12345.6789",
+        "#alerts": "98765.4321",
+    }
+    assert mock_slack_notification._find_thread_ts("#general") == "12345.6789"
+    assert mock_slack_notification._find_thread_ts("#alerts") == "98765.4321"
+    assert mock_slack_notification._find_thread_ts("#random") is None
+
+
+# pylint: disable=protected-access
+def test_reset_thread_ts(mock_slack_notification: SlackNotification) -> None:
+    """Test resetting the _thread_ts."""
+    mock_slack_notification._thread_ts = {
+        "channel1": "12345.6789",
+        "channel2": "98765.4321",
+    }
+    mock_slack_notification._reset_thread_ts()
+    assert mock_slack_notification._thread_ts == {"channel1": None, "channel2": None}
 
 
 # Tests for the NotificationSendError class

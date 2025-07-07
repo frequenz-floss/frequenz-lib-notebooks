@@ -4,10 +4,10 @@
 """
 This module provides a notification service for sending alert notifications.
 
-The service supports sending email with optional attachments. It also provides
-a scheduler for sending periodic notifications with configurable intervals and
-durations. The service is designed to handle retries and backoff for failed
-notification attempts.
+The service supports sending email and slack notifications with optional
+attachments. It also provides a scheduler for sending periodic notifications
+with configurable intervals and durations. The service is designed to handle
+retries and backoff for failed notification attempts.
 
 
 Example usage
@@ -22,7 +22,7 @@ email_config = EmailConfig(
     smtp_user="user@example.com",
     smtp_password="password",
     from_email="alert@example.com",
-    attachments=["alert_records.csv"]
+    attachments=["alert_records.csv"],
     scheduler=SchedulerConfig(
         send_immediately=True,
         interval=60,
@@ -30,6 +30,7 @@ email_config = EmailConfig(
     ),
 )
 
+# Configuration for email notification using a dictionary
 email_config_dict = {
     "subject": "Critical Alert",
     "message": "Inverter is in error mode",
@@ -47,19 +48,48 @@ email_config_dict = {
     },
 }
 
+# Configuration for Slack notification
+slack_config = SlackConfig(
+    subject="Critical Alert",
+    message="Inverter is in error mode",
+    slack_token="your-slack-token",
+    channels=["#alerts", "#operations"],
+    attachments=[],
+    scheduler=SchedulerConfig(
+        send_immediately=True,
+        interval=60,
+        duration=3600
+    ),
+)
+
 # Create notification objects
 email_notification = EmailNotification(config=email_config)
 email_notification_2 = EmailConfig.from_dict(email_config_dict)
+slack_notification = SlackNotification(config=slack_config)
 
 # Send one-off notification
 email_notification.send()
+slack_notification.send()
+
+# slack example 1: Send a message and open a thread for additional details
+slack_notification.send(thread_message="Detailed calculations for the issue")
+
+# slack example 2: Send a message with attachments, automatically opening a thread
+slack_notification._config.attachments = ["system_log.txt"]
+slack_notification.send()
+
+# slack example 3: Send another message with new details and files
+slack_notification._config.attachments = ["new_alert.csv"]
+slack_notification.send(thread_message="Additional logs from analysis")
 
 # Start periodic notifications
 email_notification.start_scheduler()
+slack_notification.start_scheduler()
 
 # Stop the scheduler after some time if needed
 time.sleep(300)
 email_notification.stop_scheduler()
+slack_notification.stop_scheduler()
 """
 
 import logging
@@ -73,12 +103,18 @@ from dataclasses import dataclass, field, fields, is_dataclass
 from email.message import EmailMessage
 from smtplib import SMTPException
 from types import UnionType
-from typing import Any, Callable, TypeVar, Union, get_args, get_origin
+from typing import Any, Callable, Mapping, TypeVar, Union, get_args, get_origin
+
+import requests
+from slack_sdk import WebClient
+from slack_sdk.errors import SlackApiError, SlackRequestError
 
 _log = logging.getLogger(__name__)
+# pylint: disable=too-many-lines
 
 
 DataclassT = TypeVar("DataclassT", bound="FromDictMixin")
+SlackPayload = str | dict[str, Any] | list[dict[str, Any]]
 
 
 class FromDictMixin:
@@ -317,6 +353,55 @@ class EmailConfig(BaseNotificationConfig):
             raise ValueError("from_email is required and cannot be empty.")
         if not self.recipients:
             raise ValueError("recipients is required and cannot be empty.")
+
+
+@dataclass(kw_only=True)
+class SlackConfig(BaseNotificationConfig):
+    """Configuration for sending Slack notifications."""
+
+    webhook_url: str | None = field(
+        default=None,
+        metadata={"description": "Slack webhook URL for sending messages"},
+    )
+
+    slack_token: str | None = field(
+        default=None,
+        metadata={
+            "description": "Slack API token (prioritised over webhook_url)",
+        },
+    )
+
+    channels: list[str] | None = field(
+        default=None,
+        metadata={
+            "description": (
+                "List of Slack channel IDs to send messages to. "
+                "Not required when using `webhook_url`"
+            ),
+        },
+    )
+
+    def __post_init__(self) -> None:
+        """Validate the Slack configuration."""
+        is_token_mode = bool(self.slack_token and self.channels)
+        is_webhook_mode = bool(self.webhook_url)
+
+        if not (is_token_mode or is_webhook_mode):
+            raise ValueError(
+                "SlackConfig must include either a 'webhook_url' or both "
+                "'slack_token' and 'channels'."
+            )
+
+        if self.slack_token and not self.channels:
+            raise ValueError(
+                "SlackConfig with 'slack_token' must also include 'channels'."
+            )
+
+        if self.webhook_url and (self.slack_token or self.channels):
+            _log.info(
+                "Both 'webhook_url' and token credentials are set. "
+                "Token mode will take precedence."
+            )
 
 
 class Scheduler:
@@ -644,6 +729,297 @@ class EmailNotification(BaseNotification):
         except SMTPException as e:
             _log.error("Failed to send email: %s", e)
             raise
+
+
+class SlackNotification(BaseNotification):
+    """Handles Slack notifications with support for webhooks or tokens.
+
+    Supports sending to threads and multiple channels.
+    """
+
+    def __init__(
+        self,
+        config: SlackConfig,
+        *,
+        slack_client: WebClient | None = None,
+        post_func: Callable[..., requests.Response] = requests.post,
+    ) -> None:
+        """Initialise the Slack notification with configuration.
+
+        Args:
+            config: Configuration for Slack notifications.
+            slack_client: An optional pre-initialised Slack WebClient. Useful
+                for testing or when sharing a custom-configured client (e.g.,
+                with custom retries, rate-limiting, or shared auth).
+            post_func: Optional function to use for webhook HTTP POSTs. Useful
+                for injecting custom HTTP clients, adding retries, signing, or
+                mocking. Must be compatible with `requests.post` interface.
+
+        Raises:
+            ValueError: If neither 'webhook_url' nor 'slack_token' are defined
+                in the config.
+        """
+        super().__init__()
+        self._config = config
+        self._is_token_mode = bool(config.slack_token and config.channels)
+
+        if self._is_token_mode:
+            _log.debug("Setting up SlackNotification with token.")
+            self._client = slack_client or WebClient(token=config.slack_token)
+            self._lock = threading.Lock()
+            self._reset_thread_ts()
+        elif config.webhook_url:
+            _log.debug("Setting up SlackNotification with webhook url.")
+            self._post_func = post_func
+        else:
+            raise ValueError(
+                "Must provide either 'webhook_url' or 'slack_token' + 'channels'"
+            )
+
+    def send(
+        self,
+        message: SlackPayload | None = None,
+        thread_message: str = "",
+    ) -> None:
+        """Send Slack notifications to all channels.
+
+        Args:
+            message: The main Slack message to send. Can be:
+                - A plain text string
+                - A dict with Slack message structure (e.g., {"text": ...,
+                  "blocks": [...]})
+                - A list of blocks (will be wrapped into {"blocks": [...]})
+                - If None, uses the default message from the configuration.
+            thread_message: Optional message to post in a thread under the main
+                message.
+        """
+        final_message = message or self._config.message
+        if not final_message:
+            _log.warning("No message provided or configured. Aborting Slack send.")
+            return
+
+        channels = self._config.channels if self._is_token_mode else [""]
+        assert isinstance(channels, list)
+        for channel in channels:
+            self.send_with_retry(
+                send_func=self._get_send_func(),
+                retries=self._config.retries,
+                backoff_factor=self._config.backoff_factor,
+                max_sleep=(
+                    self._config.scheduler.interval
+                    if self._config.scheduler
+                    else self._config.max_retry_sleep
+                ),
+                main_message=final_message,
+                channel=channel,  # Not used in webhook mode
+                thread_message=thread_message,  # Not supported in webhook mode
+            )
+        if self._is_token_mode:
+            self._reset_thread_ts()
+
+    def _send_bot_message(
+        self,
+        *,
+        channel: str,
+        main_message: SlackPayload,
+        thread_message: str = "",
+    ) -> None:
+        """Send a Slack message and handle threading for additional details.
+
+        Args:
+            channel: Slack channel to send the message to.
+            main_message: Main message content.
+            thread_message: Message to post in the thread (if any).
+
+        Raises:
+            SlackRequestError: If the Slack request fails.
+            SlackApiError: If the Slack message fails to send.
+        """
+        slack_payload = self._create_slack_payload(main_message)
+        try:
+            response = self._client.chat_postMessage(
+                channel=channel, **slack_payload  # type: ignore[arg-type]
+            )
+            _log.info("Slack message sent to channel: %s", channel)
+            with self._lock:
+                self._thread_ts[channel] = response["ts"]
+
+            if thread_message:
+                self._post_to_thread(channel=channel, thread_message=thread_message)
+
+            if self._config.attachments:
+                self._upload_files(channel=channel)
+        except SlackRequestError as e:
+            _log.error("Failed to set up Slack message post request to %s", channel)
+            raise e
+        except SlackApiError as e:
+            _log.error(
+                "Failed to send Slack message to %s: %s",
+                channel,
+                e.response.get("error", "Unknown error"),
+            )
+            raise e
+
+    def _send_webhook_message(  # pylint: disable=unused-argument
+        self,
+        channel: str,
+        main_message: SlackPayload,
+        thread_message: str = "",
+    ) -> None:
+        """Send a Slack message using a webhook url.
+
+        This method is used in webhook mode (no Slack token), where messages are
+        sent to a pre-configured incoming webhook URL. Unlike the bot method,
+        webhook messages cannot include threads or file uploads.
+
+        Args:
+            channel: Placeholder for interface consistency; ignored.
+            main_message: Main message content.
+            thread_message: Placeholder for interface consistency; ignored.
+
+        Raises:
+            requests.RequestException: If the webhook POST request fails.
+        """
+        slack_payload = self._create_slack_payload(main_message)
+        try:
+            response = self._post_func(
+                self._config.webhook_url, json=slack_payload, timeout=5
+            )
+            response.raise_for_status()
+            _log.info("Slack webhook message sent successfully.")
+        except requests.RequestException as e:
+            _log.error("Webhook send failed: %s", e)
+            raise e
+
+    def _get_send_func(self) -> Callable[..., None]:
+        return (
+            self._send_bot_message
+            if self._is_token_mode
+            else self._send_webhook_message
+        )
+
+    @staticmethod
+    def _create_slack_payload(message: SlackPayload) -> Mapping[str, SlackPayload]:
+        """Create a Slack message payload from various input formats.
+
+        Args:
+            message: Can be a plain string, a dict (with keys like 'text' or 'blocks'),
+                    or a list of Slack block dicts.
+
+        Returns:
+            A dict suitable for Slack's `chat_postMessage` or webhook payload.
+
+        Raises:
+            TypeError: If the message type is unsupported.
+        """
+        if isinstance(message, list):
+            # Assume list of blocks, wrap in dict
+            return {"blocks": message}
+        if isinstance(message, dict):
+            return message
+        if isinstance(message, str):
+            # Assume plain text message, wrap in dict
+            return {"text": message}
+        raise TypeError(
+            f"Unsupported message type: {type(message)}. "
+            "Must be a str, dict, or list of dicts for Slack payload."
+        )
+
+    def _post_to_thread(self, *, channel: str, thread_message: str) -> None:
+        """Post a message to a thread under the latest main message.
+
+        Args:
+            channel: Slack channel to post the thread message in.
+            thread_message: Content of the thread message.
+
+        Raises:
+            SlackApiError: If the thread message fails to post.
+        """
+        thread_ts = self._find_thread_ts(channel)
+        if not thread_ts:
+            return
+
+        try:
+            self._client.chat_postMessage(
+                channel=channel, text=thread_message, thread_ts=thread_ts
+            )
+            _log.info("Thread message posted in channel %s", channel)
+        except SlackApiError as e:
+            _log.error(
+                "Failed to post thread message to channel %s: %s",
+                channel,
+                e.response.get("error", "Unknown error"),
+            )
+            raise e
+
+    def _upload_files(self, *, channel: str) -> None:
+        """Upload files to a thread in the Slack channel.
+
+        Args:
+            channel: Slack channel to upload files to.
+
+        Raises:
+            SlackApiError: If the file upload fails.
+        """
+        thread_ts = self._find_thread_ts(channel)
+        if not thread_ts or self._config.attachments is None:
+            return
+
+        for file_path in self._config.attachments:
+            if not os.path.exists(file_path):
+                _log.warning("Attachment file not found: %s", file_path)
+                continue
+            try:
+                self._client.files_upload(
+                    channels=channel,
+                    file=file_path,
+                    title=os.path.basename(file_path),
+                    thread_ts=thread_ts,
+                )
+                _log.info(
+                    "File uploaded to Slack thread in channel %s: %s",
+                    channel,
+                    file_path,
+                )
+            except SlackApiError as e:
+                _log.error(
+                    "Failed to upload file to Slack channel %s: %s",
+                    channel,
+                    e.response.get("error", "Unknown error"),
+                )
+                raise e
+
+    def _find_thread_ts(self, channel: str) -> str | None:
+        """Find the thread_ts for a given channel.
+
+        Args:
+            channel: Slack channel to find the thread_ts for.
+
+        Returns:
+            The thread_ts for the channel or None if not found.
+        """
+        with self._lock:
+            thread_ts = self._thread_ts.get(channel, None)
+        if not thread_ts:
+            _log.error(
+                "No main message found in channel %s to post the thread message.",
+                channel,
+            )
+        return thread_ts
+
+    def _reset_thread_ts(self) -> None:
+        """Reset the thread_ts for all channels after sending a message.
+
+        After each call to send, self._thread_ts is reset to prevent accidental
+        reuse of old thread references.
+        """
+        assert (
+            self._config.channels is not None
+        ), "SlackConfig with 'slack_token' must include 'channels'."
+        with self._lock:
+            self._thread_ts: dict[str, str | None] = {
+                channel: None for channel in self._config.channels
+            }
 
 
 class NotificationSendError(Exception):

@@ -38,6 +38,8 @@ dependencies = [
   "kaleido >= 0.2.1, < 1.1.0",
   "frequenz-client-reporting >= 0.18.0, < 0.19.0",
   "frequenz-client-weather >= 0.2.2, < 0.3.0",
+  "slack_sdk >= 3.35.0, < 3.36.0",
+  "requests >= 2.32.4, < 2.33.0",
 ]
 dynamic = ["version"]
 
@@ -71,6 +73,7 @@ dev-mypy = [
   "pandas-stubs == 2.2.3.250527",
   "types-toml==0.10.8.20240310",
   "types-Markdown == 3.8.0.20250415",
+  "types-requests == 2.32.4.20250611",
   # For checking the noxfile, docs/ script, and tests
   "frequenz-lib-notebooks[dev-mkdocs,dev-noxfile,dev-pytest]",
 ]

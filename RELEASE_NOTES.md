@@ -10,7 +10,7 @@
 
 ## New Features
 
-<!-- Here goes the main new features and examples or instructions on how to use them -->
+- Added support for Slack notifications with threading and file attachments. Includes a new `SlackNotification` class and `SlackConfig` schema, supporting both webhook and token-based delivery. Includes example usage and test coverage. Introduced `slack_sdk` and `requests` as new dependencies.
 
 ## Bug Fixes
 
