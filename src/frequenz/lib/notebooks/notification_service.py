@@ -312,6 +312,7 @@ class EmailConfig(BaseNotificationConfig):
     )
 
     smtp_user: str = field(
+        repr=False,
         metadata={
             "description": "SMTP server username",
             "required": True,
@@ -319,6 +320,7 @@ class EmailConfig(BaseNotificationConfig):
     )
 
     smtp_password: str = field(
+        repr=False,
         metadata={
             "description": "SMTP server password",
             "required": True,
@@ -361,11 +363,13 @@ class SlackConfig(BaseNotificationConfig):
 
     webhook_url: str | None = field(
         default=None,
+        repr=False,
         metadata={"description": "Slack webhook URL for sending messages"},
     )
 
     slack_token: str | None = field(
         default=None,
+        repr=False,
         metadata={
             "description": "Slack API token (prioritised over webhook_url)",
         },
