@@ -276,6 +276,7 @@ class EmailConfig(BaseNotificationConfig):
     )
 
     smtp_user: str = field(
+        repr=False,
         metadata={
             "description": "SMTP server username",
             "required": True,
@@ -283,6 +284,7 @@ class EmailConfig(BaseNotificationConfig):
     )
 
     smtp_password: str = field(
+        repr=False,
         metadata={
             "description": "SMTP server password",
             "required": True,
