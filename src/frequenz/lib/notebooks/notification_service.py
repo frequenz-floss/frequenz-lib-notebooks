@@ -49,7 +49,7 @@ email_config_dict = {
 
 # Create notification objects
 email_notification = EmailNotification(config=email_config)
-email_notification_2 = EmailConfig.from_dict(email_config_dict)
+email_notification_2 = EmailNotification(EmailConfig.from_dict(email_config_dict))
 
 # Send one-off notification
 email_notification.send()
@@ -556,6 +556,12 @@ class EmailNotification(BaseNotification):
         """
         super().__init__()
         self._config: EmailConfig = config
+        if self._config.scheduler:
+            _log.debug(
+                "EmailNotification configured with scheduler: %s",
+                self._config.scheduler,
+            )
+            self._scheduler = Scheduler(config=self._config.scheduler)
 
     def send(self) -> None:
         """Send the email notification."""

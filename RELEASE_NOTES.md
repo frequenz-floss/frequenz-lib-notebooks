@@ -16,3 +16,4 @@
 
 - Updated the Solar Maintenance notebook to fix the expected environment variable name for the reporting server url.
 - Fixed a bug in the notification `Scheduler` where tasks could overrun the configured duration due to imprecise sleep and stop logic. The scheduler now correctly tracks elapsed time, respects task execution duration, and stops reliably after the intended interval.
+- Fixed an issue where `EmailNotification` did not properly initialise its scheduler. Also fixed an example in the docstring.
