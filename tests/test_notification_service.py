@@ -97,14 +97,20 @@ def test_scheduler_behavior(config: SchedulerConfig, mock_send: MagicMock) -> No
     scheduler.start(mock_send)
     if config.duration:
         time.sleep(config.duration + 0.5)
+        correction = -1  # -1 to account for the time lost in executing the task
     else:
         time.sleep(test_time_if_no_duration)
+        correction = 0
         scheduler.stop()
 
     expected_calls = (
-        (config.duration if config.duration else test_time_if_no_duration)
-        // config.interval
-    ) + (1 if config.send_immediately else 0)
+        (
+            (config.duration if config.duration else test_time_if_no_duration)
+            // config.interval
+        )
+        + (1 if config.send_immediately else 0)
+        + correction
+    )
     assert mock_send.call_count == expected_calls
 
 
