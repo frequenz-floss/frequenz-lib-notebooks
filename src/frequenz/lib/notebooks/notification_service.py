@@ -49,7 +49,7 @@ email_config_dict = {
 
 # Create notification objects
 email_notification = EmailNotification(config=email_config)
-email_notification_2 = EmailConfig.from_dict(email_config_dict)
+email_notification_2 = EmailNotification(EmailConfig.from_dict(email_config_dict))
 
 # Send one-off notification
 email_notification.send()
@@ -276,6 +276,7 @@ class EmailConfig(BaseNotificationConfig):
     )
 
     smtp_user: str = field(
+        repr=False,
         metadata={
             "description": "SMTP server username",
             "required": True,
@@ -283,6 +284,7 @@ class EmailConfig(BaseNotificationConfig):
     )
 
     smtp_password: str = field(
+        repr=False,
         metadata={
             "description": "SMTP server password",
             "required": True,
@@ -333,7 +335,7 @@ class Scheduler:
         self._task_name: str | None = None
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
-        self._time_awoke: float = 0.0  # time when the scheduler awoke from sleep
+        self._start_time: float | None = None
 
     def start(self, task: Callable[..., None], **kwargs: Any) -> None:
         """Start the scheduler for a given task.
@@ -363,13 +365,15 @@ class Scheduler:
         """Stop the scheduler."""
         if self._thread is not None:
             if self._thread.is_alive():
-                _log.info("Stopping scheduler for %s", self._task_name)
+                _log.info("Stopping scheduler for task '%s'", self._task_name)
                 self._stop_event.set()
                 if not self._stop_event.is_set():
-                    _log.error("Failed to stop scheduler for %s", self._task_name)
+                    _log.error(
+                        "Failed to stop scheduler for task '%s'", self._task_name
+                    )
         else:
             _log.warning(
-                "Attempted to stop scheduler for %s, but no active thread was found.",
+                "Attempted to stop scheduler for task '%s', but no active thread was found.",
                 self._task_name,
             )
         _log.info("Scheduler successfully stopped")
@@ -380,42 +384,38 @@ class Scheduler:
         Args:
             kwargs: Arguments to pass to the task.
         """
-        start_time = time.time()
+        self._start_time = time.time()
         if self._config.send_immediately:
-            self._execute_task(kwargs)
+            elapsed = self._execute_task(kwargs)
+            self._pace(elapsed)
         else:
             _log.info(
                 "Waiting for first interval before sending the first notification."
             )
-            self._stop_event.wait(self._config.interval)
-            self._time_awoke = time.time()
+            self._pace(0)
+        while not self._should_stop():
+            elapsed = self._execute_task(kwargs)
+            self._pace(elapsed)
+        _log.info("Scheduler stopping: stop condition met.")
+        self.stop()
 
-        while not self._stop_event.is_set():
-            if self._should_stop(start_time):
-                break
-            self._execute_task(kwargs)
-
-    def _should_stop(self, start_time: float) -> bool:
-        """Determine if the scheduler should stop.
-
-        Args:
-            start_time: The time the scheduler started.
-
-        Returns:
-            True if the scheduler should stop, False otherwise.
-        """
-        if (
+    def _should_stop(self) -> bool:
+        """Return True if the scheduler should stop."""
+        _log.debug("Checking if scheduler for task '%s' should stop.", self._task_name)
+        return self._stop_event.is_set() or (
             self._config.duration is not None
-            and (time.time() - self._time_awoke - start_time) >= self._config.duration
-        ):
-            return True
-        return False
+            and self._start_time is not None
+            and self._time_remaining() <= 0
+        )
 
-    def _execute_task(self, kwargs: dict[str, Any]) -> None:
+    def _execute_task(self, kwargs: dict[str, Any]) -> float:
         """Execute the scheduled task and handle interval waiting.
 
         Args:
             kwargs: Arguments to pass to the task.
+
+        Returns:
+            The time taken to execute the task in seconds.
         """
         task_start_time = time.time()
         try:
@@ -429,14 +429,44 @@ class Scheduler:
             )
         finally:
             task_elapsed = time.time() - task_start_time
-            sleep_duration = max(0, self._config.interval - task_elapsed)
-            _log.info(
-                "Scheduled execution completed for %s. Sleeping for %d seconds.",
+            _log.debug(
+                "Execution of task '%s' completed in %.2f seconds.",
                 self._task_name,
-                sleep_duration,
+                task_elapsed,
             )
-            self._stop_event.wait(sleep_duration)
-            self._time_awoke = time.time()
+        return task_elapsed
+
+    def _time_remaining(self) -> float:
+        """Return the remaining time before the scheduler should stop.
+
+        Returns:
+            A float indicating the number of seconds remaining until the
+            configured duration is exceeded. If no duration is configured,
+            returns float('inf') to represent an unbounded schedule.
+        """
+        if self._config.duration is None or self._start_time is None:
+            return float("inf")
+        return max(0.0, self._config.duration - (time.time() - self._start_time))
+
+    def _available_sleep_window(self) -> float:
+        """Calculate the maximum allowed sleep time given the interval and remaining time."""
+        return min(self._config.interval, self._time_remaining())
+
+    def _pace(self, elapsed_task_time: float) -> None:
+        """Sleep for interval minus task duration, bounded by duration limit.
+
+        Args:
+            elapsed_task_time: Time taken by the task in seconds.
+        """
+        sleep_duration = self._available_sleep_window()
+        if sleep_duration < self._config.interval:
+            actual_sleep = max(0, sleep_duration)
+        else:
+            actual_sleep = max(0, sleep_duration - elapsed_task_time)
+        if self._stop_event.is_set():
+            return
+        _log.info("Sleeping for %.2f seconds before next task execution.", actual_sleep)
+        self._stop_event.wait(actual_sleep)
 
 
 class BaseNotification:
@@ -528,6 +558,12 @@ class EmailNotification(BaseNotification):
         """
         super().__init__()
         self._config: EmailConfig = config
+        if self._config.scheduler:
+            _log.debug(
+                "EmailNotification configured with scheduler: %s",
+                self._config.scheduler,
+            )
+            self._scheduler = Scheduler(config=self._config.scheduler)
 
     def send(self) -> None:
         """Send the email notification."""
