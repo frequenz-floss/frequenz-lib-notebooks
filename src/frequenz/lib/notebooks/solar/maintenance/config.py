@@ -11,12 +11,14 @@ which contains immutable constants for the Solar Maintenance Project.
 """
 
 import datetime
-import warnings
+import logging
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import numpy as np
 from frequenz.client.common.metric import Metric
+
+_logger = logging.getLogger(__name__)
 
 
 class ConfigConstants:
@@ -66,8 +68,6 @@ class ConfigConstants:
                 - 'elegant-minimalist'
                 - 'vibrant'
                 - 'classic'
-        DEFAULT_VERBOSITY_FLAG (bool): Default verbosity flag. A boolean flag
-            to print additional information to the console.
         DEFAULT_WEATHER_SERVICE_ADDRESS (str): Default weather service address.
         DEFAULT_REPORTING_SERVICE_ADDRESS (str): Default reporting service
             address.
@@ -150,7 +150,6 @@ class ConfigConstants:
         "vibrant",
         "classic",
     ]
-    DEFAULT_VERBOSITY_FLAG = False
     DEFAULT_WEATHER_SERVICE_ADDRESS = "http://weatherapi.example.com"
     DEFAULT_REPORTING_SERVICE_ADDRESS = "http://reportingapi.example.com"
     DEFAULT_MICROGRID_IDS = [0]
@@ -247,7 +246,6 @@ class SolarMaintenanceConfig(ConfigConstants):
         rolling_view_time_frame (str): Time frame for the rolling view plot.
         stat_profile_grouping (list[str]): Groupings for the statistical profile.
             See VALID_STAT_PROFILE_GROUPINGS for the supported groupings.
-        verbose (bool): Verbosity flag. A boolean flag to print additional info.
         real_time_view_duration_hours (int): Duration for the real time view in
             hours.
         plot_theme (str): Theme for the plots. See VALID_PLOT_THEMES for the
@@ -315,7 +313,6 @@ class SolarMaintenanceConfig(ConfigConstants):
         self.rolling_view_duration = self.DEFAULT_ROLLING_VIEW_DURATION
         self.rolling_view_time_frame = self.DEFAULT_ROLLING_VIEW_TIME_FRAME
         self.stat_profile_grouping = self.DEFAULT_STAT_PROFILE_GROUPING
-        self.verbose = self.DEFAULT_VERBOSITY_FLAG
         self.small_resample_period_seconds = self.DEFAULT_SMALL_RESAMPLE_PERIOD_SECONDS
         self.real_time_view_duration_hours = self.DEFAULT_REAL_TIME_VIEW_DURATION_HOURS
         self.plot_theme = self.DEFAULT_PLOT_THEME
@@ -359,16 +356,12 @@ class SolarMaintenanceConfig(ConfigConstants):
                     self.set_timestamp(param_name, param_value)
                 else:
                     setattr(self, param_name, param_value)
-            message = f"Parameter '{param_name}' updated to '{param_value}'."
-            if self.verbose:
-                print(message)
+            _logger.debug("Parameter '%s' updated to '%s'.", param_name, param_value)
         else:
-            message = (
-                f"WARNING: Parameter '{param_name}' not found in "
-                "SolarMaintenanceConfig and is not added."
+            _logger.warning(
+                "Parameter '%s' not found in SolarMaintenanceConfig and is not added.",
+                param_name,
             )
-            if self.verbose:
-                warnings.warn(message)
         self.validate_all_settings()
 
     def update_mids_and_cids(
@@ -386,12 +379,11 @@ class SolarMaintenanceConfig(ConfigConstants):
         self.microgrid_ids = microgrid_ids
         self.component_ids = component_ids
         self._update_microgrid_components()
-        message = (
-            f"Updated microgrid IDs to '{microgrid_ids}' "
-            f"and component IDs to '{component_ids}'."
+        _logger.debug(
+            "Updated microgrid IDs to '%s' and component IDs to '%s'.",
+            microgrid_ids,
+            component_ids,
         )
-        if self.verbose:
-            print(message)
         self.validate_all_settings()
 
     def update_dict(
@@ -419,9 +411,7 @@ class SolarMaintenanceConfig(ConfigConstants):
             if key not in dict_to_update:
                 self._validate_inclusion(key, list(dict_to_update.keys()), "key")
             dict_to_update[key] = value
-            message = f"Updated '{key}' to '{value}'."
-            if self.verbose:
-                print(message)
+            _logger.debug("Updated '%s' to '%s'.", key, value)
         self.validate_all_settings()
 
     def set_time_zone(self, time_zone_str: str) -> None:
@@ -439,12 +429,12 @@ class SolarMaintenanceConfig(ConfigConstants):
             # Update timestamps to new timezone
             self.set_timestamp("start_timestamp", self.start_timestamp)
             self.set_timestamp("end_timestamp", self.end_timestamp)
-            message = (
-                f"Parameters 'start_timestamp': {self.start_timestamp} and "
-                f"'end_timestamp': {self.end_timestamp} updated to the new timezone."
+            _logger.debug(
+                "Parameters 'start_timestamp': %s and "
+                "'end_timestamp': %s updated to the new timezone.",
+                self.start_timestamp,
+                self.end_timestamp,
             )
-            if self.verbose:
-                print(message)
         except ZoneInfoNotFoundError as exc:
             raise ValueError(
                 f"Invalid timezone: '{time_zone_str}'. "
@@ -515,7 +505,6 @@ class SolarMaintenanceConfig(ConfigConstants):
             (dict, type(None)),
             "outlier detection parameters",
         )
-        self._validate_type(self.verbose, bool, "verbosity flag")
         self._validate_type(self.rolling_view_duration, int, "rolling view duration")
         self._validate_type(
             self.rolling_view_time_frame, str, "rolling view time frame"

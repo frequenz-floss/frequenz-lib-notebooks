@@ -15,6 +15,7 @@ point for the Solar Maintenance App is the `run_workflow` function.
 # pylint: disable=too-many-lines
 
 import datetime
+import logging
 import os
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
@@ -59,6 +60,8 @@ from frequenz.lib.notebooks.solar.maintenance.plotter_data_preparer import (
     StatsPreparer,
 )
 from frequenz.lib.notebooks.solar.maintenance.translator import TranslationManager
+
+_logger = logging.getLogger(__name__)
 
 Color = str | tuple[float, float, float] | tuple[float, float, float, float]
 if TYPE_CHECKING:
@@ -172,7 +175,6 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
         longitudes=list_of_longitudes,
         start_timestamp=config.start_timestamp,
         end_timestamp=config.end_timestamp,
-        verbose=config.verbose,
     )
 
     reporting_config = ReportingRetrievalConfig(
@@ -184,7 +186,6 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
         resample_period_seconds=config.large_resample_period_seconds,
         start_timestamp=config.start_timestamp,
         end_timestamp=config.end_timestamp,
-        verbose=config.verbose,
     )
 
     weather_data = await retrieve_data(weather_config)
@@ -194,11 +195,10 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
     reporting_config.start_timestamp = config.end_timestamp - datetime.timedelta(
         hours=config.real_time_view_duration_hours
     )
-    if config.verbose:
-        print(
-            "Fetching data for shorter time resolution of "
-            f"{config.small_resample_period_seconds}..."
-        )
+    _logger.info(
+        "Fetching data for shorter time resolution of %s...",
+        config.small_resample_period_seconds,
+    )
     reporting_data_higher_fs = await retrieve_data(reporting_config)
 
     if reporting_data.empty and reporting_data_higher_fs.empty:
@@ -209,7 +209,6 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
             data=weather_data,
             weather_feature_names_mapping=config.weather_feature_names_mapping,
             time_zone=config.time_zone,
-            verbose=config.verbose,
         )
         lat_lon_pairs = _create_lat_lon_pairs(
             weather_data["latitude"].unique(), weather_data["longitude"].unique()
@@ -220,7 +219,6 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
         microgrid_components=config.microgrid_components,
         outlier_detection_params=config.outlier_detection_parameters,
         time_zone=config.time_zone,
-        verbose=config.verbose,
     )
 
     reporting_data_higher_fs = transform_reporting_data(
@@ -228,7 +226,6 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
         microgrid_components=config.microgrid_components,
         outlier_detection_params=config.outlier_detection_parameters,
         time_zone=config.time_zone,
-        verbose=config.verbose,
     )
 
     if config.force_positive_values:
@@ -248,25 +245,17 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
         real_time_view_col_to_plot[0].replace("_", " (") + ")"
     ).capitalize()
     rolling_view_short_term_dur_hours = 24
-    base_view_config_params = {
-        "translation_manager": tm,
-        "x_axis_label": "x-axis",
-        "verbose": config.verbose,
-    }
+    base_view_config_params = {"translation_manager": tm, "x_axis_label": "x-axis"}
     # initialize the output data structure
     output = SolarAnalysisData()
     production_table_view_list = []
     # pylint: disable-next=too-many-nested-blocks
     for mid in reporting_data.microgrid_id.unique():
-        message = f"Generating plots for microgrid ID: {mid}"
-        if config.verbose:
-            print(message)
+        _logger.info("Generating plots for microgrid ID: %s", mid)
 
         # NOTE: by convention, the columns are named with the microgrid ID inside data_fetch.py
         col_text = [f"_mid{mid}_"]
-        data = _filter_and_rename_columns(
-            reporting_data, col_text, verbose=config.verbose
-        )
+        data = _filter_and_rename_columns(reporting_data, col_text)
         if config.split_real_time_view_per_inverter:
             real_time_view_col_to_plot = [
                 cid
@@ -280,29 +269,30 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
                 real_time_view_col_to_plot = list(
                     set(real_time_view_col_to_plot) - set(missing_cols)
                 )
-                if config.verbose:
-                    print(
-                        f"Warning: Data is missing for the following components: {missing_cols}"
-                    )
+                _logger.warning(
+                    "Warning: Data is missing for the following components: %s",
+                    missing_cols,
+                )
             data_higher_fs = _filter_and_rename_columns(
-                reporting_data_higher_fs,
-                real_time_view_col_to_plot,
-                verbose=config.verbose,
+                reporting_data_higher_fs, real_time_view_col_to_plot
             )
             # convert to kW; necessary because components are in raw values
             normalisation_factor = 1000
         else:
             data_higher_fs = _filter_and_rename_columns(
-                reporting_data_higher_fs, col_text, verbose=config.verbose
+                reporting_data_higher_fs, col_text
             )
             normalisation_factor = 1
         if data.empty:
             reason = NoDataAvailableError(f"No data available for microgrid ID {mid}.")
-            print(f"{type(reason).__name__}: {reason} Skipping...")
+            _logger.warning("%s: %s Skipping...", type(reason).__name__, reason)
             continue
         timezone = str(pd.to_datetime(data.index).tzinfo)
         if timezone != config.time_zone.key:
-            raise ValueError("Timezone mismatch.")
+            raise ValueError(
+                f"Timezone mismatch: Data timezone is {timezone}, "
+                f"but config timezone is {config.time_zone.key}."
+            )
 
         pv_system = None
         if "simulation" in config.baseline_models:
@@ -319,8 +309,10 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
         if "weather-based-forecast" in config.baseline_models:
             if weather_data.empty:
                 reason = NoDataAvailableError("No weather data available.")
-                print(
-                    f"{type(reason).__name__}: {reason} Skipping weather-based-forecast model."
+                _logger.warning(
+                    "%s: %s Skipping weather-based-forecast model.",
+                    type(reason).__name__,
+                    reason,
                 )
             else:
                 closest_grid_point = _find_closest_grid_point(
@@ -508,8 +500,7 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
         )
         if data_higher_fs.empty:
             reason = NoDataAvailableError("No data available for real-time view.")
-            print(f"{reason} Skipping this plot.")
-            print(f"{type(reason).__name__}: {reason}. Skipping this plot.")
+            _logger.warning("%s: %s Skipping this plot.", type(reason).__name__, reason)
             # the plotter automatically hides the axis when data is empty
             # but we need to deal with the figure itself
             # we can safely clear the figure like this because it only plots rolling_view_real_time
@@ -911,8 +902,7 @@ def _load_and_validate_config(
         mid: config.client_site_info[idx]
         for idx, mid in enumerate(config.microgrid_ids)
     }
-    if config.verbose:
-        print(f"Configuration parameters: {config.__dict__}")
+    _logger.debug("Configuration parameters: %s", config.__dict__)
     return config, all_client_site_info
 
 
@@ -1044,7 +1034,7 @@ def _create_plot_layout(  # pylint: disable=too-many-arguments
 
 
 def _filter_and_rename_columns(
-    data: pd.DataFrame, substrings: list[str], verbose: bool = False
+    data: pd.DataFrame, substrings: list[str]
 ) -> pd.DataFrame:
     """Filter and rename columns in the data.
 
@@ -1059,7 +1049,6 @@ def _filter_and_rename_columns(
     Args:
         data: The input data.
         substrings: The list of substrings to filter the columns with.
-        verbose: If True, the function prints messages to the console.
 
     Returns:
         The filtered and renamed data.
@@ -1081,9 +1070,7 @@ def _filter_and_rename_columns(
         columns=rename_cols,
         inplace=True,
     )
-    message = f"Renamed columns: {rename_cols}"
-    if verbose:
-        print(message)
+    _logger.debug("Renamed columns: %s", rename_cols)
     return data
 
 
@@ -1219,7 +1206,7 @@ def _prepare_model_specs(
     if "simulation" in config.baseline_models:
         if pv_system is None:
             raise ValueError(
-                "PV system parameters must be provided for the simulation."
+                "PV system parameters are not provided for the simulation."
             )
         model_specs.update(
             {

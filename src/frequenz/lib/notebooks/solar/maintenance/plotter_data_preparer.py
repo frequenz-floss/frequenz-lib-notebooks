@@ -18,6 +18,7 @@ Classes:
     - `StatsPreparer`: Generates production statistics.
 """
 
+import logging
 from abc import ABC, abstractmethod
 from typing import Any, Callable
 
@@ -32,6 +33,8 @@ from frequenz.lib.notebooks.solar.maintenance.plotter_config import (
     RollingViewConfig,
     StatsViewConfig,
 )
+
+_logger = logging.getLogger(__name__)
 
 
 class BasePreparer(ABC):
@@ -318,7 +321,6 @@ class ProfilePreparer(BasePreparer):
             resamp_freq_list=[item for _, item, _ in user_groupings.values()],
             group_labels=list(user_groupings.keys()),
             exclude_zeros=[item for _, _, item in user_groupings.values()],
-            verbose=False,  # fix to False because this will be replaced by a logger
         )
         for group, stats in past_n_days_stats.items():
             if group == "grouped":

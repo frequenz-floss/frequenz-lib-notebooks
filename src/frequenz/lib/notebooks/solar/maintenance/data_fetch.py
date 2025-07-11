@@ -8,6 +8,7 @@ This module provides functions that fetch and transform data from the weather
 and reporting APIs or csv files.
 """
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
@@ -23,6 +24,8 @@ from frequenz.lib.notebooks.solar.maintenance.data_processing import (
     preprocess_data,
     transform_weather_features,
 )
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -55,13 +58,6 @@ class BaseRetrievalConfig:
         metadata={
             "description": "Path to the file for file-based data retrieval",
             "validate": lambda x: x.endswith(".csv"),
-        },
-    )
-
-    verbose: bool = field(
-        default=False,
-        metadata={
-            "description": "Verbosity flag for logging",
         },
     )
 
@@ -166,8 +162,7 @@ async def retrieve_data(
     supported_configs = (WeatherRetrievalConfig, ReportingRetrievalConfig)
     if isinstance(config, WeatherRetrievalConfig):
         if config.service_address:
-            if config.verbose:
-                print("Retrieving data from the weather api...")
+            _logger.info("Retrieving data from the weather API...")
             return await fetch_historical_weather_forecasts(
                 service_address=config.service_address,
                 feature_names=config.feature_names,
@@ -176,16 +171,14 @@ async def retrieve_data(
                 end_time=config.end_timestamp,
             )
         if config.file_path:
-            if config.verbose:
-                print(f"Retrieving weather data from file: {config.file_path}")
+            _logger.info("Retrieving weather data from file: %s", config.file_path)
             return pd.read_csv(
                 config.file_path, parse_dates=["validity_ts"], index_col="validity_ts"
             ).reset_index()
         raise ValueError("No service address or file path provided for weather data.")
     if isinstance(config, ReportingRetrievalConfig):
         if config.service_address:
-            if config.verbose:
-                print("Retrieving data from the reporting api...")
+            _logger.info("Retrieving data from the reporting API...")
             reporting_client = ReportingApiClient(
                 server_url=config.service_address,
                 auth_key=config.api_key,
@@ -203,20 +196,21 @@ async def retrieve_data(
             ]
             return pd.DataFrame(reporting_data)
         if config.file_path:
-            if config.verbose:
-                print(f"Retrieving reporting data from file: {config.file_path}")
+            _logger.info("Retrieving reporting data from file: %s", config.file_path)
             return pd.read_csv(
                 config.file_path, parse_dates=["ts"], index_col="ts"
             ).reset_index()
         raise ValueError("No service address or file path provided for reporting data.")
-    raise TypeError(f"Unknown configuration type. Expected one of: {supported_configs}")
+    raise TypeError(
+        f"Unknown configuration type {type(config).__name__}. "
+        f"Expected one of: {supported_configs}"
+    )
 
 
 def transform_weather_data(
     data: pd.DataFrame,
     weather_feature_names_mapping: dict[str, str],
     time_zone: ZoneInfo = ZoneInfo("UTC"),
-    verbose: bool = False,
 ) -> pd.DataFrame:
     """Transform weather forecast data.
 
@@ -226,7 +220,6 @@ def transform_weather_data(
             internal feature names.
         time_zone: The timezone to convert the timestamps to. Should be a valid
             zoneinfo.ZoneInfo object.
-        verbose: A boolean flag to print additional information.
 
     Returns:
         The transformed weather forecast data.
@@ -234,24 +227,17 @@ def transform_weather_data(
     Raises:
         ValueError: If missing or invalid date entries are found in 'validity_ts'.
     """
-    message_1 = "Transforming weather forecast data..."
-    message_2 = "Weather forecast data transformed successfully."
-    if verbose:
-        print(message_1)
-
+    _logger.info("Transforming weather forecast data...")
     weather_forecasts_df, nat_present = transform_weather_features(
         data=data,
         column_label_mapping=weather_feature_names_mapping,
         time_zone=time_zone,
-        verbose=verbose,
     )
     if nat_present:
         raise ValueError(
             "Missing or invalid date entries found in 'validity_ts' column."
         )
-
-    if verbose:
-        print(message_2)
+    _logger.info("Weather forecast data transformed successfully.")
     return weather_forecasts_df
 
 
@@ -262,7 +248,6 @@ def transform_reporting_data(
         dict[str, str | tuple[float, float] | dict[str, Any]] | None
     ) = None,
     time_zone: ZoneInfo = ZoneInfo("UTC"),
-    verbose: bool = False,
 ) -> pd.DataFrame:
     """Transform weather reporting data.
 
@@ -277,14 +262,11 @@ def transform_reporting_data(
         outlier_detection_params: Dictionary of parameters for outlier detection.
         time_zone: The timezone to convert the timestamps to. Should be a valid
             zoneinfo.ZoneInfo object.
-        verbose: A boolean flag to print additional information.
 
     Returns:
         The transformed reporting data.
     """
-    message = "Transforming reporting data..."
-    if verbose:
-        print(message)
+    _logger.info("Transforming reporting data...")
 
     if microgrid_components:
         data, power_columns = _pivot_and_aggregate_data(data, microgrid_components)
@@ -292,11 +274,11 @@ def transform_reporting_data(
         data.rename(columns={"p": "power", "ts": "timestamp"}, inplace=True)
         power_columns = {"power": ""}
 
-    data = _convert_to_timezone(data, time_zone, verbose)
+    data = _convert_to_timezone(data, time_zone)
 
     if outlier_detection_params:
         data = _handle_outliers(
-            data, outlier_detection_params, list(power_columns.keys()), verbose
+            data, outlier_detection_params, list(power_columns.keys())
         )
 
     client_data_df = preprocess_data(
@@ -310,9 +292,7 @@ def transform_reporting_data(
         in_place=True,
     )
 
-    message = "Reporting data transformed successfully."
-    if verbose:
-        print(message)
+    _logger.info("Reporting data transformed successfully.")
     return client_data_df
 
 
@@ -344,9 +324,7 @@ def _pivot_and_aggregate_data(
     return data, power_columns
 
 
-def _convert_to_timezone(
-    data: pd.DataFrame, time_zone: ZoneInfo, verbose: bool
-) -> pd.DataFrame:
+def _convert_to_timezone(data: pd.DataFrame, time_zone: ZoneInfo) -> pd.DataFrame:
     """Convert timestamp to the given timezone.
 
     Timestamps are numpy.datetime64 (timezone-naive) and in UTC by default.
@@ -354,7 +332,6 @@ def _convert_to_timezone(
     Args:
         data: The reporting data.
         time_zone: The timezone to convert the timestamps to.
-        verbose: A boolean flag to print additional information.
 
     Returns:
         The reporting data with the timestamp converted to the given timezone.
@@ -364,9 +341,7 @@ def _convert_to_timezone(
     except TypeError:
         pass  # Already localized
     data["timestamp"] = pd.to_datetime(data["timestamp"].dt.tz_convert(time_zone))
-    message = f"Timestamp column has been converted to timezone {time_zone}."
-    if verbose:
-        print(message)
+    _logger.info("Timestamp column has been converted to timezone %s.", time_zone)
     return data
 
 
@@ -374,7 +349,6 @@ def _handle_outliers(
     data: pd.DataFrame,
     params: dict[str, str | tuple[float, float] | dict[str, Any]],
     power_column_labels: list[str],
-    verbose: bool,
 ) -> pd.DataFrame:
     """Handle outlier detection.
 
@@ -382,7 +356,6 @@ def _handle_outliers(
         data: The reporting data.
         params: Dictionary of parameters for outlier detection.
         power_column_labels: List of power column labels.
-        verbose: A boolean flag to print additional information.
 
     Returns:
         The reporting data after outlier detection and replacement.
@@ -391,20 +364,21 @@ def _handle_outliers(
         TypeError: If the bounds, method, or method_params are not of the
             expected type.
     """
-    message_1 = (
-        "Columns that denote power values (will use these for outlier detection): "
-        f"{power_column_labels}. "
+    _logger.debug(
+        "Columns that denote power values (will use these for outlier detection): %s",
+        power_column_labels,
     )
-    message_2 = f"Reporting data before outlier detection: shape: {data.shape}"
-    if verbose:
-        print(message_1)
-        print(message_2)
+    _logger.debug(
+        "Reporting data before outlier detection: shape: %s\n%s",
+        data.shape,
+        data.head(),
+    )
 
     bounds = params.get("bounds", (0.0, 0.0))
     method = params.get("method", "")
     method_params = params.get("params", {})
     if not isinstance(bounds, tuple):
-        raise TypeError("bounds must be a tuple")
+        raise TypeError("bounds must be a tuple of (lower_bound, upper_bound)")
     if not isinstance(method, str):
         raise TypeError("method must be a string")
     if not isinstance(method_params, dict):
@@ -414,14 +388,12 @@ def _handle_outliers(
         columns=power_column_labels,
         bounds=bounds,
         method=method,
-        verbose=verbose,
         **method_params,
     )
 
-    message = (
-        "Reporting data after outlier detection and replacement: "
-        f"shape: {data.shape}\n{data.head()}"
+    _logger.debug(
+        "Reporting data after outlier detection and replacement: shape: %s\n%s",
+        data.shape,
+        data.head(),
     )
-    if verbose:
-        print(message)
     return data

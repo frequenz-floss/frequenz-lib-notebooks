@@ -22,12 +22,12 @@ from frequenz.lib.notebooks.notification_service import (
     NotificationSendError,
 )
 
-_log = logging.getLogger(__name__)
+_logger = logging.getLogger(__name__)
 
 EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
-def send_test_email(config: EmailConfig, verbose: bool = True) -> bool:
+def send_test_email(config: EmailConfig) -> bool:
     """Send a test email using the given EmailConfig.
 
     The email message is generated automatically based on the provided
@@ -35,7 +35,6 @@ def send_test_email(config: EmailConfig, verbose: bool = True) -> bool:
 
     Args:
         config: An EmailConfig instance.
-        verbose: If True, prints the result to stdout.
 
     Returns:
         True if the email was sent successfully, False otherwise.
@@ -75,19 +74,15 @@ def send_test_email(config: EmailConfig, verbose: bool = True) -> bool:
         email_notification = EmailNotification(config=config)
         email_notification.send()
         msg = "✅ Test email sent successfully!"
-        _log.info(msg)
-        if verbose:
-            print(msg)
+        _logger.info(msg)
         return True
     except NotificationSendError as e:
         msg = f"❌ Error sending test email: {e}"
-        _log.error(msg)
+        _logger.error(msg)
         if e.last_exception:
-            _log.debug(
+            _logger.debug(
                 "Traceback:\n%s", "".join(traceback.format_exception(e.last_exception))
             )
-        if verbose:
-            print(msg)
         return False
 
 

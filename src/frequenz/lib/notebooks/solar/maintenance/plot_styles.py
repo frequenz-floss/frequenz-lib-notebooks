@@ -11,6 +11,7 @@ DataFrame to a styled HTML table (currently fixed to the Frequenz-Neustrom brand
 colours).
 """
 
+import logging
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any
@@ -20,6 +21,8 @@ import pandas as pd
 from IPython.display import HTML, display
 
 from frequenz.lib.notebooks.solar.maintenance.translator import TranslationManager
+
+_logger = logging.getLogger(__name__)
 
 
 class PlotStyleStrategy(ABC):

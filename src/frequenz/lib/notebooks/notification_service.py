@@ -75,7 +75,7 @@ from smtplib import SMTPException
 from types import UnionType
 from typing import Any, Callable, TypeVar, Union, get_args, get_origin
 
-_log = logging.getLogger(__name__)
+_logger = logging.getLogger(__name__)
 
 
 DataclassT = TypeVar("DataclassT", bound="FromDictMixin")
@@ -346,7 +346,7 @@ class Scheduler:
         """
         self.task = task
         self._task_name = task.__name__
-        _log.info(
+        _logger.info(
             "Starting scheduler for task '%s' to execute every %d seconds and %s",
             self._task_name,
             self._config.interval,
@@ -365,18 +365,18 @@ class Scheduler:
         """Stop the scheduler."""
         if self._thread is not None:
             if self._thread.is_alive():
-                _log.info("Stopping scheduler for task '%s'", self._task_name)
+                _logger.info("Stopping scheduler for task '%s'", self._task_name)
                 self._stop_event.set()
                 if not self._stop_event.is_set():
-                    _log.error(
+                    _logger.error(
                         "Failed to stop scheduler for task '%s'", self._task_name
                     )
         else:
-            _log.warning(
+            _logger.warning(
                 "Attempted to stop scheduler for task '%s', but no active thread was found.",
                 self._task_name,
             )
-        _log.info("Scheduler successfully stopped")
+        _logger.info("Scheduler successfully stopped")
 
     def _run_task(self, kwargs: dict[str, Any]) -> None:
         """Run the scheduled task.
@@ -389,19 +389,21 @@ class Scheduler:
             elapsed = self._execute_task(kwargs)
             self._pace(elapsed)
         else:
-            _log.info(
+            _logger.info(
                 "Waiting for first interval before sending the first notification."
             )
             self._pace(0)
         while not self._should_stop():
             elapsed = self._execute_task(kwargs)
             self._pace(elapsed)
-        _log.info("Scheduler stopping: stop condition met.")
+        _logger.info("Scheduler stopping: stop condition met.")
         self.stop()
 
     def _should_stop(self) -> bool:
         """Return True if the scheduler should stop."""
-        _log.debug("Checking if scheduler for task '%s' should stop.", self._task_name)
+        _logger.debug(
+            "Checking if scheduler for task '%s' should stop.", self._task_name
+        )
         return self._stop_event.is_set() or (
             self._config.duration is not None
             and self._start_time is not None
@@ -422,14 +424,14 @@ class Scheduler:
             if self.task:
                 self.task(**kwargs)
         except Exception as e:  # pylint: disable=broad-except
-            _log.error(
+            _logger.error(
                 "Error occurred during scheduled execution of %s: %s",
                 self._task_name,
                 e,
             )
         finally:
             task_elapsed = time.time() - task_start_time
-            _log.debug(
+            _logger.debug(
                 "Execution of task '%s' completed in %.2f seconds.",
                 self._task_name,
                 task_elapsed,
@@ -465,7 +467,9 @@ class Scheduler:
             actual_sleep = max(0, sleep_duration - elapsed_task_time)
         if self._stop_event.is_set():
             return
-        _log.info("Sleeping for %.2f seconds before next task execution.", actual_sleep)
+        _logger.info(
+            "Sleeping for %.2f seconds before next task execution.", actual_sleep
+        )
         self._stop_event.wait(actual_sleep)
 
 
@@ -503,15 +507,17 @@ class BaseNotification:
         for attempt in range(retries + 1):
             try:
                 send_func(**kwargs)
-                _log.info("Successfully sent notification on attempt %d", attempt + 1)
+                _logger.info(
+                    "Successfully sent notification on attempt %d", attempt + 1
+                )
                 return
             except Exception as e:  # pylint: disable=broad-except
                 last_exception = e
-                _log.error("Attempt %d failed: %s", attempt + 1, e)
+                _logger.error("Attempt %d failed: %s", attempt + 1, e)
                 if attempt < retries - 1:
                     linear_backoff = backoff_factor * (attempt + 1)
                     time.sleep(min(max_sleep, linear_backoff))
-        _log.error("Failed to send notification after %d retries", retries)
+        _logger.error("Failed to send notification after %d retries", retries)
         raise NotificationSendError(
             "Notification failed after all retry attempts.",
             last_exception=last_exception,
@@ -520,17 +526,17 @@ class BaseNotification:
     def start_scheduler(self) -> None:
         """Start the scheduler if configured."""
         if self._scheduler:
-            _log.info("Starting scheduler for %s", self.__class__.__name__)
+            _logger.info("Starting scheduler for %s", self.__class__.__name__)
             self._scheduler.start(self.send)
         else:
-            _log.warning("No scheduler config provided. Cannot start scheduler.")
+            _logger.warning("No scheduler config provided. Cannot start scheduler.")
 
     def stop_scheduler(self) -> None:
         """Stop the running scheduler."""
         if not self._scheduler:
-            _log.warning("No active scheduler to stop.")
+            _logger.warning("No active scheduler to stop.")
             return
-        _log.info("Stopping scheduler for notification: %s", self.__class__.__name__)
+        _logger.info("Stopping scheduler for notification: %s", self.__class__.__name__)
         self._scheduler.stop()
 
     @abstractmethod
@@ -559,7 +565,7 @@ class EmailNotification(BaseNotification):
         super().__init__()
         self._config: EmailConfig = config
         if self._config.scheduler:
-            _log.debug(
+            _logger.debug(
                 "EmailNotification configured with scheduler: %s",
                 self._config.scheduler,
             )
@@ -625,9 +631,9 @@ class EmailNotification(BaseNotification):
                     )
             except OSError as e:
                 failed_attachments.append(file)
-                _log.error("Failed to attach file %s: %s", file, e)
+                _logger.error("Failed to attach file %s: %s", file, e)
         if failed_attachments:
-            _log.warning(
+            _logger.warning(
                 "The following attachments could not be added: %s", failed_attachments
             )
 
@@ -676,9 +682,9 @@ class EmailNotification(BaseNotification):
                 server.starttls()
                 server.login(str(smtp_settings["user"]), str(smtp_settings["password"]))
                 server.send_message(msg)
-            _log.info("Email sent successfully to %s", to_emails)
+            _logger.info("Email sent successfully to %s", to_emails)
         except SMTPException as e:
-            _log.error("Failed to send email: %s", e)
+            _logger.error("Failed to send email: %s", e)
             raise
 
 

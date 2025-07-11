@@ -8,16 +8,18 @@ The module contains functions to preprocess solar power production data, calcula
 statistical metrics, segment and analyse the data, and transform weather features.
 """
 
+import logging
 import re
-import warnings
 from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
 import numpy as np
 import pandas as pd
 
+_logger = logging.getLogger(__name__)
 
-# pylint: disable-next=too-many-arguments, too-many-locals
+
+# pylint: disable-next=too-many-arguments, too-many-locals, too-many-statements
 def preprocess_data(
     df: pd.DataFrame,
     *,
@@ -89,7 +91,10 @@ def preprocess_data(
         return factor, base_unit
 
     if len(power_cols) != len(name_suffixes):
-        raise ValueError("Length of power_cols and name_suffixes must be equal.")
+        raise ValueError(
+            "The length of power_cols and name_suffixes must be equal. "
+            f"Got {len(power_cols)} and {len(name_suffixes)} respectively."
+        )
 
     if not in_place:
         df = df.copy()
@@ -138,7 +143,7 @@ def preprocess_data(
     if time_diff_seconds_series.nunique() == 1:
         time_diff_seconds = time_diff_seconds_series.values[0]
     else:
-        warnings.warn(
+        _logger.warning(
             "Detected multiple unique time differences; this may indicate inconsistent "
             "timestamps. Falling back to the mode of the time differences."
         )
@@ -222,7 +227,7 @@ def calculate_stats(df: pd.DataFrame, exclude_zeros: bool = False) -> pd.DataFra
     return _calculate(data_to_use)
 
 
-# pylint: disable-next=too-many-arguments, too-many-locals
+# pylint: disable-next=too-many-locals
 def segment_and_analyse(
     data: pd.DataFrame,
     *,
@@ -230,7 +235,6 @@ def segment_and_analyse(
     resamp_freq_list: list[str | None],
     group_labels: list[str],
     exclude_zeros: list[bool],
-    verbose: bool = False,
 ) -> dict[str, pd.DataFrame]:
     """Process data by segmenting and calculating statistics for given frequencies.
 
@@ -252,7 +256,6 @@ def segment_and_analyse(
             segment statistics for each grouping frequency.
         exclude_zeros: List of boolean flags to exclude zero values from the
             calculation for each grouping frequency.
-        verbose: A boolean flag to print additional information.
 
     Returns:
         A dictionary with the segment statistics for each grouping frequency.
@@ -263,7 +266,7 @@ def segment_and_analyse(
     for label, grouping_freq, resamp_freq, no_zeros in zip(
         group_labels, grouping_freq_list, resamp_freq_list, exclude_zeros
     ):
-        segmented_data = segment_and_align(data, grouping_freq, resamp_freq, verbose)
+        segmented_data = segment_and_align(data, grouping_freq, resamp_freq)
         stats_df = pd.DataFrame()
         df_index = []
         for group, segment in segmented_data.items():
@@ -282,7 +285,6 @@ def segment_and_align(
     data: pd.DataFrame,
     grouping_freq: str | list[Any] | None = None,
     resamp_freq: str | None = None,
-    verbose: bool = False,
 ) -> dict[Any, pd.DataFrame]:
     """Segment the input data into periods based on the given frequency.
 
@@ -306,7 +308,6 @@ def segment_and_align(
             documentation.
         resamp_freq: Frequency string (e.g., '15min', '1h', '1D') to resample
             the data. If None, the frequency is inferred from the data and used.
-        verbose: A boolean flag to print additional information.
 
     Returns:
         A dictionary with the segmented data for each period.
@@ -320,12 +321,11 @@ def segment_and_align(
         inferred_freq = (
             f"{int(data_index.to_series().diff().mode()[0].total_seconds() / 60)}min"
         )
-        message = (
+        _logger.debug(
             "pandas cannot infer the frequency automatically. "
-            f"Found to be {inferred_freq} using the mode of the time differences."
+            "Found to be %s using the mode of the time differences.",
+            inferred_freq,
         )
-        if verbose:
-            print(message)
     if grouping_freq is None:
         grouping_freq = inferred_freq
     if resamp_freq is None:
@@ -378,7 +378,6 @@ def transform_weather_features(
     data: pd.DataFrame,
     column_label_mapping: dict[str, str],
     time_zone: ZoneInfo = ZoneInfo("UTC"),
-    verbose: bool = False,
 ) -> tuple[pd.DataFrame, bool]:
     """Transform weather data by mapping features to new columns.
 
@@ -394,7 +393,6 @@ def transform_weather_features(
             of the 'value' column.
         time_zone: The timezone to convert the time columns to. Should be a
             valid zoneinfo.ZoneInfo object.
-        verbose: A boolean flag to print additional information.
 
     Returns:
         A tuple of the transformed DataFrame and a boolean flag indicating if
@@ -408,7 +406,9 @@ def transform_weather_features(
     required_columns = ["feature", "value", "validity_ts", "creation_ts"]
     missing_columns = [col for col in required_columns if col not in data_out.columns]
     if missing_columns:
-        raise ValueError(f"Missing required columns: {', '.join(missing_columns)}")
+        raise ValueError(
+            f"Input data is missing required columns: {', '.join(missing_columns)}"
+        )
 
     data_out["feature_name"] = data_out["feature"].apply(
         lambda x: column_label_mapping.get(x.name, x.name)
@@ -426,12 +426,9 @@ def transform_weather_features(
     ).astype("datetime64[us]")
     nat_present = bool(data_out["validity_ts"].isna().any())
     if nat_present:
-        message = (
-            "Missing or invalid date entries found in 'validity_ts'. "
-            "Handle the data accordingly."
+        _logger.warning(
+            "Missing or invalid date entries found in 'validity_ts'. Handle the data accordingly."
         )
-        if verbose:
-            warnings.warn(message)
     # note: timestamps are numpy.datetime64 (timezone-naive) and in UTC by default
     try:
         data_out["creation_ts"] = pd.to_datetime(
@@ -455,9 +452,7 @@ def transform_weather_features(
         data_out["validity_ts"] = pd.to_datetime(
             data_out["validity_ts"].dt.tz_convert(time_zone)
         )
-    message = f"Time columns have been converted to timezone {time_zone}."
-    if verbose:
-        print(message)
+    _logger.debug("Time columns have been converted to timezone %s.", time_zone)
 
     data_out["step"] = data_out["validity_ts"] - data_out["creation_ts"]
 
@@ -514,7 +509,7 @@ def outlier_detection_z_score(
 
 
 def outlier_detection_modified_z_score(
-    data: pd.DataFrame, threshold: float = 3.5, verbose: bool = False
+    data: pd.DataFrame, threshold: float = 3.5
 ) -> tuple[pd.DataFrame]:
     """Detect outliers in the input data based on the modified z-score.
 
@@ -524,7 +519,6 @@ def outlier_detection_modified_z_score(
     Args:
         data: DataFrame with a datetime index.
         threshold: The threshold value to detect outliers.
-        verbose: A boolean flag to print additional information.
 
     Returns:
         A tuple with a DataFrame containing boolean values indicating outliers.
@@ -538,12 +532,11 @@ def outlier_detection_modified_z_score(
     epsilon = 0.0
     if median_absolute_deviation == 0:
         epsilon = 1e-8
-        message = (
-            "Median absolute deviation is zero. Added a small tolerance "
-            f"value of {epsilon} to avoid division by zero."
+        _logger.debug(
+            "Median absolute deviation is zero. "
+            "Added a small tolerance value of %s to avoid division by zero.",
+            epsilon,
         )
-        if verbose:
-            print(message)
     modified_z_scores = 0.6745 * (data - median) / (median_absolute_deviation + epsilon)
     outlier_mask = modified_z_scores.abs() > threshold
     return (outlier_mask,)
@@ -583,7 +576,6 @@ def outlier_removal(
     columns: list[str],
     bounds: tuple[float, float],
     method: str = "min_max",
-    verbose: bool = False,
     **kwargs: float,
 ) -> pd.DataFrame:
     """Replace outliers in the input data based on the given values.
@@ -596,7 +588,6 @@ def outlier_removal(
             or upper bound must be provided depeding on the outlier detection
             method used.
         method: The outlier detection method to use.
-        verbose: A boolean flag to print additional information.
         **kwargs: Additional keyword arguments for the outlier detection method.
 
     Returns:
@@ -625,17 +616,17 @@ def outlier_removal(
         isinstance(bound, type(None)) for bound in bounds
     ):
         raise ValueError(
-            "Argument bounds must be provided and cannot be a tuple of None."
+            "Bounds must be provided for outlier detection. "
+            "At least one of the lower or upper bound must be specified."
         )
     if not isinstance(bounds, tuple) or len(bounds) != 2:
-        raise ValueError("Bounds must be a tuple of length 2.")
+        raise ValueError("Bounds must be a tuple of length 2 (lower, upper).")
 
     outlier_mask = supported_outlier_detectors[method](data.loc[:, columns], **kwargs)
     if len(outlier_mask) == 1 and bounds[0] is None:
         bounds = (bounds[1], bounds[1])
 
-    if verbose:
-        _log_outliers(data, outlier_mask, bounds)
+    _log_outliers(data, outlier_mask, bounds)
 
     for i, mask in enumerate(outlier_mask):
         if not isinstance(bounds[i], type(None)):
@@ -672,4 +663,4 @@ def _log_outliers(
         for i, mask in enumerate(outlier_mask)
     ]
     for message in log_messages:
-        print(message)
+        _logger.debug(message)
