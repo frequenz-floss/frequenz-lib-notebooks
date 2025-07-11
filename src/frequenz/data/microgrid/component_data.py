@@ -24,7 +24,7 @@ class MicrogridData:
         server_url: str,
         auth_key: str,
         sign_secret: str,
-        microgrid_config_path: str | list[str],
+        microgrid_configs: dict[str, MicrogridConfig] | None = None,
     ) -> None:
         """Initialize microgrid data.
 
@@ -32,22 +32,12 @@ class MicrogridData:
             server_url: URL of the reporting service.
             auth_key: Authentication key to the service.
             sign_secret: Secret for signing requests.
-            microgrid_config_path: Path(s) to the config file with microgrid components.
-
-        Raises:
-            ValueError: If no microgrid config path is provided.
+            microgrid_configs: MicrogridConfig dict mapping microgrid IDs to MicrogridConfigs.
         """
+        self._microgrid_configs = microgrid_configs
         self._client = ReportingApiClient(
             server_url=server_url, auth_key=auth_key, sign_secret=sign_secret
         )
-        paths = (
-            [microgrid_config_path]
-            if isinstance(microgrid_config_path, str)
-            else microgrid_config_path
-        )
-        if len(paths) < 1:
-            raise ValueError("At least one microgrid config path must be provided")
-        self._microgrid_configs = MicrogridConfig.load_configs(*paths)
 
     @property
     def microgrid_ids(self) -> list[str]:
@@ -97,6 +87,8 @@ class MicrogridData:
         formulas = {
             ctype: mcfg.formula(ctype, metric.upper()) for ctype in component_types
         }
+
+        logging.debug("Formulas: %s", formulas)
 
         metric_enum = Metric[metric.upper()]
         data = [
