@@ -1160,9 +1160,9 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#frequenz.lib.notebooks.notification_service--stop-the-scheduler-after-some-time-if-needed" class="md-nav__link">
+  <a href="#frequenz.lib.notebooks.notification_service--stop-the-scheduler-after-some-time-if-needed-not-required-if-duration-is-set" class="md-nav__link">
     <span class="md-ellipsis">
-      Stop the scheduler after some time if needed
+      Stop the scheduler after some time if needed (not required if duration is set)
     </span>
   </a>
   
@@ -2342,9 +2342,9 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#frequenz.lib.notebooks.notification_service--stop-the-scheduler-after-some-time-if-needed" class="md-nav__link">
+  <a href="#frequenz.lib.notebooks.notification_service--stop-the-scheduler-after-some-time-if-needed-not-required-if-duration-is-set" class="md-nav__link">
     <span class="md-ellipsis">
-      Stop the scheduler after some time if needed
+      Stop the scheduler after some time if needed (not required if duration is set)
     </span>
   </a>
   
@@ -2839,7 +2839,7 @@ notification attempts.</p>
     smtp_user="user@example.com",
     smtp_password="password",
     from_email="alert@example.com",
-    attachments=["alert_records.csv"]
+    attachments=["alert_records.csv"],
     scheduler=SchedulerConfig(
         send_immediately=True,
         interval=60,
@@ -2869,7 +2869,7 @@ email_notification_2 = EmailNotification(EmailConfig.from_dict(email_config_dict
 <p>email_notification.send()</p>
 <h3 id="frequenz.lib.notebooks.notification_service--start-periodic-notifications">Start periodic notifications<a class="headerlink" href="#frequenz.lib.notebooks.notification_service--start-periodic-notifications" title="Permanent link">¤</a></h3>
 <p>email_notification.start_scheduler()</p>
-<h3 id="frequenz.lib.notebooks.notification_service--stop-the-scheduler-after-some-time-if-needed">Stop the scheduler after some time if needed<a class="headerlink" href="#frequenz.lib.notebooks.notification_service--stop-the-scheduler-after-some-time-if-needed" title="Permanent link">¤</a></h3>
+<h3 id="frequenz.lib.notebooks.notification_service--stop-the-scheduler-after-some-time-if-needed-not-required-if-duration-is-set">Stop the scheduler after some time if needed (not required if duration is set)<a class="headerlink" href="#frequenz.lib.notebooks.notification_service--stop-the-scheduler-after-some-time-if-needed-not-required-if-duration-is-set" title="Permanent link">¤</a></h3>
 <p>time.sleep(300)
 email_notification.stop_scheduler()</p>
 
