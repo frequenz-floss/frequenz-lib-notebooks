@@ -22,7 +22,7 @@ email_config = EmailConfig(
     smtp_user="user@example.com",
     smtp_password="password",
     from_email="alert@example.com",
-    attachments=["alert_records.csv"]
+    attachments=["alert_records.csv"],
     scheduler=SchedulerConfig(
         send_immediately=True,
         interval=60,
@@ -57,7 +57,7 @@ email_notification.send()
 # Start periodic notifications
 email_notification.start_scheduler()
 
-# Stop the scheduler after some time if needed
+# Stop the scheduler after some time if needed (not required if duration is set)
 time.sleep(300)
 email_notification.stop_scheduler()
 """
