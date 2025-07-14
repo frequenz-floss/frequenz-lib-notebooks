@@ -13,6 +13,7 @@
 - Added consistent logger setup across all modules for structured logging and improved observability. Example notebooks updated to demonstrate logger usage.
 - The signature for passing config files MicrogridConfig.load_config() has been changed to accept a path a list of paths and a directory containing the config files.
 - `MicrogridData` class needs to be initialized with a `MicrogridConfig` object instead of a path to config file(s).
+- Added a transactional stateful data fetcher.
 
 ## Bug Fixes
 
