@@ -79,20 +79,29 @@ test_cases_extract_state_durations = [
         "description": "Warnings and errors included",
         "samples": [
             MetricSample(datetime(2023, 1, 2, 0, 0), 3, "303", "state", 0),
+            MetricSample(datetime(2023, 1, 2, 0, 30), 3, "303", "state", 10),
             MetricSample(datetime(2023, 1, 2, 0, 30), 3, "303", "warning", 10),
             MetricSample(datetime(2023, 1, 2, 1, 0), 3, "303", "state", 1),
+            MetricSample(datetime(2023, 1, 2, 1, 30), 3, "303", "state", 20),
             MetricSample(datetime(2023, 1, 2, 1, 30), 3, "303", "error", 20),
         ],
         "alert_states": [ComponentStateCode.from_proto(1)],  # type: ignore[arg-type]
         "include_warnings": True,
         "expected_all_states": [
-            # State transitions
             {
                 "microgrid_id": 3,
                 "component_id": "303",
                 "state_type": "state",
                 "state_value": _resolve_enum_name(0, ComponentStateCode),
                 "start_time": datetime(2023, 1, 2, 0, 0),
+                "end_time": datetime(2023, 1, 2, 0, 30),
+            },
+            {
+                "microgrid_id": 3,
+                "component_id": "303",
+                "state_type": "state",
+                "state_value": _resolve_enum_name(10, ComponentStateCode),
+                "start_time": datetime(2023, 1, 2, 0, 30),
                 "end_time": datetime(2023, 1, 2, 1, 0),
             },
             {
@@ -101,25 +110,23 @@ test_cases_extract_state_durations = [
                 "state_type": "state",
                 "state_value": _resolve_enum_name(1, ComponentStateCode),
                 "start_time": datetime(2023, 1, 2, 1, 0),
+                "end_time": datetime(2023, 1, 2, 1, 30),
+            },
+            {
+                "microgrid_id": 3,
+                "component_id": "303",
+                "state_type": "state",
+                "state_value": _resolve_enum_name(20, ComponentStateCode),
+                "start_time": datetime(2023, 1, 2, 1, 30),
                 "end_time": None,
             },
-            # Warning transitions
             {
                 "microgrid_id": 3,
                 "component_id": "303",
                 "state_type": "warning",
                 "state_value": _resolve_enum_name(10, ComponentErrorCode),
                 "start_time": datetime(2023, 1, 2, 0, 30),
-                "end_time": None,
-            },
-            # Error transitions
-            {
-                "microgrid_id": 3,
-                "component_id": "303",
-                "state_type": "error",
-                "state_value": _resolve_enum_name(20, ComponentErrorCode),
-                "start_time": datetime(2023, 1, 2, 1, 30),
-                "end_time": None,
+                "end_time": datetime(2023, 1, 2, 1, 0),
             },
         ],
         "expected_alert_records": [
@@ -129,24 +136,15 @@ test_cases_extract_state_durations = [
                 "state_type": "warning",
                 "state_value": _resolve_enum_name(10, ComponentErrorCode),
                 "start_time": datetime(2023, 1, 2, 0, 30),
-                "end_time": None,
+                "end_time": datetime(2023, 1, 2, 1, 0),
             },
-            {
-                "microgrid_id": 3,
-                "component_id": "303",
-                "state_type": "error",
-                "state_value": _resolve_enum_name(20, ComponentErrorCode),
-                "start_time": datetime(2023, 1, 2, 1, 30),
-                "end_time": None,
-            },
-            # State alert
             {
                 "microgrid_id": 3,
                 "component_id": "303",
                 "state_type": "state",
                 "state_value": _resolve_enum_name(1, ComponentStateCode),
                 "start_time": datetime(2023, 1, 2, 1, 0),
-                "end_time": None,
+                "end_time": datetime(2023, 1, 2, 1, 30),
             },
         ],
     },

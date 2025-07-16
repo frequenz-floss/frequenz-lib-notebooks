@@ -4,7 +4,6 @@
 """Functions for analyzing microgrid component state transitions and extracting alerts."""
 import logging
 from datetime import datetime, timedelta
-from itertools import groupby
 
 from frequenz.client.common.metric import Metric
 from frequenz.client.common.microgrid.components import (
@@ -69,8 +68,7 @@ async def fetch_and_extract_state_durations(
 
 
 def _extract_state_records(
-    samples: list[MetricSample],
-    include_warnings: bool,
+    samples: list[MetricSample], include_warnings: bool
 ) -> list[StateRecord]:
     """Extract state records from the provided samples.
 
@@ -81,84 +79,140 @@ def _extract_state_records(
     Returns:
         A list of StateRecord instances representing the state changes.
     """
-    alert_metrics = ["warning", "error"] if include_warnings else ["error"]
-    state_metrics = ["state"] + alert_metrics
-    filtered_samples = sorted(
-        (s for s in samples if s.metric in state_metrics),
-        key=lambda s: (s.microgrid_id, s.component_id, s.metric, s.timestamp),
-    )
+    component_groups = _group_samples_by_component(samples, include_warnings)
 
-    if not filtered_samples:
-        return []
+    all_records = []
+    for (mid, cid), metrics in component_groups.items():
+        if "state" not in metrics:
+            continue
+        all_records.extend(_process_sample_group(mid, cid, metrics))
 
-    # Group samples by (microgrid_id, component_id, metric)
-    all_states = []
-    for key, group in groupby(
-        filtered_samples, key=lambda s: (s.microgrid_id, s.component_id, s.metric)
-    ):
-        all_states.extend(_process_sample_group(key, list(group)))
-
-    all_states.sort(key=lambda x: (x.microgrid_id, x.component_id, x.start_time))
-    return all_states
+    all_records.sort(key=lambda x: (x.microgrid_id, x.component_id, x.start_time))
+    return all_records
 
 
+# pylint: disable-next=too-many-locals,too-many-branches
 def _process_sample_group(
-    key: tuple[int, str, str],
-    group_samples: list[MetricSample],
+    microgrid_id: int,
+    component_id: str,
+    samples_by_metric: dict[str, list[MetricSample]],
 ) -> list[StateRecord]:
-    """Process samples for a single group to extract state durations.
+    """Process state/error/warning samples for a single component.
 
     Args:
-        key: Tuple containing microgrid ID, component ID, and metric.
-        group_samples: List of samples for the group.
+        microgrid_id: ID of the microgrid.
+        component_id: ID of the component.
+        samples_by_metric: Dict with keys "state", "error", optionally "warning".
 
     Returns:
-        A list of StateRecord instances representing the state changes.
+        A list of StateRecord instances representing the state changes and
+        error/warning durations (if any).
     """
-    mid, cid, metric = key
-    if not group_samples:
-        return []
+    state_samples = sorted(samples_by_metric["state"], key=lambda s: s.timestamp)
+    error_by_ts = {s.timestamp: s for s in samples_by_metric.get("error", [])}
+    warning_by_ts = {s.timestamp: s for s in samples_by_metric.get("warning", [])}
 
-    state_records = []
-    current_state_value: float | None = None
-    start_time: datetime | None = None
-    enum_class = ComponentStateCode if metric == "state" else ComponentErrorCode
+    records: list[StateRecord] = []
+    state_val = error_val = warning_val = None
+    state_start = error_start = warning_start = None
 
-    for sample in group_samples:
-        if current_state_value != sample.value:
-            # Close previous state run
-            if current_state_value is not None:
-                state_records.append(
-                    StateRecord(
-                        microgrid_id=mid,
-                        component_id=cid,
-                        state_type=metric,
-                        state_value=_resolve_enum_name(current_state_value, enum_class),
-                        start_time=start_time,
-                        end_time=sample.timestamp,
-                    )
-                )
-            # Start new state run
-            current_state_value = sample.value
-            start_time = sample.timestamp
-
-    # Close the last state run
-    state_records.append(
-        StateRecord(
-            microgrid_id=mid,
-            component_id=cid,
-            state_type=metric,
-            state_value=(
-                _resolve_enum_name(current_state_value, enum_class)
-                if current_state_value is not None
-                else ""
-            ),
-            start_time=start_time,
-            end_time=None,
+    def emit(
+        metric: str,
+        val: float,
+        start: datetime | None,
+        end: datetime | None,
+        enum_class: type[ComponentStateCode | ComponentErrorCode],
+    ) -> None:
+        """Emit a state record."""
+        records.append(
+            StateRecord(
+                microgrid_id=microgrid_id,
+                component_id=component_id,
+                state_type=metric,
+                state_value=_resolve_enum_name(val, enum_class),
+                start_time=start,
+                end_time=end,
+            )
         )
-    )
 
-    return state_records
+    for sample in state_samples:
+        ts = sample.timestamp
+
+        # State change
+        if sample.value != state_val:
+            if state_val is not None:
+                emit("state", state_val, state_start, ts, ComponentStateCode)
+            state_val = sample.value
+            state_start = ts
+
+            # Close error/warning if exiting ERROR
+            if state_val != ComponentStateCode.ERROR.value:
+                if error_val is not None:
+                    emit("error", error_val, error_start, ts, ComponentErrorCode)
+                    error_val = error_start = None
+                if warning_val is not None:
+                    emit("warning", warning_val, warning_start, ts, ComponentErrorCode)
+                    warning_val = warning_start = None
+
+        # While in ERROR
+        if state_val == ComponentStateCode.ERROR.value:
+            if ts in error_by_ts:
+                new_err = error_by_ts[ts].value
+                if new_err != error_val:
+                    if error_val is not None:
+                        emit("error", error_val, error_start, ts, ComponentErrorCode)
+                    error_val = new_err
+                    error_start = ts
+
+            if ts in warning_by_ts:
+                new_warn = warning_by_ts[ts].value
+                if new_warn != warning_val:
+                    if warning_val is not None:
+                        emit(
+                            "warning",
+                            warning_val,
+                            warning_start,
+                            ts,
+                            ComponentErrorCode,
+                        )
+                    warning_val = new_warn
+                    warning_start = ts
+
+    if state_val is not None:
+        emit("state", state_val, state_start, None, ComponentStateCode)
+    if state_val == ComponentStateCode.ERROR.value:
+        if error_val is not None:
+            emit("error", error_val, error_start, None, ComponentErrorCode)
+        if warning_val is not None:
+            emit("warning", warning_val, warning_start, None, ComponentErrorCode)
+    return records
+
+
+def _group_samples_by_component(
+    samples: list[MetricSample], include_warnings: bool
+) -> dict[tuple[int, str], dict[str, list[MetricSample]]]:
+    """Group samples by (microgrid_id, component_id) and metric.
+
+    Args:
+        samples: List of MetricSample instances containing the reporting data.
+        include_warnings: Whether to include warning states in the alert records.
+
+    Returns:
+        A dictionary where keys are tuples of (microgrid_id, component_id) and values
+        are dictionaries with metric names as keys and lists of MetricSample as values.
+    """
+    alert_metrics = {"state", "error"}
+    if include_warnings:
+        alert_metrics.add("warning")
+
+    component_groups: dict[tuple[int, str], dict[str, list[MetricSample]]] = {}
+    for sample in samples:
+        if sample.metric not in alert_metrics:
+            continue
+        key = (sample.microgrid_id, sample.component_id)
+        metric_dict = component_groups.setdefault(key, {})
+        metric_dict.setdefault(sample.metric, []).append(sample)
+    return component_groups
 
 
 def _resolve_enum_name(
