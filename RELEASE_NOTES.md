@@ -6,7 +6,7 @@
 
 ## Upgrading
 
-- Minor updates to "Alerts Notebook" and "Solar Maintenance" notebooks to utilise new functionality, simplify parts of the notebooks' code, and update the documentation.
+<!-- Here goes notes on how to upgrade from previous versions, including deprecations and what they should be replaced with -->
 
 ## New Features
 
