@@ -120,6 +120,9 @@ class PVConfig:
     rated_power: float | None = None
     """Rated power of the inverters in Watt."""
 
+    curtailable: bool = False
+    """Flag to indicate if PV system can be curtailed."""
+
 
 @dataclass(frozen=True)
 class WindConfig:

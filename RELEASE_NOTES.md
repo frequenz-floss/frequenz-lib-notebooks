@@ -10,7 +10,7 @@
 
 ## New Features
 
-<!-- Here goes the main new features and examples or instructions on how to use them -->
+* Add minimum of flexibility power range to PV system config.
 
 ## Bug Fixes
 
