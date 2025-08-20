@@ -11,6 +11,7 @@
 ## New Features
 
 * Add minimum of flexibility power range to PV system config.
+* Add asset optimization reporting package with data fetcher and visualization module.
 
 ## Bug Fixes
 
