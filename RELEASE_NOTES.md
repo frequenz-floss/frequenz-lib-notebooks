@@ -6,11 +6,11 @@
 
 ## Upgrading
 
-<!-- Here goes notes on how to upgrade from previous versions, including deprecations and what they should be replaced with -->
+* Widen weather API dependency range to reduce conflicts with other packages.
 
 ## New Features
 
-* Add minimum of flexibility power range to PV system config.
+* Add flag to indicate whether PV is curtailable.
 * Add asset optimization reporting package with data fetcher and visualization module.
 
 ## Bug Fixes
