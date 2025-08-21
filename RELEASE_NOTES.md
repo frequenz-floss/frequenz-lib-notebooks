@@ -6,7 +6,7 @@
 
 ## Upgrading
 
-<!-- Here goes notes on how to upgrade from previous versions, including deprecations and what they should be replaced with -->
+* Widen weather API dependency range to reduce conflicts with other packages.
 
 ## New Features
 
