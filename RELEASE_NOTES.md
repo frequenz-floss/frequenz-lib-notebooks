@@ -10,7 +10,7 @@
 
 ## New Features
 
-* Add minimum of flexibility power range to PV system config.
+* Add flag to indicate whether PV is curtailable.
 * Add asset optimization reporting package with data fetcher and visualization module.
 
 ## Bug Fixes
