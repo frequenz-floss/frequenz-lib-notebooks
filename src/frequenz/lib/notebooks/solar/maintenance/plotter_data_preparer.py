@@ -449,7 +449,7 @@ class StatsPreparer(BasePreparer):
             {
                 self.config.translation_manager.translate("Current yield (kWh)"): [
                     self.config.translation_manager.translate(
-                        "{:.2f}".format(df.at[current, "energy_kWh"])
+                        "{:.2f}".format(df.loc[current, "energy_kWh"])
                     )
                 ],
                 self.config.translation_manager.translate("Yield today (kWh)"): [
