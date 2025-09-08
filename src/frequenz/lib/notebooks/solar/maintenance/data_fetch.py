@@ -227,6 +227,9 @@ def transform_weather_data(
     Raises:
         ValueError: If missing or invalid date entries are found in 'validity_ts'.
     """
+    if data.empty:
+        _logger.info("No weather data available to transform.")
+        return data
     _logger.info("Transforming weather forecast data...")
     weather_forecasts_df, nat_present = transform_weather_features(
         data=data,
@@ -266,6 +269,9 @@ def transform_reporting_data(
     Returns:
         The transformed reporting data.
     """
+    if data.empty:
+        _logger.info("No reporting data available to transform.")
+        return data
     _logger.info("Transforming reporting data...")
 
     if microgrid_components:
