@@ -143,11 +143,15 @@ def preprocess_data(
     if time_diff_seconds_series.nunique() == 1:
         time_diff_seconds = time_diff_seconds_series.values[0]
     else:
-        _logger.warning(
-            "Detected multiple unique time differences; this may indicate inconsistent "
-            "timestamps. Falling back to the mode of the time differences."
-        )
         time_diff_seconds = time_diff_seconds_series.mode()[0]
+        _logger.debug(
+            "Multiple time deltas detected (%s unique: %s seconds). "
+            "Falling back to (statistical) mode=%s seconds.",
+            time_diff_seconds_series.nunique(),
+            time_diff_seconds_series.unique(),
+            time_diff_seconds,
+        )
+
     for unit in energy_units:
         energy_factor, base_unit = parse_unit(unit)
         time_conversion_factor = valid_time_units.get(base_unit[1:], None)
