@@ -15,4 +15,5 @@
 
 ## Bug Fixes
 
+* Replaces multiple duplicated plot functions with a single reusable one.
 <!-- Here goes notable bug fixes that are worth a special mention or explanation -->
