@@ -270,8 +270,7 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
                     set(real_time_view_col_to_plot) - set(missing_cols)
                 )
                 _logger.warning(
-                    "Warning: Data is missing for the following components: %s",
-                    missing_cols,
+                    "Data is missing for the following components: %s", missing_cols
                 )
             data_higher_fs = _filter_and_rename_columns(
                 reporting_data_higher_fs, real_time_view_col_to_plot

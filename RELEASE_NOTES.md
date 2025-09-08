@@ -6,14 +6,13 @@
 
 ## Upgrading
 
-* Widen weather API dependency range to reduce conflicts with other packages.
+<!-- Here goes notes on how to upgrade from previous versions, including deprecations and what they should be replaced with -->
 
 ## New Features
 
-* Add flag to indicate whether PV is curtailable.
-* Add asset optimization reporting package with data fetcher and visualization module.
+<!-- Here goes the main new features and examples or instructions on how to use them -->
 
 ## Bug Fixes
 
 * Replaces multiple duplicated plot functions with a single reusable one.
-<!-- Here goes notable bug fixes that are worth a special mention or explanation -->
+* Handle empty weather/reporting dataframes gracefully to avoid transformation errors.
