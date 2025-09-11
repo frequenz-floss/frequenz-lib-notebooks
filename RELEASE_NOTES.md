@@ -15,4 +15,4 @@
 ## Bug Fixes
 
 * Replaces multiple duplicated plot functions with a single reusable one.
-* Handle empty weather/reporting dataframes gracefully to avoid transformation errors.
+* Handle empty weather/reporting dataframes gracefully to avoid transformation errors. The "Solar Maintenance" notebook is updated accordingly.
