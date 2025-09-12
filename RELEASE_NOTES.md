@@ -6,7 +6,7 @@
 
 ## Upgrading
 
-<!-- Here goes notes on how to upgrade from previous versions, including deprecations and what they should be replaced with -->
+* Revert back to `v0.2.3` of the weather-client until the weather service is able to support `v0.13` of the weather API.
 
 ## New Features
 
