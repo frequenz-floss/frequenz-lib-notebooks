@@ -303,7 +303,7 @@ def generate_alert_summary(
                 "state_value",
                 lambda x: [html.escape(str(s)) for s in x.unique()],
             ),
-            unique_components=("component_id", lambda x: list(x.unique())),
+            unique_components=("component_id", lambda x: [int(c) for c in x.unique()]),
         )
         .reset_index()
     )
