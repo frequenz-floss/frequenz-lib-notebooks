@@ -137,7 +137,7 @@ class WindConfig:
     turbine_height: float | None = None
     """Height of the wind turbine in meters."""
 
-    number_of_turbines: int | None = None
+    number_of_turbines: int = 1
     """Number of wind turbines."""
 
     hellmann_exponent: float | None = None
