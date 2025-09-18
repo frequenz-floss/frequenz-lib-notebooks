@@ -6,7 +6,7 @@
 
 ## Upgrading
 
-* Revert back to `v0.2.3` of the weather-client until the weather service is able to support `v0.13` of the weather API.
+<!-- Here goes notes on how to upgrade from previous versions, including deprecations and what they should be replaced with -->
 
 ## New Features
 
@@ -14,5 +14,4 @@
 
 ## Bug Fixes
 
-* Replaces multiple duplicated plot functions with a single reusable one.
-* Handle empty weather/reporting dataframes gracefully to avoid transformation errors. The "Solar Maintenance" notebook is updated accordingly.
+<!-- Here goes notable bug fixes that are worth a special mention or explanation -->
