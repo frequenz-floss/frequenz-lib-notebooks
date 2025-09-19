@@ -137,6 +137,18 @@ class WindConfig:
     turbine_height: float | None = None
     """Height of the wind turbine in meters."""
 
+    number_of_turbines: int = 1
+    """Number of wind turbines."""
+
+    hellmann_exponent: float | None = None
+    """Hellmann exponent for wind speed extrapolation. See: https://w.wiki/FMw9"""
+
+    longitude: float | None = None
+    """Geographic longitude of the wind turbine."""
+
+    latitude: float | None = None
+    """Geographic latitude of the wind turbine."""
+
 
 @dataclass(frozen=True)
 class BatteryConfig:
