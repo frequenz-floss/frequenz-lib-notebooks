@@ -172,12 +172,19 @@ class AssetsConfig:
     """Configuration of the batteries."""
 
 
+# pylint: disable=too-many-instance-attributes
 @dataclass(frozen=True)
 class Metadata:
     """Metadata for a microgrid."""
 
     name: str | None = None
     """Name of the microgrid."""
+
+    microgrid_id: int | None = None
+    """ID of the microgrid."""
+
+    enterprise_id: int | None = None
+    """Enterprise ID of the microgrid."""
 
     gid: int | None = None
     """Gridpool ID of the microgrid."""
