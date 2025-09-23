@@ -11,6 +11,7 @@
 ## New Features
 
 * Add fields to `WindConfig` for microgrid configuration.
+* Add microgrid and enterprise ID to microgrid metadata config.
 
 ## Bug Fixes
 
