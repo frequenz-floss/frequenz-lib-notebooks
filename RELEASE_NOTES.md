@@ -11,8 +11,10 @@
 ## New Features
 
 <!-- Here goes the main new features and examples or instructions on how to use them -->
+* Add reusable, modular data processing functions for reporting notebooks. 
 
 ## Bug Fixes
 
 * Replaces multiple duplicated plot functions with a single reusable one.
 * Handle empty weather/reporting dataframes gracefully to avoid transformation errors. The "Solar Maintenance" notebook is updated accordingly.
+<!-- Here goes notable bug fixes that are worth a special mention or explanation -->
