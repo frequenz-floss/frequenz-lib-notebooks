@@ -12,9 +12,12 @@
 
 <!-- Here goes the main new features and examples or instructions on how to use them -->
 
-* Add fields to `WindConfig` for microgrid configuration.
-* Add microgrid and enterprise ID to microgrid metadata config.
-* Add column mapping yaml file to maintain canonical, english and german column names used in reporting notebooks.
+Introduce a `ColumnMapper` for reporting notebooks that keeps raw column churn
+out of notebook code. The mapper centralises canonical column names, locale-
+specific display labels, and timezone metadata loaded from
+`src/frequenz/lib/notebooks/reporting/schema_mapping.yaml`. It ships together
+with metric definitions so dashboards use consistent labels and units when the
+underlying data sources evolve.
 
 ## Bug Fixes
 
