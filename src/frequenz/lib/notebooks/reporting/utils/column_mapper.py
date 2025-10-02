@@ -25,7 +25,7 @@ Examples:
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
-from typing import Dict, Iterable, Mapping, Optional
+from typing import Iterable, Mapping
 
 import pandas as pd
 import yaml
@@ -85,7 +85,7 @@ class ColumnMapper:  # pylint: disable=too-many-instance-attributes
         *,
         locale: str = "de",
         fallback_locale: str = "en",
-        required: Optional[Iterable[str]] = None,
+        required: Iterable[str] | None = None,
     ) -> "ColumnMapper":
         """
         Create a ColumnMapper from a YAML configuration file.
@@ -111,8 +111,8 @@ class ColumnMapper:  # pylint: disable=too-many-instance-attributes
         if not isinstance(cols, dict) or not cols:
             raise ValueError("YAML 'columns' is missing or empty.")
 
-        c2r: Dict[str, str] = {}
-        labels_all: Dict[str, Dict[str, str]] = {}
+        c2r: dict[str, str] = {}
+        labels_all: dict[str, dict[str, str]] = {}
 
         for canonical, spec in cols.items():
             if not isinstance(spec, dict):
@@ -128,7 +128,7 @@ class ColumnMapper:  # pylint: disable=too-many-instance-attributes
             labels_all[canonical] = {str(k): str(v) for k, v in disp.items()}
 
         # Build reverse map and check collisions
-        r2c: Dict[str, str] = {}
+        r2c: dict[str, str] = {}
         for c, r in c2r.items():
             if r in r2c and r2c[r] != c:
                 raise ValueError(f"Raw column '{r}' maps to both '{r2c[r]}' and '{c}'.")
@@ -186,7 +186,7 @@ class ColumnMapper:  # pylint: disable=too-many-instance-attributes
 
     # ---------- Locale switching ----------
     def with_locale(
-        self, locale: str, fallback_locale: Optional[str] = None
+        self, locale: str, fallback_locale: str | None = None
     ) -> "ColumnMapper":
         """Create a copy with a different display locale (no re-read of YAML)."""
         return replace(
