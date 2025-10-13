@@ -8,9 +8,13 @@
 
 <!-- Here goes notes on how to upgrade from previous versions, including deprecations and what they should be replaced with -->
 
+- The minimum supported version of `matplotlib` is now `v3.9.2`.
+
 ## New Features
 
 <!-- Here goes the main new features and examples or instructions on how to use them -->
+
+- This release supports python 3.13.
 
 ## Bug Fixes
 
