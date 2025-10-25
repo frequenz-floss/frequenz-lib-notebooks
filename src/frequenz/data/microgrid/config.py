@@ -207,13 +207,13 @@ class Metadata:
 class MicrogridConfig:
     """Configuration of a microgrid."""
 
-    _metadata: Metadata
+    meta: Metadata
     """Metadata of the microgrid."""
 
-    _assets_cfg: AssetsConfig
+    assets: AssetsConfig
     """Configuration of the assets in the microgrid."""
 
-    _component_types_cfg: dict[str, ComponentTypeConfig]
+    ctype: dict[str, ComponentTypeConfig]
     """Mapping of component category types to ac power component config."""
 
     def __init__(self, config_dict: dict[str, Any]) -> None:
@@ -222,33 +222,23 @@ class MicrogridConfig:
         Args:
             config_dict: Dictionary with component type as key and config as value.
         """
-        self._metadata = Metadata(**(config_dict.get("meta") or {}))
+        self.meta = Metadata(**(config_dict.get("meta") or {}))
 
-        self._assets_cfg = AssetsConfig(
+        self.assets = AssetsConfig(
             pv=config_dict.get("pv") or {},
             wind=config_dict.get("wind") or {},
             battery=config_dict.get("battery") or {},
         )
 
-        self._component_types_cfg = {
+        self.ctype = {
             ctype: ComponentTypeConfig(component_type=cast(ComponentType, ctype), **cfg)
             for ctype, cfg in config_dict.get("ctype", {}).items()
             if ComponentTypeConfig.is_valid_type(ctype)
         }
 
-    @property
-    def meta(self) -> Metadata:
-        """Return the metadata of the microgrid."""
-        return self._metadata
-
-    @property
-    def assets(self) -> AssetsConfig:
-        """Return the assets configuration of the microgrid."""
-        return self._assets_cfg
-
     def component_types(self) -> list[str]:
         """Get a list of all component types in the configuration."""
-        return list(self._component_types_cfg.keys())
+        return list(self.ctype.keys())
 
     def component_type_ids(
         self,
@@ -272,7 +262,7 @@ class MicrogridConfig:
             ValueError: If the component type is unknown.
             KeyError: If `component_category` is invalid.
         """
-        cfg = self._component_types_cfg.get(component_type)
+        cfg = self.ctype.get(component_type)
         if not cfg:
             raise ValueError(f"{component_type} not found in config.")
 
@@ -301,7 +291,7 @@ class MicrogridConfig:
         Raises:
             ValueError: If the component type is unknown or formula is missing.
         """
-        cfg = self._component_types_cfg.get(component_type)
+        cfg = self.ctype.get(component_type)
         if not cfg:
             raise ValueError(f"{component_type} not found in config.")
         if cfg.formula is None:
