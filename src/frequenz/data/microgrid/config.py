@@ -160,20 +160,6 @@ class BatteryConfig:
     """Capacity of the battery in Wh."""
 
 
-@dataclass(frozen=True)
-class AssetsConfig:
-    """Configuration of the assets in a microgrid."""
-
-    pv: dict[str, PVConfig] | None = None
-    """Configuration of the PV system."""
-
-    wind: dict[str, WindConfig] | None = None
-    """Configuration of the wind turbines."""
-
-    battery: dict[str, BatteryConfig] | None = None
-    """Configuration of the batteries."""
-
-
 # pylint: disable=too-many-instance-attributes
 @dataclass(frozen=True)
 class Metadata:
@@ -211,8 +197,14 @@ class MicrogridConfig:
     meta: Metadata | None = None
     """Metadata of the microgrid."""
 
-    assets: AssetsConfig | None = None
-    """Configuration of the assets in the microgrid."""
+    pv: dict[str, PVConfig] | None = None
+    """Configuration of the PV system."""
+
+    wind: dict[str, WindConfig] | None = None
+    """Configuration of the wind turbines."""
+
+    battery: dict[str, BatteryConfig] | None = None
+    """Configuration of the batteries."""
 
     ctype: dict[str, ComponentTypeConfig] = field(default_factory=dict)
     """Mapping of component category types to ac power component config."""
@@ -225,11 +217,9 @@ class MicrogridConfig:
         """
         self.meta = Metadata(**(config_dict.get("meta") or {}))
 
-        self.assets = AssetsConfig(
-            pv=config_dict.get("pv") or {},
-            wind=config_dict.get("wind") or {},
-            battery=config_dict.get("battery") or {},
-        )
+        self.pv = config_dict.get("pv") or {}
+        self.wind = config_dict.get("wind") or {}
+        self.battery = config_dict.get("battery") or {}
 
         self.ctype = {
             ctype: ComponentTypeConfig(component_type=cast(ComponentType, ctype), **cfg)
