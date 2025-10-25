@@ -6,9 +6,10 @@
 import logging
 import re
 import tomllib
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, cast, get_args
+
+from marshmallow_dataclass import dataclass
 
 _logger = logging.getLogger(__name__)
 
