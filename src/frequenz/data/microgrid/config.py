@@ -6,6 +6,7 @@
 import logging
 import re
 import tomllib
+from dataclasses import field
 from pathlib import Path
 from typing import Any, Literal, cast, get_args
 
@@ -207,13 +208,13 @@ class Metadata:
 class MicrogridConfig:
     """Configuration of a microgrid."""
 
-    meta: Metadata
+    meta: Metadata | None = None
     """Metadata of the microgrid."""
 
-    assets: AssetsConfig
+    assets: AssetsConfig | None = None
     """Configuration of the assets in the microgrid."""
 
-    ctype: dict[str, ComponentTypeConfig]
+    ctype: dict[str, ComponentTypeConfig] = field(default_factory=dict)
     """Mapping of component category types to ac power component config."""
 
     def __init__(self, config_dict: dict[str, Any]) -> None:
