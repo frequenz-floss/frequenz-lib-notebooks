@@ -112,10 +112,10 @@ def test_microgrid_config_formula(valid_microgrid_config: MicrogridConfig) -> No
 def test_load_configs(mocker: MockerFixture) -> None:
     """Test loading configurations for multiple microgrids from mock TOML files."""
     toml_data = """
+    1.meta.microgrid_id = 1
     1.meta.name = "Test Grid"
     1.meta.gid = 1
     1.ctype.pv.meter = [101, 102]
-    1.ctype.pv.formula = "AC_ACTIVE_POWER"
     1.ctype.battery.inverter = [201, 202, 203]
     1.ctype.battery.component = [301, 302, 303, 304, 305, 306]
     1.pv.PV1.peak_power = 5000
