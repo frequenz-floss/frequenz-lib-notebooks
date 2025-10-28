@@ -39,6 +39,7 @@ dependencies = [
   "kaleido >= 0.2.1, < 1.2.0",
   "frequenz-client-reporting >= 0.19.0, < 0.20.0",
   "frequenz-client-weather >= 0.2.3, < 0.3.0",
+  "types-pyyaml>=6.0.12.20250915",
 ]
 dynamic = ["version"]
 
