@@ -25,9 +25,6 @@ ComponentCategory = Literal["meter", "inverter", "component"]
 class ComponentTypeConfig:
     """Configuration of a microgrid component type."""
 
-    component_type: ComponentType
-    """Type of the component."""
-
     meter: list[int] | None = None
     """List of meter IDs for this component."""
 
@@ -47,12 +44,6 @@ class ComponentTypeConfig:
             self.formula["AC_ACTIVE_POWER"] = "+".join(
                 [f"#{cid}" for cid in self._default_cids()]
             )
-        if self.component_type == "battery" and "BATTERY_SOC_PCT" not in self.formula:
-            if self.component:
-                cids = self.component
-                form = "+".join([f"#{cid}" for cid in cids])
-                form = f"({form})/({len(cids)})"
-                self.formula["BATTERY_SOC_PCT"] = form
 
     def cids(self, metric: str = "") -> list[int]:
         """Get component IDs for this component.
@@ -76,9 +67,7 @@ class ComponentTypeConfig:
                 raise ValueError("Formula must be a dictionary.")
             formula = self.formula.get(metric)
             if not formula:
-                raise ValueError(
-                    f"{metric} does not have a formula for {self.component_type}"
-                )
+                raise ValueError(f"{metric} does not have a formula")
             # Extract component IDs from the formula which are given as e.g. #123
             pattern = r"#(\d+)"
             return [int(e) for e in re.findall(pattern, self.formula[metric])]
@@ -104,7 +93,7 @@ class ComponentTypeConfig:
         if self.component:
             return self.component
 
-        raise ValueError(f"No IDs available for {self.component_type}")
+        raise ValueError("No IDs available")
 
     @classmethod
     def is_valid_type(cls, ctype: str) -> bool:
@@ -222,7 +211,7 @@ class MicrogridConfig:
         self.battery = config_dict.get("battery") or {}
 
         self.ctype = {
-            ctype: ComponentTypeConfig(component_type=cast(ComponentType, ctype), **cfg)
+            ctype: ComponentTypeConfig(**cfg)
             for ctype, cfg in config_dict.get("ctype", {}).items()
             if ComponentTypeConfig.is_valid_type(ctype)
         }
