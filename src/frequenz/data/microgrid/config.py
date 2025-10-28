@@ -8,8 +8,9 @@ import re
 import tomllib
 from dataclasses import field
 from pathlib import Path
-from typing import Any, Literal, cast, get_args
+from typing import Any, ClassVar, Literal, Self, Type, cast, get_args
 
+from marshmallow import Schema
 from marshmallow_dataclass import dataclass
 
 _logger = logging.getLogger(__name__)
@@ -198,24 +199,6 @@ class MicrogridConfig:
     ctype: dict[str, ComponentTypeConfig] = field(default_factory=dict)
     """Mapping of component category types to ac power component config."""
 
-    def __init__(self, config_dict: dict[str, Any]) -> None:
-        """Initialize the microgrid configuration.
-
-        Args:
-            config_dict: Dictionary with component type as key and config as value.
-        """
-        self.meta = Metadata(**(config_dict.get("meta") or {}))
-
-        self.pv = config_dict.get("pv") or {}
-        self.wind = config_dict.get("wind") or {}
-        self.battery = config_dict.get("battery") or {}
-
-        self.ctype = {
-            ctype: ComponentTypeConfig(**cfg)
-            for ctype, cfg in config_dict.get("ctype", {}).items()
-            if ComponentTypeConfig.is_valid_type(ctype)
-        }
-
     def component_types(self) -> list[str]:
         """Get a list of all component types in the configuration."""
         return list(self.ctype.keys())
@@ -282,6 +265,67 @@ class MicrogridConfig:
 
         return formula
 
+    Schema: ClassVar[Type[Schema]] = Schema
+
+    @classmethod
+    def _load_table_entries(cls, data: dict[str, Any]) -> dict[str, Self]:
+        """Load microgrid configurations from table entries.
+
+        Args:
+            data: The loaded TOML data.
+
+        Returns:
+            A dict mapping microgrid IDs to MicrogridConfig instances.
+
+        Raises:
+            ValueError: If top-level keys are not numeric microgrid IDs
+                or if there is a microgrid ID mismatch.
+            TypeError: If microgrid data is not a dict.
+        """
+        if not all(str(k).isdigit() for k in data.keys()):
+            raise ValueError("All top-level keys must be numeric microgrid IDs.")
+
+        mgrids = {}
+        for mid, entry in data.items():
+            if not mid.isdigit():
+                raise ValueError(
+                    f"Table reader: Microgrid ID key must be numeric, got {mid}"
+                )
+            if not isinstance(entry, dict):
+                raise TypeError("Table reader: Each microgrid entry must be a dict")
+
+            mgrid = cls.Schema().load(entry)
+            if mgrid.meta is None or mgrid.meta.microgrid_id is None:
+                raise ValueError(
+                    "Table reader: Each microgrid entry must have a meta.microgrid_id"
+                )
+            if int(mgrid.meta.microgrid_id) != int(mid):
+                raise ValueError(
+                    f"Table reader: Microgrid ID mismatch: key {mid} != {mgrid.meta.microgrid_id}"
+                )
+
+            mgrids[mid] = mgrid
+
+        return mgrids
+
+    @classmethod
+    def load_from_file(cls, config_path: Path) -> dict[int, Self]:
+        """
+        Load and validate configuration settings from a TOML file.
+
+        Args:
+            config_path: the path to the TOML configuration file.
+
+        Returns:
+            A dict mapping microgrid IDs to MicrogridConfig instances.
+        """
+        with config_path.open("rb") as f:
+            data = tomllib.load(f)
+
+        assert isinstance(data, dict)
+
+        return cls._load_table_entries(data)
+
     @staticmethod
     def load_configs(
         microgrid_config_files: str | Path | list[str | Path] | None = None,
@@ -340,14 +384,7 @@ class MicrogridConfig:
                 _logger.warning("Config path %s is not a file, skipping.", config_path)
                 continue
 
-            with config_path.open("rb") as f:
-                cfg_dict = tomllib.load(f)
-                for microgrid_id, mcfg in cfg_dict.items():
-                    _logger.debug(
-                        "Loading microgrid config for ID %s from %s",
-                        microgrid_id,
-                        config_path,
-                    )
-                    microgrid_configs[microgrid_id] = MicrogridConfig(mcfg)
+            mcfgs = MicrogridConfig.load_from_file(config_path)
+            microgrid_configs.update({str(key): value for key, value in mcfgs.items()})
 
         return microgrid_configs

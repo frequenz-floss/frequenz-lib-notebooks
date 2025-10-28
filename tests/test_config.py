@@ -4,7 +4,7 @@
 """Tests for the frequenz.lib.notebooks.config module."""
 
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import pytest
 from pytest_mock import MockerFixture
@@ -41,7 +41,8 @@ VALID_CONFIG: dict[str, dict[str, Any]] = {
 @pytest.fixture
 def valid_microgrid_config() -> MicrogridConfig:
     """Fixture to provide a valid MicrogridConfig instance."""
-    return MicrogridConfig(VALID_CONFIG["1"])
+    # pylint: disable=protected-access
+    return MicrogridConfig._load_table_entries(VALID_CONFIG)["1"]
 
 
 def test_is_valid_type() -> None:
@@ -64,10 +65,10 @@ def test_microgrid_config_init(valid_microgrid_config: MicrogridConfig) -> None:
     assert valid_microgrid_config.meta is not None
     assert valid_microgrid_config.meta.name == "Test Grid"
     pv_config = valid_microgrid_config.pv
-    if pv_config:
-        _assert_optional_field(
-            cast(dict[str, float], pv_config["PV1"]).get("peak_power"), 5000
-        )
+    assert pv_config is not None
+    pv_system = pv_config.get("PV1")
+    assert pv_system is not None
+    assert pv_system.peak_power == 5000
 
 
 def test_microgrid_config_component_types(
@@ -132,15 +133,18 @@ def test_load_configs(mocker: MockerFixture) -> None:
     assert "1" in configs
     assert configs["1"].meta is not None
     assert configs["1"].meta.name == "Test Grid"
+
     pv_config = configs["1"].pv
+    assert pv_config is not None
+    pv_system = pv_config.get("PV1")
+    assert pv_system is not None
+    assert pv_system.peak_power == 5000
+
     battery_config = configs["1"].battery
-    if pv_config and battery_config:
-        _assert_optional_field(
-            cast(dict[str, float], pv_config["PV1"]).get("peak_power"), 5000
-        )
-        _assert_optional_field(
-            cast(dict[str, float], battery_config["BAT1"]).get("capacity"), 10000
-        )
+    assert battery_config is not None
+    battery_system = battery_config.get("BAT1")
+    assert battery_system is not None
+    assert battery_system.capacity == 10000
 
 
 def _assert_optional_field(value: float | None, expected: float) -> None:
