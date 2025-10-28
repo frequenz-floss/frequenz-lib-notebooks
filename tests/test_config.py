@@ -14,7 +14,7 @@ from frequenz.data.microgrid.config import ComponentTypeConfig
 
 VALID_CONFIG: dict[str, dict[str, Any]] = {
     "1": {
-        "meta": {"name": "Test Grid", "gid": 1},
+        "meta": {"name": "Test Grid", "gid": 1, "microgrid_id": 1},
         "ctype": {
             "pv": {"meter": [101, 102], "formula": {"AC_ACTIVE_POWER": "#12+#23"}},
             "battery": {
@@ -52,21 +52,18 @@ def test_is_valid_type() -> None:
 
 def test_component_type_config_cids() -> None:
     """Test the retrieval of component IDs for various configurations."""
-    config = ComponentTypeConfig(component_type="pv", meter=[1, 2, 3])
+    config = ComponentTypeConfig(inverter=[1, 2, 3])
     assert config.cids() == [1, 2, 3]
 
-    config = ComponentTypeConfig(component_type="battery", inverter=[4, 5])
+    config = ComponentTypeConfig(meter=[4, 5], inverter=[1, 2, 3])
     assert config.cids() == [4, 5]
-
-    with pytest.raises(ValueError):
-        config = ComponentTypeConfig(component_type="grid")
-        config.cids()
 
 
 def test_microgrid_config_init(valid_microgrid_config: MicrogridConfig) -> None:
     """Test initialisation of MicrogridConfig with valid configuration data."""
+    assert valid_microgrid_config.meta is not None
     assert valid_microgrid_config.meta.name == "Test Grid"
-    pv_config = valid_microgrid_config.assets.pv
+    pv_config = valid_microgrid_config.pv
     if pv_config:
         _assert_optional_field(
             cast(dict[str, float], pv_config["PV1"]).get("peak_power"), 5000
@@ -133,9 +130,10 @@ def test_load_configs(mocker: MockerFixture) -> None:
     configs = MicrogridConfig.load_configs(Path("mock_path.toml"))
 
     assert "1" in configs
+    assert configs["1"].meta is not None
     assert configs["1"].meta.name == "Test Grid"
-    pv_config = configs["1"].assets.pv
-    battery_config = configs["1"].assets.battery
+    pv_config = configs["1"].pv
+    battery_config = configs["1"].battery
     if pv_config and battery_config:
         _assert_optional_field(
             cast(dict[str, float], pv_config["PV1"]).get("peak_power"), 5000
