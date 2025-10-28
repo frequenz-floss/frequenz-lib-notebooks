@@ -8,6 +8,10 @@
 
 <!-- Here goes notes on how to upgrade from previous versions, including deprecations and what they should be replaced with -->
 
+- `MicrogridConfig`: Switch to schema-based loading of microgrid config files and updates to the config class:
+   - Remove unused nested field `assets` and replace by its contents `pv`, `wind`, `battery`.
+   - Make `meta` and `ctype` public fields.
+   - Require `meta.microgrid_id` to be set.
 - The minimum supported version of `matplotlib` is now `v3.9.2`.
 
 ## New Features
