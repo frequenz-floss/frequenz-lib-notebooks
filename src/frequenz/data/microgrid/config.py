@@ -155,11 +155,11 @@ class BatteryConfig:
 class Metadata:
     """Metadata for a microgrid."""
 
+    microgrid_id: int
+    """ID of the microgrid."""
+
     name: str | None = None
     """Name of the microgrid."""
-
-    microgrid_id: int | None = None
-    """ID of the microgrid."""
 
     enterprise_id: int | None = None
     """Enterprise ID of the microgrid."""
@@ -184,7 +184,7 @@ class Metadata:
 class MicrogridConfig:
     """Configuration of a microgrid."""
 
-    meta: Metadata | None = None
+    meta: Metadata
     """Metadata of the microgrid."""
 
     pv: dict[str, PVConfig] | None = None
