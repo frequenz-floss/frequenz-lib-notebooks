@@ -4,7 +4,7 @@
 """Tests for the frequenz.lib.notebooks.config module."""
 
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import pytest
 from pytest_mock import MockerFixture
@@ -14,7 +14,7 @@ from frequenz.data.microgrid.config import ComponentTypeConfig
 
 VALID_CONFIG: dict[str, dict[str, Any]] = {
     "1": {
-        "meta": {"name": "Test Grid", "gid": 1},
+        "meta": {"name": "Test Grid", "gid": 1, "microgrid_id": 1},
         "ctype": {
             "pv": {"meter": [101, 102], "formula": {"AC_ACTIVE_POWER": "#12+#23"}},
             "battery": {
@@ -41,7 +41,8 @@ VALID_CONFIG: dict[str, dict[str, Any]] = {
 @pytest.fixture
 def valid_microgrid_config() -> MicrogridConfig:
     """Fixture to provide a valid MicrogridConfig instance."""
-    return MicrogridConfig(VALID_CONFIG["1"])
+    # pylint: disable=protected-access
+    return MicrogridConfig._load_table_entries(VALID_CONFIG)["1"]
 
 
 def test_is_valid_type() -> None:
@@ -52,25 +53,22 @@ def test_is_valid_type() -> None:
 
 def test_component_type_config_cids() -> None:
     """Test the retrieval of component IDs for various configurations."""
-    config = ComponentTypeConfig(component_type="pv", meter=[1, 2, 3])
+    config = ComponentTypeConfig(inverter=[1, 2, 3])
     assert config.cids() == [1, 2, 3]
 
-    config = ComponentTypeConfig(component_type="battery", inverter=[4, 5])
+    config = ComponentTypeConfig(meter=[4, 5], inverter=[1, 2, 3])
     assert config.cids() == [4, 5]
-
-    with pytest.raises(ValueError):
-        config = ComponentTypeConfig(component_type="grid")
-        config.cids()
 
 
 def test_microgrid_config_init(valid_microgrid_config: MicrogridConfig) -> None:
     """Test initialisation of MicrogridConfig with valid configuration data."""
+    assert valid_microgrid_config.meta is not None
     assert valid_microgrid_config.meta.name == "Test Grid"
-    pv_config = valid_microgrid_config.assets.pv
-    if pv_config:
-        _assert_optional_field(
-            cast(dict[str, float], pv_config["PV1"]).get("peak_power"), 5000
-        )
+    pv_config = valid_microgrid_config.pv
+    assert pv_config is not None
+    pv_system = pv_config.get("PV1")
+    assert pv_system is not None
+    assert pv_system.peak_power == 5000
 
 
 def test_microgrid_config_component_types(
@@ -115,10 +113,10 @@ def test_microgrid_config_formula(valid_microgrid_config: MicrogridConfig) -> No
 def test_load_configs(mocker: MockerFixture) -> None:
     """Test loading configurations for multiple microgrids from mock TOML files."""
     toml_data = """
+    1.meta.microgrid_id = 1
     1.meta.name = "Test Grid"
     1.meta.gid = 1
     1.ctype.pv.meter = [101, 102]
-    1.ctype.pv.formula = "AC_ACTIVE_POWER"
     1.ctype.battery.inverter = [201, 202, 203]
     1.ctype.battery.component = [301, 302, 303, 304, 305, 306]
     1.pv.PV1.peak_power = 5000
@@ -133,16 +131,20 @@ def test_load_configs(mocker: MockerFixture) -> None:
     configs = MicrogridConfig.load_configs(Path("mock_path.toml"))
 
     assert "1" in configs
+    assert configs["1"].meta is not None
     assert configs["1"].meta.name == "Test Grid"
-    pv_config = configs["1"].assets.pv
-    battery_config = configs["1"].assets.battery
-    if pv_config and battery_config:
-        _assert_optional_field(
-            cast(dict[str, float], pv_config["PV1"]).get("peak_power"), 5000
-        )
-        _assert_optional_field(
-            cast(dict[str, float], battery_config["BAT1"]).get("capacity"), 10000
-        )
+
+    pv_config = configs["1"].pv
+    assert pv_config is not None
+    pv_system = pv_config.get("PV1")
+    assert pv_system is not None
+    assert pv_system.peak_power == 5000
+
+    battery_config = configs["1"].battery
+    assert battery_config is not None
+    battery_system = battery_config.get("BAT1")
+    assert battery_system is not None
+    assert battery_system.capacity == 10000
 
 
 def _assert_optional_field(value: float | None, expected: float) -> None:
