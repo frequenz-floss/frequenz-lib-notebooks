@@ -68,7 +68,7 @@ def production_excess(
     asset_production_series = asset_production(
         production, production_is_positive=production_is_positive
     )
-    return (asset_production_series - consumption.fillna(0)).clip(lower=0)
+    return (asset_production_series - consumption).clip(lower=0)
 
 
 def production_excess_in_bat(
@@ -199,44 +199,48 @@ def production_self_share(
 
 
 def consumption(
-    df: pd.DataFrame, production_cols: list[str] | None, grid_cols: list[str]
+    grid: pd.Series,
+    production: pd.Series | None = None,
+    battery: pd.Series | None = None,
 ) -> pd.Series:
-    """Infer the consumption column from grid and production data if missing.
+    """Infer total consumption from grid power, on-site production, and battery power.
 
-    If a 'consumption' column is not present, it is computed as the total grid import
-    (sum of all grid columns) minus total production. Safely handles missing or
-    empty production columns by treating them as zero.
+    Computes: consumption = grid_power - production (raw production-neg values)
+                            - battery (raw - with positive and negative values).
 
     Args:
-        df: Input DataFrame containing grid and optional production columns.
-        production_cols: List of production column names (e.g., "pv", "chp", "battery" or "ev").
-            Can be None or empty if no on-site generation is present.
-        grid_cols: List of one or more grid column names.
+        grid: Series of grid power values (e.g., kW or MW).
+        production: Optional Series of on-site production values.
+            If None, production is treated as zero.
+        battery: Optional Series representing battery discharge/charge power.
+            Positive values increase inferred consumption (battery discharge),
+            while negative values decrease it (battery charging). If None, the
+            battery contribution is treated as zero.
 
     Returns:
         A Series representing inferred total consumption, named `"consumption"`.
 
     Raises:
-        ValueError: If `grid_cols` is empty.
+        ValueError: If `grid` is None.
+
     """
-    if "consumption" in df.columns:
-        return df["consumption"]
+    if grid is None:
+        raise ValueError("`grid` must be provided as a pandas Series.")
 
-    if not grid_cols:
-        raise ValueError("At least one grid column must be specified in grid_cols.")
+    grid_s = grid.astype("float64")
 
-    # Compute total grid import and total production
-    grid_total = df[grid_cols].sum(axis=1)
-
-    # Handle empty production columns safely
-    if production_cols:
-        production_total = df[production_cols].sum(axis=1)
+    # Ensure raw production values are used (usually negative for production)
+    if production is None:
+        prod_s = pd.Series(0.0, index=grid_s.index)
     else:
-        # No production → production_total = 0
-        production_total = pd.Series(0, index=df.index)
+        prod_s = production.astype("float64")
 
-    # Compute inferred consumption (Series)
-    consumption = grid_total - production_total
-    consumption.name = "consumption"
+    if battery is None:
+        battery_s = pd.Series(0.0, index=grid_s.index)
+    else:
+        battery_s = battery.astype("float64")
 
-    return consumption
+    result = (grid_s - prod_s - battery_s).astype("float64")
+    result.name = "consumption"
+
+    return result

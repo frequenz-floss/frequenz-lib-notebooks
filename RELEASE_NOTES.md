@@ -20,5 +20,7 @@
 - Published a locale-aware `ColumnMapper` utility that reads the YAML schema so notebooks can seamlessly move between raw API headers, canonical identifiers, and localized display labels.
 
 ## Bug Fixes
+- `frequenz.lib.notebooks.reporting.utils.helpers.add_energy_flows()` now infers consumption totals from existing data when explicit consumption columns are missing, preventing inconsistent outputs in notebook pipelines that only provide grid and production inputs.
+- `frequenz.lib.notebooks.reporting.metrics.consumption()` reindexes optional production/battery inputs and raises a warning when inferred consumption turns negative so sign-convention issues are surfaced immediately.
 
 <!-- Here goes notable bug fixes that are worth a special mention or explanation -->
