@@ -25,6 +25,7 @@
 - plot_time_series() can auto-pivot long-format inputs, honor a desired legend/trace order, and optionally fill selected traces while keeping Plotly colors consistent through a shared palette builder; also defaults to numeric columns only to avoid spurious traces (src/frequenz/lib/notebooks/reporting/plotter.py (lines 15-163)).
 - Added reusable long_to_wide() and build_color_map() helpers so notebooks can pivot categorical telemetry and reuse the canonical color scheme without duplicating logic (src/frequenz/lib/notebooks/reporting/utils/helpers.py (lines 216-311)).
 - Added a default mapping loading to the `ColumnMapper` utility function.
+- Add `grid_consumption` function in the `reporting_metrics.py`.
 
 ## Bug Fixes
 - `frequenz.lib.notebooks.reporting.utils.helpers.add_energy_flows()` now infers consumption totals from existing data when explicit consumption columns are missing, preventing inconsistent outputs in notebook pipelines that only provide grid and production inputs.
