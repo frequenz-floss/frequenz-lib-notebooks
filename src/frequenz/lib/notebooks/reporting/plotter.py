@@ -48,13 +48,13 @@ def plot_time_series(
 
     # Select columns
     if cols is None:
-        cols = [c for c in pdf.columns if c != time_col]
-    else:
-        cols = [col for col in cols if col in pdf.columns]
+        cols = [c for c in pdf.select_dtypes(include="number").columns if c != time_col]
 
-    # Default color palette
-    colors = px.colors.qualitative.Dark2
-    default_color_map = {col: colors[i % len(colors)] for i, col in enumerate(cols)}
+    # Safe reorder: use plot_order if provided, else keep cols as-is
+    cols = [c for c in (plot_order or cols) if c in pdf.columns]
+
+    # Legend ranking independent of draw order
+    rank_map = {c: i for i, c in enumerate(cols)}
 
     # Override default colors with user-provided mapping (if any)
     color_map = {}
@@ -64,18 +64,32 @@ def plot_time_series(
         else:
             color_map[col] = default_color_map[col]
 
-    # Initialize an empty Plotly figure
+    # Timeseries-Plot
     fig = go.Figure()
 
+    # Check if fill_cols is provided
+    if fill_cols is None:
+        fill_cols = []
+
     # Add one line trace per column
-    for col in cols:
+    for i, col in enumerate(cols):
+        fill_mode = "tonextx" if col in fill_cols else "none"
+        line_color = color_map.get(col)
+        fill_color = (
+            line_color.replace("1)", "0.3)") if isinstance(line_color, str) else None
+        )
+
         fig.add_trace(
             go.Scatter(
                 x=pdf.index,
                 y=pdf[col],
                 mode="lines",
                 name=col,
-                line={"color": color_map[col]},
+                line=dict(color=line_color, shape="hv"),
+                fill=fill_mode,
+                fillcolor=fill_color,
+                legendrank=rank_map.get(col, 10_000 + i),
+                showlegend=True,
             )
         )
 
@@ -91,7 +105,7 @@ def plot_time_series(
         margin=dict(t=120),
         xaxis=dict(
             type="date",
-            rangeselector=dict(  # Add range selector buttons for time navigation
+            rangeselector=dict(
                 buttons=[
                     dict(count=1, step="month", stepmode="backward", label="1M"),
                     dict(count=3, step="month", stepmode="backward", label="3M"),
@@ -116,7 +130,7 @@ def plot_time_series(
                 thickness=0.09,
             ),
         ),
-        legend=dict(title=dict(text=legend_title)),
+        legend=dict(title=dict(text=legend_title), traceorder="normal"),
         xaxis_title=xaxis_title,
         yaxis_title=yaxis_title,
         template="plotly_white",
