@@ -124,17 +124,34 @@ def plot_time_series(
     return fig
 
 
-def plot_energy_pie_chart(power_df: pd.DataFrame) -> go.Figure:
-    """Plot a donut pie chart for energy source contributions.
+def plot_energy_pie_chart(
+    power_df: pd.DataFrame, color_dict: dict[str, str] | None = None
+) -> go.Figure:
+    """Create an interactive donut (pie) chart of energy sources.
+
+    Generates a pie chart showing the relative energy contributions from
+    different sources (e.g., PV, grid, CHP), with percentage labels and
+    hover details in kilowatt-hours.
 
     Args:
-        power_df: DataFrame with columns ``"Energiebezug"`` (labels) and
-            ``"Energie [kWh]"`` (values).
+        power_df: DataFrame containing at least two columns:
+            - `"Energiebezug"`: Category or energy source name.
+            - `"Energie [kWh]"`: Corresponding energy values.
+        color_dict: Optional dictionary mapping energy sources (Energiebezug)
+            to custom color hex codes or rgba strings. If not provided,
+            Plotly's default color sequence is used.
 
     Returns:
-        A Plotly ``go.Figure`` object configured as a donut pie chart.
+        A Plotly Figure object representing a donut-style energy distribution chart.
     """
-    fig = px.pie(power_df, names="Energiebezug", values="Energie [kWh]", hole=0.4)
+    fig = px.pie(
+        power_df,
+        names="Energiebezug",
+        values="Energie [kWh]",
+        hole=0.4,
+        color="Energiebezug",
+        color_discrete_map=color_dict or {},
+    )
 
     fig.update_traces(
         textinfo="label+percent",
