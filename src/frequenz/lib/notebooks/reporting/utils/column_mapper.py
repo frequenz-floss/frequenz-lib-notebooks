@@ -25,6 +25,7 @@ Examples:
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
+from importlib import resources
 from typing import Iterable, Mapping
 
 import pandas as pd
@@ -75,6 +76,9 @@ class ColumnMapper:  # pylint: disable=too-many-instance-attributes
         metadata={
             "doc": "Fallback locale to use when the preferred locale is unavailable in the schema.",
         },
+    )
+    _DEFAULT_RESOURCE = resources.files("frequenz.lib.notebooks.reporting").joinpath(
+        "schema_mapping.yaml"
     )
 
     # ---------- Construction ----------
@@ -152,6 +156,40 @@ class ColumnMapper:  # pylint: disable=too-many-instance-attributes
             locale=locale,
             fallback_locale=fallback_locale,
         )
+
+    @classmethod
+    def from_default(
+        cls,
+        *,
+        locale: str = "de",
+        fallback_locale: str = "en",
+        required: Iterable[str] | None = None,
+    ) -> ColumnMapper:
+        """Create an instance using the built-in default YAML resource.
+
+        Loads the default configuration file bundled with the package and
+        initializes the class using localized settings.
+
+        Args:
+            locale: Primary locale code for localized configuration values.
+                Defaults to "de".
+            fallback_locale: Secondary locale used if a key is missing in
+                the primary locale. Defaults to "en".
+            required: Optional list of keys that must be present in the
+                loaded configuration. If provided and any are missing,
+                an exception is raised.
+
+        Returns:
+            An initialized instance of the class populated from the
+            built-in default YAML resource.
+        """
+        with resources.as_file(cls._DEFAULT_RESOURCE) as yaml_path:
+            return cls.from_yaml(
+                str(yaml_path),
+                locale=locale,
+                fallback_locale=fallback_locale,
+                required=required,
+            )
 
     # ---------- Properties ----------
     @property
