@@ -244,3 +244,54 @@ def consumption(
     result.name = "consumption"
 
     return result
+
+
+def grid_consumption(
+    grid: pd.Series | None,
+    production: pd.Series | None,
+    consumption: pd.Series | None,
+    battery: pd.Series | None,
+) -> pd.Series:
+    """Determine grid import using measured or derived series.
+
+    This function follows the PSC (Production-Storage-Consumption) convention:
+    - Production is positive when generating.
+    - Battery is positive when charging (consuming energy).
+    - Consumption is positive when consuming energy.
+
+    Prefers the measured grid series (positive import, negative export). When
+    unavailable, derives grid import from the remaining energy balance.
+
+    Args:
+        grid: Grid power series (positive import), or ``None``.
+        production: Production power series (PSC-convention), or ``None``.
+        consumption: Consumption power series (PSC-convention), or ``None``.
+        battery: Battery power (PSC-convention: charging positive), or ``None``.
+
+    Returns:
+        Series with non-negative grid import values.
+
+    Raises:
+        ValueError: If neither a grid series nor any of production,
+            consumption, or battery series are provided.
+    """
+    if grid is not None:
+        return grid.astype("float64").clip(lower=0)
+
+    # Ensure at least one other input is provided
+    if all(s is None for s in (production, consumption, battery)):
+        raise ValueError(
+            "Cannot compute grid_consumption because no grid, production, "
+            "consumption, or battery series were provided. "
+            "This function follows PSC conventions, so production and battery "
+            "must also follow those conventions."
+        )
+
+    prod = production.astype("float64") if production is not None else 0.0
+    cons = consumption.astype("float64") if consumption is not None else 0.0
+    batt = battery.astype("float64") if battery is not None else 0.0
+
+    inferred = cons + prod + batt
+
+    # We only want the import portion (≥ 0)
+    return inferred.clip(lower=0)  # type: ignore[union-attr]
