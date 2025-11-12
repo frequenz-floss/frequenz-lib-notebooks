@@ -7,8 +7,11 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
+from frequenz.lib.notebooks.reporting.utils.helpers import build_color_map, long_to_wide
 
-# pylint: disable=too-many-arguments, too-many-positional-arguments, disable=use-dict-literal
+
+# pylint: disable=too-many-arguments, too-many-positional-arguments,
+# pylint: disable=use-dict-literal, too-many-locals
 def plot_time_series(
     df: pd.DataFrame,
     time_col: str | None = None,
@@ -18,25 +21,46 @@ def plot_time_series(
     yaxis_title: str = "kW",
     legend_title: str = "Components",
     color_dict: dict[str, str] | None = None,
+    long_format_flag: bool = False,
+    category_col: str | None = None,
+    value_col: str | None = None,
+    fill_cols: list[str] | None = None,
+    plot_order: list[str] | None = None,
 ) -> go.Figure:
-    """Plot a time series line chart with Plotly.
+    """Create an interactive time-series plot using Plotly.
+
+    Generates a multi-line time-series plot from a DataFrame, optionally handling
+    long-to-wide data transformations and area fills for selected columns. The
+    plot includes zoom controls, a range slider, and a date range selector.
 
     Args:
-        df: Input DataFrame containing a datetime column and one or more numeric columns.
-        time_col: Optional column name to use for the x-axis (time). If None, the
-            DataFrame index is used.
-        cols: List of columns to plot. If None, all columns except `time_col` are plotted.
-        title: Title of the plot.
-        xaxis_title: X-axis label.
-        yaxis_title: Y-axis label.
-        legend_title: Legend title.
-        color_dict: Optional mapping from column name to color hex/string.
-            Values override the default Dark2 palette.
+        df: Input DataFrame containing time and numeric data.
+        time_col: Name of the timestamp column to use as the x-axis. If None,
+            the current index is used.
+        cols: List of numeric columns to plot. If None, all numeric columns
+            except `time_col` are plotted.
+        title: Plot title displayed at the top. Defaults to "Time Series Plot".
+        xaxis_title: Label for the x-axis. Defaults to "Timestamp".
+        yaxis_title: Label for the y-axis. Defaults to "kW".
+        legend_title: Title for the legend. Defaults to "Components".
+        color_dict: Optional dictionary mapping column names to custom colors.
+            If not provided, default Plotly colors are used.
+        long_format_flag: Whether to convert the DataFrame from long to wide
+            format before plotting. Defaults to False.
+        category_col: Column name for categories when converting from long to
+            wide format. Used only if `long_format_flag=True`.
+        value_col: Column name for values when converting from long to wide
+            format. Used only if `long_format_flag=True`.
+        fill_cols: List of column names to plot as filled areas under the curve.
+            Defaults to None (no fill).
+        plot_order: Optional list specifying the order of columns to plot. If None,
+            the order in `cols` is used.
 
     Returns:
-        A Plotly ``go.Figure`` object.
+        A Plotly Figure object representing the interactive time-series plot.
+
     Raises:
-        KeyError: If ``time_col`` is provided but does not exist in ``df``.
+        KeyError: If `time_col` is specified but not found in the DataFrame.
     """
     # Decide which axis to use for time
     if time_col is not None:
@@ -46,7 +70,13 @@ def plot_time_series(
     else:
         pdf = df.copy()
 
-    # Select columns
+    # Convert long to wide if necessary
+    if long_format_flag:
+        pdf = long_to_wide(
+            pdf, time_col=pdf.index, category_col=category_col, value_col=value_col
+        )
+
+    # Determine which columns to plot (and in what order)
     if cols is None:
         cols = [c for c in pdf.select_dtypes(include="number").columns if c != time_col]
 
@@ -56,13 +86,8 @@ def plot_time_series(
     # Legend ranking independent of draw order
     rank_map = {c: i for i, c in enumerate(cols)}
 
-    # Override default colors with user-provided mapping (if any)
-    color_map = {}
-    for col in cols:
-        if color_dict and col in color_dict:
-            color_map[col] = color_dict[col]
-        else:
-            color_map[col] = default_color_map[col]
+    # Colour Mapping
+    color_map = build_color_map(cols, color_dict)
 
     # Timeseries-Plot
     fig = go.Figure()
