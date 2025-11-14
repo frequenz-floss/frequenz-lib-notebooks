@@ -1,6 +1,7 @@
 # License: MIT
 # Copyright © 2025 Frequenz Energy-as-a-Service GmbH
 
+
 """Energy flow derivation and composition helpers.
 
 This module provides utilities to calculate and append derived energy flow
@@ -20,7 +21,9 @@ Main Functions:
 
 from __future__ import annotations
 
+import matplotlib.colors as mcolors
 import pandas as pd
+import plotly.express as px
 
 from frequenz.lib.notebooks.reporting.metrics.reporting_metrics import (
     asset_production,
@@ -88,7 +91,7 @@ def _column_has_data(df: pd.DataFrame, col: str | None) -> bool:
     return not series.fillna(0).eq(0).all()
 
 
-# pylint: disable=too-many-arguments, too-many-locals, too-many-positional-arguments
+# pylint: disable=too-many-arguments, too-many-locals
 def add_energy_flows(
     df: pd.DataFrame,
     production_cols: list[str] | None = None,
@@ -209,3 +212,114 @@ def add_energy_flows(
         columns=["production_total", "consumption_total"], errors="ignore"
     )
     return df_flows
+
+
+def long_to_wide(
+    df: pd.DataFrame,
+    *,
+    time_col: str | pd.Index = "Timestamp",
+    category_col: str | None = "Battery",
+    value_col: str | None = "Battery Throughput",
+    sum_col_name: str | None = None,
+    aggfunc: str = "sum",
+) -> pd.DataFrame:
+    """Convert a long-format DataFrame into wide format with optional aggregation.
+
+    Transforms a long-format dataset (one row per timestamp-category pair)
+    into a wide-format table, where each category becomes a separate column.
+    Optionally adds a total (sum) column across all categories.
+
+    Args:
+        df: Input DataFrame in long format.
+        time_col: Column name representing timestamps used as the index in
+            the resulting wide table. Defaults to `"Timestamp"`.
+        category_col: Column name representing category labels that become
+            column headers in the wide table. Defaults to `"Battery"`.
+        value_col: Column name representing numeric values to aggregate and
+            pivot into columns. Defaults to `"Battery Throughput"`.
+        sum_col_name: Optional name for a new column containing the row-wise sum
+            of all category columns. If None, defaults to `"<value_col> Sum"`.
+        aggfunc: Aggregation function applied when multiple entries exist per
+            timestamp-category pair (e.g., `"sum"`, `"mean"`). Defaults to `"sum"`.
+
+    Returns:
+        A wide-format DataFrame with one row per timestamp, one column per category,
+        and an optional total column representing the aggregated sum across all categories.
+    """
+    tmp = df.copy()
+
+    wide = tmp.pivot_table(
+        index=time_col,  # type: ignore [arg-type]
+        columns=category_col,
+        values=value_col,
+        aggfunc=aggfunc,
+    ).sort_index()
+
+    wide.columns.name = None
+
+    if sum_col_name is None:
+        sum_col_name = f"{value_col} Sum"
+    wide[sum_col_name] = wide.sum(axis=1, numeric_only=True)
+    return wide
+
+
+def build_color_map(
+    cols: list[str],
+    color_dict: dict[str, str] | None = None,
+    palette: list[str] | None = None,
+) -> dict[str, str]:
+    """Generate a color mapping for columns or categories.
+
+    Creates a mapping from column names (or categorical labels) to color
+    values. If user-specified colors are provided via `color_dict`, those
+    are applied first. Remaining columns are assigned distinct colors from
+    a chosen palette, ensuring no duplicates.
+
+    Args:
+        cols: List of column names or category labels to assign colors to.
+        color_dict: Optional dictionary of pre-defined color mappings.
+            Columns found here are assigned these colors directly.
+        palette: Optional list of color codes to use as defaults.
+            If None, a combined Plotly qualitative palette is used.
+
+    Returns:
+        A dictionary mapping each column or category name to a unique color.
+    """
+    # --- Default palette ---
+    if palette is None:
+        palette = px.colors.qualitative.Plotly + px.colors.qualitative.Dark2
+
+    def to_rgba_str(color: str) -> str:
+        """Convert any color format (hex, rgb, named) to normalized rgba(R,G,B,1) string."""
+        try:
+            rgba = mcolors.to_rgba(color)  # returns (r,g,b,a) in 0–1 range
+            rgba_255 = tuple(int(round(x * 255)) for x in rgba[:3])
+            return f"rgba({rgba_255[0]},{rgba_255[1]},{rgba_255[2]},{rgba[3]:.3f})"
+        except ValueError:
+            # fallback if string isn't recognized (e.g. malformed rgba)
+            return color.lower().strip()
+
+    final = {}
+    used = set()
+
+    # --- Assign user-defined colors first ---
+    if color_dict:
+        for c, v in color_dict.items():
+            if c in cols:
+                rgba = to_rgba_str(v)
+                final[c] = rgba
+                used.add(rgba)
+
+    # --- Assign remaining colors from palette ---
+    palette_iter = iter(palette * (len(cols) // len(palette) + 1))
+    for c in cols:
+        if c in final:
+            continue
+        for p in palette_iter:
+            rgba = to_rgba_str(p)
+            if rgba not in used:
+                final[c] = rgba
+                used.add(rgba)
+                break
+
+    return final
