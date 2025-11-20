@@ -190,6 +190,7 @@ def convert_timezone(
 
     return ts.dt.tz_convert(target_tz)
 
+
 # pylint: disable=too-many-arguments, too-many-positional-arguments
 def label_component_columns(
     df: pd.DataFrame,
@@ -551,7 +552,7 @@ def build_color_map(
     Returns:
         A dictionary mapping each column or category name to a unique color.
     """
-    # --- Default palette ---
+    # Default palette
     if palette is None:
         palette = px.colors.qualitative.Plotly + px.colors.qualitative.Dark2
 
@@ -568,7 +569,7 @@ def build_color_map(
     final = {}
     used = set()
 
-    # --- Assign user-defined colors first ---
+    # First assign user-provided colors
     if color_dict:
         for c, v in color_dict.items():
             if c in cols:
@@ -576,7 +577,7 @@ def build_color_map(
                 final[c] = rgba
                 used.add(rgba)
 
-    # --- Assign remaining colors from palette ---
+    # Then assign defaults, skipping already-used colors
     palette_iter = iter(palette * (len(cols) // len(palette) + 1))
     for c in cols:
         if c in final:
