@@ -25,7 +25,11 @@
 - plot_time_series() can auto-pivot long-format inputs, honor a desired legend/trace order, and optionally fill selected traces while keeping Plotly colors consistent through a shared palette builder; also defaults to numeric columns only to avoid spurious traces (src/frequenz/lib/notebooks/reporting/plotter.py (lines 15-163)).
 - Added reusable long_to_wide() and build_color_map() helpers so notebooks can pivot categorical telemetry and reuse the canonical color scheme without duplicating logic (src/frequenz/lib/notebooks/reporting/utils/helpers.py (lines 216-311)).
 - Added a default mapping loading to the `ColumnMapper` utility function.
-- Add `grid_consumption` function in the `reporting_metrics.py`.
+- Added `grid_consumption` function in the `reporting_metrics.py`.
+- Added `create_energy_report_df()` to convert raw microgrid exports into timezone-aware, canonical energy-report tables with derived grid/battery KPIs and labeled component columns, letting dashboards bind to a consistent schema without bespoke glue.
+- Introduced the `reporting_nb_functions` toolkit so notebooks can build overview tables, melt component selections, compute energy-mix summaries, and aggregate KPIs (production totals, self-consumption share, grid import peaks) for stakeholder-ready reporting pages.
+- Expanded the reporting helper utilities with YAML config loading, German number formatting, timezone conversion, component labeling, energy-report column selection, and robust energy-flow derivations so multiple notebooks can reuse the same preprocessing primitives.
+- Published `Reporting NB.ipynb` example that wires the mapper, helper utilities, and KPI builders together in a ready-to-run reporting notebook.
 
 ## Bug Fixes
 - `frequenz.lib.notebooks.reporting.utils.helpers.add_energy_flows()` now infers consumption totals from existing data when explicit consumption columns are missing, preventing inconsistent outputs in notebook pipelines that only provide grid and production inputs.
