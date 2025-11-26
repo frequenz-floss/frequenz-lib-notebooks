@@ -5,6 +5,7 @@ time:
   assume_tz: "UTC"
 
 columns:
+# Procured directly from the reporting api
   timestamp:
     raw: "timestamp"
     display:
@@ -14,10 +15,10 @@ columns:
       en: "The recorded date and time of the measurement for the components."
       de: "Das erfasste Datum und die Uhrzeit der Messung der Komponenten."
 
-  grid_load:
+  grid_consumption:
     raw: "grid"
     display:
-      en: "Grid Import"
+      en: "Grid Consumption"
       de: "Netzbezug"
     description:
       en: "Electricity imported from the grid."
@@ -33,26 +34,18 @@ columns:
       de: "Gesamter Stromverbrauch aus allen verfügbaren Quellen (Netz, PV, BHKW, Batterie)."
     implementation: "reporting_metrics.py::determine_consumption"
 
-  battery_throughput:
+  battery_power_flow:
     raw: "battery"
     display:
-      en: "Battery Throughput"
-      de: "Batterie Durchsatz"
+      en: "Battery Power Flow"
+      de: "Batterie Leistungsfluss"
     description:
       en: "Total amount of energy charged into and discharged from the battery."
       de: "Gesamtmenge der Energie, die in die Batterie geladen und aus ihr entladen wurde."
 
-  battery_pos:
-    raw: "battery_pos"
-    display:
-      en: "Battery Throughput (positive)"
-      de: "Batterie Durchsatz (positiv)"
-    description:
-      en: "Energy output from the battery (discharging)."
-      de: "Energieabgabe der Batterie (Entladung)."
-
-  pv_prod:
-    raw: "pv_prod"
+# Computed metrics
+  pv_asset_production:
+    raw: "pv_asset_production"
     display:
       en: "PV Production"
       de: "PV Produktion"
@@ -61,66 +54,68 @@ columns:
       de: "Gesamte durch die Photovoltaikanlage erzeugte Strommenge."
     implementation: "reporting_metrics.py::asset_prod"
 
-  pv_neg:
-    raw: "pv_neg"
+  prod_excess:
+    raw: "prod_excess"
     display:
-      en: "PV (negative)"
-      de: "PV (negativ)"
+      en: "Prod Excess"
+      de: "Prod Überschuss"
     description:
-      en: "Negative PV values representing reverse flow or measurement corrections."
-      de: "Negative PV-Werte, die Rückflüsse oder Messkorrekturen darstellen."
-
-  pv_excess:
-    raw: "pv_excess"
-    display:
-      en: "PV Excess"
-      de: "PV Überschuss"
-    description:
-      en: "Amount of PV energy produced that exceeds on-site consumption."
-      de: "PV-Energie, die die Eigenverbrauchsmenge übersteigt."
+      en: "Amount of total energy produced that exceeds on-site consumption."
+      de: "Gesamtenergie, die die Eigenverbrauchsmenge übersteigt."
     implementation: "reporting_metrics.py::prod_excess"
 
-  pv_in_bat:
-    raw: "pv_bat"
+  prod_excess_in_bat:
+    raw: "prod_excess_in_bat"
     display:
-      en: "PV in Battery"
-      de: "PV in Batterie"
+      en: "Prod Excess in Battery"
+      de: "Prod Überschuss in Batterie"
     description:
-      en: "PV energy used to charge the battery."
-      de: "PV-Energie, die zum Laden der Batterie verwendet wird."
+      en: "Energy from production that is stored in the battery."
+      de: "Energie aus der Produktion, die in der Batterie gespeichert wird."
     implementation: "reporting_metrics.py::prod_excess_in_bat"
 
-  pv_feedin:
-    raw: "pv_feedin"
+  grid_feed_in:
+    raw: "grid_feed_in"
     display:
-      en: "PV Feed-in"
-      de: "PV Einspeisung"
+      en: "Grid Feed-in"
+      de: "Netz Einspeisung"
     description:
-      en: "PV energy exported to the public grid."
-      de: "PV-Energie, die in das öffentliche Netz eingespeist wird."
+      en: "Grid energy exported to the public grid."
+      de: "Netz-Energie, die in das öffentliche Netz eingespeist wird."
     implementation: "reporting_metrics.py::grid_feed_in"
 
-  pv_self:
-    raw: "pv_self"
+  prod_self_consumption:
+    raw: "prod_self_consumption"
     display:
-      en: "PV Self-Consumption"
-      de: "PV Eigenverbrauch"
+      en: "Self-Consumption"
+      de: "Eigenverbrauch"
     description:
-      en: "Amount of PV energy consumed directly on-site."
-      de: "Menge der PV-Energie, die direkt vor Ort verbraucht wird."
+      en: "Amount of energy consumed directly on-site."
+      de: "Menge der Energie, die direkt vor Ort verbraucht wird."
     implementation: "reporting_metrics.py::prod_self_consumption"
 
-  pv_share:
-    raw: "pv_share"
+  prod_self_share:
+    raw: "prod_self_share"
     display:
-      en: "PV Self-Consumption Share"
-      de: "PV Eigenverbrauchsanteil"
+      en: "Self-Consumption Share"
+      de: "Eigenverbrauchsanteil"
     description:
-      en: "Share of total consumption covered by PV production."
-      de: "Anteil des Gesamtverbrauchs, der durch PV-Produktion gedeckt wird."
+      en: "Share of total consumption covered by production."
+      de: "Anteil des Gesamtverbrauchs, der durch Produktion gedeckt wird."
     implementation: "reporting_metrics.py::prod_self_share"
 
-  chp_load:
+
+# Generated and used within the notebook for reporting metrics
+  battery_charge:
+    raw: "battery_charge"
+    display:
+      en: "Battery Charge"
+      de: "Batterie Ladeleistung"
+    description:
+      en: "Energy output from the battery (discharging)."
+      de: "Energieabgabe der Batterie (Entladung)."
+
+  chp_asset_production:
     raw: "chp"
     display:
       en: "CHP Output"
