@@ -431,14 +431,15 @@ def add_energy_flows(
         df_flows["production_self_use"] = 0.0
         df_flows["production_self_share"] = 0.0
 
-    # Add grid consumption column
-    df_flows["grid_consumption"] = grid_consumption(
-        grid_power_series,
-        # To convert positive production back to PSC format (where production is negative)
-        df_flows["production_total"] * -1,
-        df_flows["consumption_total"],
-        battery_power_series,
-    )
+    # Add grid consumption column - grid is later renamed as grid_consumption
+    if "grid" not in df_flows.columns:
+        df_flows["grid"] = grid_consumption(
+            grid_power_series,
+            # To convert positive production back to PSC format (where production is negative)
+            df_flows["production_total"] * -1,
+            df_flows["consumption_total"],
+            battery_power_series,
+        )
 
     df_flows = df_flows.drop(
         columns=["production_total", "consumption_total"], errors="ignore"
