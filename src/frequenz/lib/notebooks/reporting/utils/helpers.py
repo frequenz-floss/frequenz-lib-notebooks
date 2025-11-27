@@ -272,14 +272,13 @@ def get_energy_report_columns(
     # Base columns
     energy_report_df_cols = [
         "timestamp",
-        "grid_load",
         "grid_consumption",
         "mid_consumption",
     ] + single_components
 
     # Map component types to the columns they enable
     component_column_map = {
-        "battery": ["battery_throughput"],
+        "battery": ["battery_power_flow"],
         "pv": [
             "pv_asset_production",
             "production_self_use",
