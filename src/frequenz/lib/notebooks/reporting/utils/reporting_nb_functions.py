@@ -48,8 +48,8 @@ ensuring resilient operation even with partially populated datasets.
 """
 
 
-from datetime import timedelta
-from typing import Iterable
+from datetime import datetime, timedelta
+from typing import Iterable, Union, cast
 
 import pandas as pd
 
@@ -593,23 +593,19 @@ def aggregate_metrics(  # pylint: disable=too-many-locals
         # idxmax returns the index label of the max; often a pd.Timestamp already
         peak_idx = grid_consumption_series.idxmax()
 
-        # Normalize to a Timestamp
-        if isinstance(peak_idx, pd.Timestamp):
-            ts = peak_idx
-        else:
-            # Coerce other hashables (e.g., str) to Timestamp
-            coerced_ts = pd.to_datetime(peak_idx, errors="coerce")
-            # Check for NaT (Not a Time)
-            if pd.isna(coerced_ts):
-                ts = None
-            else:
-                ts = coerced_ts
+        if "timestamp" in energy_report_df.columns:
+            raw_ts = energy_report_df.loc[peak_idx, "timestamp"]
 
-        if ts is not None:
-            # Ensure timezone-aware (assume UTC when naive), then convert
-            if ts.tzinfo is None:
-                ts = ts.tz_localize("UTC")
-            peak_date = ts.tz_convert(tz_name).strftime("%d.%m.%Y")
+            # Cast it to a type that pd.to_datetime accepts (str, float, or datetime)
+            ts_input = cast(Union[str, float, datetime], raw_ts)
+
+            # Ensure it is a datetime object
+            ts = pd.to_datetime(ts_input)
+
+            if pd.notna(ts):
+                if ts.tzinfo is None:
+                    ts = ts.tz_localize("UTC")
+                peak_date = ts.tz_convert(tz_name).strftime("%d.%m.%Y")
 
     results["peak_date"] = peak_date
 
