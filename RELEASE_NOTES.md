@@ -16,3 +16,4 @@
 
 <!-- Here goes notable bug fixes that are worth a special mention or explanation -->
 - Updated the column names with the current schema, changed the grid column names, updated the peak date calculation logic
+- Updated the column names for production asset and order of renaming in component analysis.
