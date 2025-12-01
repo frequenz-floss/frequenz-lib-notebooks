@@ -3437,28 +3437,28 @@ after scaling (dataframe values are kept unchanged).</p>
 </span><span id="__span-0-214"><a id="__codelineno-0-214" name="__codelineno-0-214"></a>        <span class="n">value_col_name</span><span class="o">=</span><span class="n">value_col_name</span><span class="p">,</span>
 </span><span id="__span-0-215"><a id="__codelineno-0-215" name="__codelineno-0-215"></a>    <span class="p">)</span>
 </span><span id="__span-0-216"><a id="__codelineno-0-216" name="__codelineno-0-216"></a>
-</span><span id="__span-0-217"><a id="__codelineno-0-217" name="__codelineno-0-217"></a>    <span class="n">analyse_df</span> <span class="o">=</span> <span class="n">mapper</span><span class="o">.</span><span class="n">to_display</span><span class="p">(</span><span class="n">analyse_df</span><span class="p">)</span>
-</span><span id="__span-0-218"><a id="__codelineno-0-218" name="__codelineno-0-218"></a>
-</span><span id="__span-0-219"><a id="__codelineno-0-219" name="__codelineno-0-219"></a>    <span class="c1"># Calculate timestep scaling according to resolution</span>
-</span><span id="__span-0-220"><a id="__codelineno-0-220" name="__codelineno-0-220"></a>    <span class="n">factor</span> <span class="o">=</span> <span class="n">timestep_hours</span> <span class="o">*</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span> <span class="k">if</span> <span class="n">invert_sign</span> <span class="k">else</span> <span class="mi">1</span><span class="p">)</span>
-</span><span id="__span-0-221"><a id="__codelineno-0-221" name="__codelineno-0-221"></a>
-</span><span id="__span-0-222"><a id="__codelineno-0-222" name="__codelineno-0-222"></a>    <span class="c1"># Apply timestep scaling</span>
-</span><span id="__span-0-223"><a id="__codelineno-0-223" name="__codelineno-0-223"></a>    <span class="n">analyse_df</span><span class="p">[</span><span class="n">value_col_name</span><span class="p">]</span> <span class="o">*=</span> <span class="n">factor</span>
-</span><span id="__span-0-224"><a id="__codelineno-0-224" name="__codelineno-0-224"></a>
-</span><span id="__span-0-225"><a id="__codelineno-0-225" name="__codelineno-0-225"></a>    <span class="c1"># Summation - Optionally drop small positive values seen in production data</span>
-</span><span id="__span-0-226"><a id="__codelineno-0-226" name="__codelineno-0-226"></a>    <span class="c1"># (e.g., due to measurement noise) - we have already inverted the sign for production</span>
-</span><span id="__span-0-227"><a id="__codelineno-0-227" name="__codelineno-0-227"></a>    <span class="c1"># so now negative values need to be truncated.</span>
-</span><span id="__span-0-228"><a id="__codelineno-0-228" name="__codelineno-0-228"></a>    <span class="n">sum_series</span> <span class="o">=</span> <span class="n">analyse_df</span><span class="p">[</span><span class="n">value_col_name</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
-</span><span id="__span-0-229"><a id="__codelineno-0-229" name="__codelineno-0-229"></a>    <span class="k">if</span> <span class="n">trunc_values</span><span class="p">:</span>
-</span><span id="__span-0-230"><a id="__codelineno-0-230" name="__codelineno-0-230"></a>        <span class="n">sum_series</span> <span class="o">=</span> <span class="n">sum_series</span><span class="p">[</span><span class="n">sum_series</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">]</span>
-</span><span id="__span-0-231"><a id="__codelineno-0-231" name="__codelineno-0-231"></a>    <span class="n">component_sum</span> <span class="o">=</span> <span class="nb">round</span><span class="p">(</span><span class="n">sum_series</span><span class="o">.</span><span class="n">sum</span><span class="p">(),</span> <span class="mi">3</span><span class="p">)</span>
-</span><span id="__span-0-232"><a id="__codelineno-0-232" name="__codelineno-0-232"></a>
-</span><span id="__span-0-233"><a id="__codelineno-0-233" name="__codelineno-0-233"></a>    <span class="c1"># Round for readability</span>
-</span><span id="__span-0-234"><a id="__codelineno-0-234" name="__codelineno-0-234"></a>    <span class="n">analyse_df</span><span class="p">[</span><span class="n">value_col_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">analyse_df</span><span class="p">[</span><span class="n">value_col_name</span><span class="p">]</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
-</span><span id="__span-0-235"><a id="__codelineno-0-235" name="__codelineno-0-235"></a>
-</span><span id="__span-0-236"><a id="__codelineno-0-236" name="__codelineno-0-236"></a>    <span class="c1"># Rename for output clarity</span>
-</span><span id="__span-0-237"><a id="__codelineno-0-237" name="__codelineno-0-237"></a>    <span class="c1"># new_col_name = f&quot;{component_label}-Energie [kWh]&quot;</span>
-</span><span id="__span-0-238"><a id="__codelineno-0-238" name="__codelineno-0-238"></a>    <span class="c1"># analyse_df.rename(columns={value_col_name: new_col_name}, inplace=True)</span>
+</span><span id="__span-0-217"><a id="__codelineno-0-217" name="__codelineno-0-217"></a>    <span class="c1"># Calculate timestep scaling according to resolution</span>
+</span><span id="__span-0-218"><a id="__codelineno-0-218" name="__codelineno-0-218"></a>    <span class="n">factor</span> <span class="o">=</span> <span class="n">timestep_hours</span> <span class="o">*</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span> <span class="k">if</span> <span class="n">invert_sign</span> <span class="k">else</span> <span class="mi">1</span><span class="p">)</span>
+</span><span id="__span-0-219"><a id="__codelineno-0-219" name="__codelineno-0-219"></a>
+</span><span id="__span-0-220"><a id="__codelineno-0-220" name="__codelineno-0-220"></a>    <span class="c1"># Apply timestep scaling</span>
+</span><span id="__span-0-221"><a id="__codelineno-0-221" name="__codelineno-0-221"></a>    <span class="n">analyse_df</span><span class="p">[</span><span class="n">value_col_name</span><span class="p">]</span> <span class="o">*=</span> <span class="n">factor</span>
+</span><span id="__span-0-222"><a id="__codelineno-0-222" name="__codelineno-0-222"></a>
+</span><span id="__span-0-223"><a id="__codelineno-0-223" name="__codelineno-0-223"></a>    <span class="c1"># Summation - Optionally drop small positive values seen in production data</span>
+</span><span id="__span-0-224"><a id="__codelineno-0-224" name="__codelineno-0-224"></a>    <span class="c1"># (e.g., due to measurement noise) - we have already inverted the sign for production</span>
+</span><span id="__span-0-225"><a id="__codelineno-0-225" name="__codelineno-0-225"></a>    <span class="c1"># so now negative values need to be truncated.</span>
+</span><span id="__span-0-226"><a id="__codelineno-0-226" name="__codelineno-0-226"></a>    <span class="n">sum_series</span> <span class="o">=</span> <span class="n">analyse_df</span><span class="p">[</span><span class="n">value_col_name</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+</span><span id="__span-0-227"><a id="__codelineno-0-227" name="__codelineno-0-227"></a>    <span class="k">if</span> <span class="n">trunc_values</span><span class="p">:</span>
+</span><span id="__span-0-228"><a id="__codelineno-0-228" name="__codelineno-0-228"></a>        <span class="n">sum_series</span> <span class="o">=</span> <span class="n">sum_series</span><span class="p">[</span><span class="n">sum_series</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">]</span>
+</span><span id="__span-0-229"><a id="__codelineno-0-229" name="__codelineno-0-229"></a>    <span class="n">component_sum</span> <span class="o">=</span> <span class="nb">round</span><span class="p">(</span><span class="n">sum_series</span><span class="o">.</span><span class="n">sum</span><span class="p">(),</span> <span class="mi">3</span><span class="p">)</span>
+</span><span id="__span-0-230"><a id="__codelineno-0-230" name="__codelineno-0-230"></a>
+</span><span id="__span-0-231"><a id="__codelineno-0-231" name="__codelineno-0-231"></a>    <span class="c1"># Round for readability</span>
+</span><span id="__span-0-232"><a id="__codelineno-0-232" name="__codelineno-0-232"></a>    <span class="n">analyse_df</span><span class="p">[</span><span class="n">value_col_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">analyse_df</span><span class="p">[</span><span class="n">value_col_name</span><span class="p">]</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+</span><span id="__span-0-233"><a id="__codelineno-0-233" name="__codelineno-0-233"></a>
+</span><span id="__span-0-234"><a id="__codelineno-0-234" name="__codelineno-0-234"></a>    <span class="c1"># Rename for output clarity</span>
+</span><span id="__span-0-235"><a id="__codelineno-0-235" name="__codelineno-0-235"></a>    <span class="c1"># new_col_name = f&quot;{component_label}-Energie [kWh]&quot;</span>
+</span><span id="__span-0-236"><a id="__codelineno-0-236" name="__codelineno-0-236"></a>    <span class="c1"># analyse_df.rename(columns={value_col_name: new_col_name}, inplace=True)</span>
+</span><span id="__span-0-237"><a id="__codelineno-0-237" name="__codelineno-0-237"></a>
+</span><span id="__span-0-238"><a id="__codelineno-0-238" name="__codelineno-0-238"></a>    <span class="n">analyse_df</span> <span class="o">=</span> <span class="n">mapper</span><span class="o">.</span><span class="n">to_display</span><span class="p">(</span><span class="n">analyse_df</span><span class="p">)</span>
 </span><span id="__span-0-239"><a id="__codelineno-0-239" name="__codelineno-0-239"></a>
 </span><span id="__span-0-240"><a id="__codelineno-0-240" name="__codelineno-0-240"></a>    <span class="k">return</span> <span class="n">analyse_df</span><span class="p">,</span> <span class="n">component_sum</span><span class="p">,</span> <span class="n">filter_text</span>
 </span></code></pre></div></td></tr></table></div>
@@ -3845,7 +3845,7 @@ A subset of <code>energy_report_df</code> that contains:
     - Base columns: "timestamp", "grid_consumption",
     "mid_consumption", "grid_feed_in"
     - Optional component-specific columns such as
-    "pv_asset_production", "battery_throughput",
+    "pv_asset_production", "battery_power_flow",
     "chp_asset_production", "wind_asset_production"</p>
 <p>Columns that do not exist in the input DataFrame are silently skipped.</p>
               </div>
@@ -3932,7 +3932,7 @@ A subset of <code>energy_report_df</code> that contains:
 </span><span id="__span-0-263"><a id="__codelineno-0-263" name="__codelineno-0-263"></a><span class="sd">                - Base columns: &quot;timestamp&quot;, &quot;grid_consumption&quot;,</span>
 </span><span id="__span-0-264"><a id="__codelineno-0-264" name="__codelineno-0-264"></a><span class="sd">                &quot;mid_consumption&quot;, &quot;grid_feed_in&quot;</span>
 </span><span id="__span-0-265"><a id="__codelineno-0-265" name="__codelineno-0-265"></a><span class="sd">                - Optional component-specific columns such as</span>
-</span><span id="__span-0-266"><a id="__codelineno-0-266" name="__codelineno-0-266"></a><span class="sd">                &quot;pv_asset_production&quot;, &quot;battery_throughput&quot;,</span>
+</span><span id="__span-0-266"><a id="__codelineno-0-266" name="__codelineno-0-266"></a><span class="sd">                &quot;pv_asset_production&quot;, &quot;battery_power_flow&quot;,</span>
 </span><span id="__span-0-267"><a id="__codelineno-0-267" name="__codelineno-0-267"></a><span class="sd">                &quot;chp_asset_production&quot;, &quot;wind_asset_production&quot;</span>
 </span><span id="__span-0-268"><a id="__codelineno-0-268" name="__codelineno-0-268"></a>
 </span><span id="__span-0-269"><a id="__codelineno-0-269" name="__codelineno-0-269"></a><span class="sd">            Columns that do not exist in the input DataFrame are silently skipped.</span>
@@ -3946,10 +3946,10 @@ A subset of <code>energy_report_df</code> that contains:
 </span><span id="__span-0-277"><a id="__codelineno-0-277" name="__codelineno-0-277"></a>
 </span><span id="__span-0-278"><a id="__codelineno-0-278" name="__codelineno-0-278"></a>    <span class="n">optional_cols</span> <span class="o">=</span> <span class="p">{</span>
 </span><span id="__span-0-279"><a id="__codelineno-0-279" name="__codelineno-0-279"></a>        <span class="s2">&quot;pv&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;pv_asset_production&quot;</span><span class="p">],</span>
-</span><span id="__span-0-280"><a id="__codelineno-0-280" name="__codelineno-0-280"></a>        <span class="s2">&quot;battery&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;battery_throughput&quot;</span><span class="p">],</span>
-</span><span id="__span-0-281"><a id="__codelineno-0-281" name="__codelineno-0-281"></a>        <span class="s2">&quot;chp&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;chp_asset_production&quot;</span><span class="p">],</span>
-</span><span id="__span-0-282"><a id="__codelineno-0-282" name="__codelineno-0-282"></a>        <span class="c1"># &quot;ev&quot;: [&quot;ev_charging_load&quot;],</span>
-</span><span id="__span-0-283"><a id="__codelineno-0-283" name="__codelineno-0-283"></a>        <span class="s2">&quot;wind&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;wind_asset_production&quot;</span><span class="p">],</span>
+</span><span id="__span-0-280"><a id="__codelineno-0-280" name="__codelineno-0-280"></a>        <span class="s2">&quot;chp&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;chp_asset_production&quot;</span><span class="p">],</span>
+</span><span id="__span-0-281"><a id="__codelineno-0-281" name="__codelineno-0-281"></a>        <span class="c1"># &quot;ev&quot;: [&quot;ev_charging_load&quot;],</span>
+</span><span id="__span-0-282"><a id="__codelineno-0-282" name="__codelineno-0-282"></a>        <span class="s2">&quot;wind&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;wind_asset_production&quot;</span><span class="p">],</span>
+</span><span id="__span-0-283"><a id="__codelineno-0-283" name="__codelineno-0-283"></a>        <span class="s2">&quot;battery&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;battery_power_flow&quot;</span><span class="p">],</span>
 </span><span id="__span-0-284"><a id="__codelineno-0-284" name="__codelineno-0-284"></a>    <span class="p">}</span>
 </span><span id="__span-0-285"><a id="__codelineno-0-285" name="__codelineno-0-285"></a>
 </span><span id="__span-0-286"><a id="__codelineno-0-286" name="__codelineno-0-286"></a>    <span class="c1"># Collect columns in order</span>
