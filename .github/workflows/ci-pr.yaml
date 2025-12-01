@@ -37,7 +37,7 @@ jobs:
         #   password: ${{ secrets.GIT_PASS }}
 
       - name: Fetch sources
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           submodules: true
 
