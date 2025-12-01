@@ -214,8 +214,6 @@ def assemble_component_analysis(
         value_col_name=value_col_name,
     )
 
-    analyse_df = mapper.to_display(analyse_df)
-
     # Calculate timestep scaling according to resolution
     factor = timestep_hours * (-1 if invert_sign else 1)
 
@@ -236,6 +234,8 @@ def assemble_component_analysis(
     # Rename for output clarity
     # new_col_name = f"{component_label}-Energie [kWh]"
     # analyse_df.rename(columns={value_col_name: new_col_name}, inplace=True)
+
+    analyse_df = mapper.to_display(analyse_df)
 
     return analyse_df, component_sum, filter_text
 
