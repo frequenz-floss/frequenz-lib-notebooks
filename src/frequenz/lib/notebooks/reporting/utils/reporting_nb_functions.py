@@ -214,8 +214,6 @@ def assemble_component_analysis(
         value_col_name=value_col_name,
     )
 
-    analyse_df = mapper.to_display(analyse_df)
-
     # Calculate timestep scaling according to resolution
     factor = timestep_hours * (-1 if invert_sign else 1)
 
@@ -236,6 +234,8 @@ def assemble_component_analysis(
     # Rename for output clarity
     # new_col_name = f"{component_label}-Energie [kWh]"
     # analyse_df.rename(columns={value_col_name: new_col_name}, inplace=True)
+
+    analyse_df = mapper.to_display(analyse_df)
 
     return analyse_df, component_sum, filter_text
 
@@ -263,7 +263,7 @@ def build_overview_df(
                 - Base columns: "timestamp", "grid_consumption",
                 "mid_consumption", "grid_feed_in"
                 - Optional component-specific columns such as
-                "pv_asset_production", "battery_throughput",
+                "pv_asset_production", "battery_power_flow",
                 "chp_asset_production", "wind_asset_production"
 
             Columns that do not exist in the input DataFrame are silently skipped.
@@ -277,10 +277,10 @@ def build_overview_df(
 
     optional_cols = {
         "pv": ["pv_asset_production"],
-        "battery": ["battery_throughput"],
         "chp": ["chp_asset_production"],
         # "ev": ["ev_charging_load"],
         "wind": ["wind_asset_production"],
+        "battery": ["battery_power_flow"],
     }
 
     # Collect columns in order
