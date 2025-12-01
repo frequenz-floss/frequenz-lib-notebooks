@@ -263,7 +263,7 @@ def build_overview_df(
                 - Base columns: "timestamp", "grid_consumption",
                 "mid_consumption", "grid_feed_in"
                 - Optional component-specific columns such as
-                "pv_asset_production", "battery_throughput",
+                "pv_asset_production", "battery_power_flow",
                 "chp_asset_production", "wind_asset_production"
 
             Columns that do not exist in the input DataFrame are silently skipped.
@@ -277,10 +277,10 @@ def build_overview_df(
 
     optional_cols = {
         "pv": ["pv_asset_production"],
-        "battery": ["battery_throughput"],
         "chp": ["chp_asset_production"],
         # "ev": ["ev_charging_load"],
         "wind": ["wind_asset_production"],
+        "battery": ["battery_power_flow"],
     }
 
     # Collect columns in order
