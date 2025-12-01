@@ -116,13 +116,22 @@ columns:
       de: "Energieabgabe der Batterie (Entladung)."
 
   chp_asset_production:
-    raw: "chp"
+    raw: "chp_asset_production"
     display:
       en: "CHP Output"
       de: "BHKW-Erzeugung"
     description:
       en: "Electrical output from the combined heat and power (CHP) unit."
       de: "Elektrische Erzeugung des Blockheizkraftwerks (BHKW)."
+
+  wind_asset_production:
+    raw: "wind_asset_production"
+    display:
+      en: "Wind Output"
+      de: "Wind-Erzeugung"
+    description:
+      en: "Electrical output from the wind turbine."
+      de: "Elektrische Erzeugung der Windturbine."
 
   grid_peak:
     raw: "grid_peak"
