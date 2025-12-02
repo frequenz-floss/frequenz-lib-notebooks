@@ -72,7 +72,7 @@ from abc import abstractmethod
 from dataclasses import dataclass, field, fields, is_dataclass
 from email.message import EmailMessage
 from smtplib import SMTPException
-from types import UnionType
+from types import NoneType, UnionType
 from typing import Any, Callable, TypeVar, Union, get_args, get_origin
 
 _logger = logging.getLogger(__name__)
@@ -138,7 +138,7 @@ class FromDictMixin:
                 field_type_args = get_args(field_type)
                 for arg in field_type_args:
                     if (
-                        arg is not type(None)
+                        arg is not NoneType
                         and is_dataclass(arg)
                         and issubclass(arg, FromDictMixin)
                     ):
