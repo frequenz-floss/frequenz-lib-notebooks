@@ -191,7 +191,7 @@ def convert_timezone(
     return ts.dt.tz_convert(target_tz)
 
 
-# pylint: disable=too-many-arguments, too-many-positional-arguments
+# pylint: disable=too-many-arguments, too-many-positional-arguments, too-many-locals
 def label_component_columns(
     df: pd.DataFrame,
     mcfg: MicrogridConfig,
@@ -199,6 +199,7 @@ def label_component_columns(
     column_pv: str = "pv",
     column_chp: str = "chp",
     column_ev: str = "ev",
+    column_wind: str = "wind",
 ) -> tuple[pd.DataFrame, list[str]]:
     """Rename numeric single-component columns to labeled names.
 
@@ -213,7 +214,9 @@ def label_component_columns(
         column_battery: Key name for battery component type.
         column_pv: Key name for PV component type.
         column_chp: Key name for CHP component type.
-        column_ev: Key name for EV component type
+        column_ev: Key name for EV component type.
+        column_wind: Key name for wind component type.
+
     Returns:
         Tuple containing the renamed DataFrame and the list of applied labels
     """
@@ -233,6 +236,7 @@ def label_component_columns(
     pv_ids = ids_if_available(column_pv)
     chp_ids = ids_if_available(column_chp)
     ev_ids = ids_if_available(column_ev)
+    wind_ids = ids_if_available(column_wind)
 
     rename: dict[str, str] = {}
     rename.update(
@@ -250,6 +254,13 @@ def label_component_columns(
     )
     rename.update(
         {c: f"{column_chp.upper()} #{c}" for c in single_components if c in chp_ids}
+    )
+    rename.update(
+        {
+            c: f"{column_wind.capitalize()} #{c}"
+            for c in single_components
+            if c in wind_ids
+        }
     )
 
     return df.rename(columns=rename), list(rename.values())
@@ -282,6 +293,7 @@ def get_energy_report_columns(
         "pv": ["pv_asset_production"],
         "chp": ["chp_asset_production"],
         "ev": ["ev_asset_production"],
+        "wind": ["wind_asset_production"],
     }
 
     production_components = set(component_column_map.keys()) - {"battery"}

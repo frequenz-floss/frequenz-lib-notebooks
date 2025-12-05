@@ -76,7 +76,7 @@ def create_energy_report_df(
     # Add Energy flow columns
     energy_report_df = add_energy_flows(
         energy_report_df,
-        production_cols=["pv", "chp"],
+        production_cols=["pv", "chp", "wind"],
         consumption_cols=["consumption"],
         grid_cols=["grid"],
         battery_cols=["battery"],
@@ -107,6 +107,7 @@ def create_energy_report_df(
         column_pv="pv",
         column_chp="chp",
         column_ev="ev",
+        column_wind="wind",
     )
 
     # Determine relevant columns based on component types
