@@ -6,7 +6,7 @@
 
 ## Upgrading
 
-<!-- Here goes notes on how to upgrade from previous versions, including deprecations and what they should be replaced with -->
+* Switch to `MicrogridConfig` from `frequenz-gridpool` package.
 
 ## New Features
 
