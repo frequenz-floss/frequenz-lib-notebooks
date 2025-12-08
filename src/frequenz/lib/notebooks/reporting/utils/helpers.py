@@ -191,7 +191,7 @@ def convert_timezone(
     return ts.dt.tz_convert(target_tz)
 
 
-# pylint: disable=too-many-arguments, too-many-positional-arguments
+# pylint: disable=too-many-arguments, too-many-positional-arguments, too-many-locals
 def label_component_columns(
     df: pd.DataFrame,
     mcfg: MicrogridConfig,
@@ -199,6 +199,7 @@ def label_component_columns(
     column_pv: str = "pv",
     column_chp: str = "chp",
     column_ev: str = "ev",
+    column_wind: str = "wind",
 ) -> tuple[pd.DataFrame, list[str]]:
     """Rename numeric single-component columns to labeled names.
 
@@ -213,7 +214,9 @@ def label_component_columns(
         column_battery: Key name for battery component type.
         column_pv: Key name for PV component type.
         column_chp: Key name for CHP component type.
-        column_ev: Key name for EV component type
+        column_ev: Key name for EV component type.
+        column_wind: Key name for wind component type.
+
     Returns:
         Tuple containing the renamed DataFrame and the list of applied labels
     """
@@ -233,6 +236,7 @@ def label_component_columns(
     pv_ids = ids_if_available(column_pv)
     chp_ids = ids_if_available(column_chp)
     ev_ids = ids_if_available(column_ev)
+    wind_ids = ids_if_available(column_wind)
 
     rename: dict[str, str] = {}
     rename.update(
@@ -250,6 +254,13 @@ def label_component_columns(
     )
     rename.update(
         {c: f"{column_chp.upper()} #{c}" for c in single_components if c in chp_ids}
+    )
+    rename.update(
+        {
+            c: f"{column_wind.capitalize()} #{c}"
+            for c in single_components
+            if c in wind_ids
+        }
     )
 
     return df.rename(columns=rename), list(rename.values())
@@ -279,31 +290,42 @@ def get_energy_report_columns(
     # Map component types to the columns they enable
     component_column_map = {
         "battery": ["battery_power_flow"],
-        "pv": [
-            "pv_asset_production",
-            "production_self_use",
-            "grid_feed_in",
-        ],
+        "pv": ["pv_asset_production"],
         "chp": ["chp_asset_production"],
+        "ev": ["ev_asset_production"],
+        "wind": ["wind_asset_production"],
     }
 
-    # Define columns that require both PV and Battery
-    pv_battery_cols = [
-        "production_excess_in_bat",
+    production_components = set(component_column_map.keys()) - {"battery"}
+
+    # Columns that should be included if ANY production component exists
+    universal_production_cols = [
+        "production_self_use",
+        "grid_feed_in",
         "production_self_share",
     ]
 
-    # Add component-specific columns
-    for component, columns in component_column_map.items():
-        if component in component_types:
-            energy_report_df_cols.extend(columns)
+    # Columns available ONLY when battery exists
+    battery_dependent_cols = [
+        "production_excess_in_bat",
+    ]
 
-    # Add combined PV + Battery columns
-    if (
-        any(c in component_types for c in ["pv", "chp", "wind", "ev"])
-        and "battery" in component_types
-    ):
-        energy_report_df_cols.extend(pv_battery_cols)
+    # Check if any production component is present
+    has_production = any(comp in production_components for comp in component_types)
+    has_battery = "battery" in component_types
+
+    # Add the universal production columns ONLY if production exists
+    if has_production:
+        energy_report_df_cols.extend(universal_production_cols)
+
+    # Add battery-dependent production columns
+    if has_battery:
+        energy_report_df_cols.extend(battery_dependent_cols)
+
+    # Add component-specific columns
+    for comp in component_types:
+        if comp in component_column_map:
+            energy_report_df_cols.extend(component_column_map[comp])
 
     return energy_report_df_cols
 
