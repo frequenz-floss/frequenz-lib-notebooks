@@ -23,8 +23,8 @@ tables for KPIs, dashboards, and stakeholder reporting.
 """
 
 import pandas as pd
+from frequenz.gridpool import MicrogridConfig
 
-from frequenz.data.microgrid.config import MicrogridConfig
 from frequenz.lib.notebooks.reporting.utils.column_mapper import ColumnMapper
 from frequenz.lib.notebooks.reporting.utils.helpers import (
     add_energy_flows,

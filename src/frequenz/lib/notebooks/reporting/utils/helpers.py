@@ -46,8 +46,8 @@ import pandas as pd
 import plotly.express as px
 import pytz
 import yaml
+from frequenz.gridpool import MicrogridConfig
 
-from frequenz.data.microgrid.config import MicrogridConfig
 from frequenz.lib.notebooks.reporting.metrics.reporting_metrics import (
     asset_production,
     grid_consumption,
