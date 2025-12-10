@@ -10,8 +10,7 @@ import numpy as np
 import pandas as pd
 from frequenz.client.common.metric import Metric
 from frequenz.client.reporting import ReportingApiClient
-
-from .config import MicrogridConfig
+from frequenz.gridpool import MicrogridConfig
 
 _logger = logging.getLogger(__name__)
 
