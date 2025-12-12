@@ -318,7 +318,7 @@ def _pivot_and_aggregate_data(
         index=["timestamp", "microgrid_id", "metric"],
         columns="component_id",
         values="value",
-        aggfunc="first",
+        aggfunc="first",  # type: ignore[arg-type]
     ).reset_index()
     data.columns.name = None
     power_columns = {}

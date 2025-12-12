@@ -18,7 +18,7 @@ import datetime
 import logging
 import os
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -245,7 +245,11 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
         real_time_view_col_to_plot[0].replace("_", " (") + ")"
     ).capitalize()
     rolling_view_short_term_dur_hours = 24
-    base_view_config_params = {"translation_manager": tm, "x_axis_label": "x-axis"}
+    base_view_config_params: dict[str, str | TranslationManager] = {
+        "translation_manager": tm,
+        "x_axis_label": "x-axis",
+    }
+
     # initialize the output data structure
     output = SolarAnalysisData()
     production_table_view_list = []
@@ -417,7 +421,9 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
             )
         )
         daily_production_view = DailyPreparer(daily_plot_config).prepare(data)
-        statistical_view = ProfilePreparer(statistical_plot_config).prepare(data)
+        statistical_view: dict[str, pd.DataFrame] = ProfilePreparer(
+            statistical_plot_config
+        ).prepare(data)
         # ------------------- #
 
         # --- generate the production statistics table --- #
@@ -643,11 +649,11 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
             cmap_values = np.linspace(0.1, 0.9, n_models)
 
             x_axis_short_term_view = rolling_view_short_term[
-                [base_view_config_params["x_axis_label"]]
-            ]
+                base_view_config_params["x_axis_label"]
+            ].copy()
             x_axis_long_term_view = rolling_view_long_term[
-                [base_view_config_params["x_axis_label"]]
-            ]
+                base_view_config_params["x_axis_label"]
+            ].copy()
 
             predictions_to_plot: list[pd.DataFrame] = []
             # predictions are shifted for plotting so that they do not contain the ground truth
@@ -660,9 +666,8 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
                     .reindex(rolling_view_short_term.index, copy=False)
                     .to_frame()
                 )
-                predictions[base_view_config_params["x_axis_label"]] = (
-                    x_axis_short_term_view
-                )
+                column_name = cast(str, base_view_config_params["x_axis_label"])
+                predictions[column_name] = x_axis_short_term_view
                 rolling_view_short_term[f"predictions_{mdl_name}"] = predictions[
                     "predictions"
                 ]
@@ -677,9 +682,8 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
                     .reindex(rolling_view_long_term.index, copy=False)
                     .to_frame()
                 )
-                predictions[base_view_config_params["x_axis_label"]] = (
-                    x_axis_long_term_view
-                )
+                column_name = cast(str, base_view_config_params["x_axis_label"])
+                predictions[column_name] = x_axis_long_term_view
                 rolling_view_long_term[f"predictions_{mdl_name}"] = predictions[
                     "predictions"
                 ]
@@ -703,9 +707,8 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
                     .reindex(rolling_view_short_term.index, copy=False)
                     .to_frame()
                 )
-                predictions_1[base_view_config_params["x_axis_label"]] = (
-                    x_axis_short_term_view
-                )
+                column_name = cast(str, base_view_config_params["x_axis_label"])
+                predictions_1[column_name] = x_axis_short_term_view
                 rolling_view_short_term[f"predictions_{mdl_name}"] = predictions_1[
                     "predictions"
                 ]
@@ -722,9 +725,8 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
                     .reindex(rolling_view_long_term.index, copy=False)
                     .to_frame()
                 )
-                predictions_2[base_view_config_params["x_axis_label"]] = (
-                    x_axis_long_term_view
-                )
+                column_name = cast(str, base_view_config_params["x_axis_label"])
+                predictions_2[column_name] = x_axis_long_term_view
                 rolling_view_long_term[f"predictions_{mdl_name}"] = predictions_2[
                     "predictions"
                 ]
