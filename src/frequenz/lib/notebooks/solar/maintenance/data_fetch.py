@@ -15,7 +15,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 import pandas as pd
-from frequenz.client.common.metric import Metric
+from frequenz.client.common.metrics import Metric
 from frequenz.client.reporting import ReportingApiClient
 
 from frequenz.datasci.weather.weather_api import fetch_historical_weather_forecasts

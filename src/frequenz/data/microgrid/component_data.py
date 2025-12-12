@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 
 import numpy as np
 import pandas as pd
-from frequenz.client.common.metric import Metric
+from frequenz.client.common.metrics import Metric
 from frequenz.client.reporting import ReportingApiClient
 from frequenz.gridpool import MicrogridConfig
 
@@ -61,7 +61,7 @@ class MicrogridData:
         end: datetime,
         component_types: tuple[str, ...] = ("grid", "pv", "battery"),
         resampling_period: timedelta = timedelta(seconds=10),
-        metric: str = "AC_ACTIVE_POWER",
+        metric: str = "AC_POWER_ACTIVE",
         keep_components: bool = False,
         splits: bool = False,
     ) -> pd.DataFrame | None:
@@ -203,7 +203,7 @@ class MicrogridData:
             end=end,
             component_types=component_types,
             resampling_period=resampling_period,
-            metric="AC_ACTIVE_POWER",
+            metric="AC_POWER_ACTIVE",
             keep_components=keep_components,
             splits=splits,
         )
