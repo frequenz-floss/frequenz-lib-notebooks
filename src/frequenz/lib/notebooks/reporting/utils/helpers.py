@@ -39,7 +39,7 @@ from __future__ import annotations
 
 import warnings
 from datetime import date, datetime, time
-from typing import Any
+from typing import Any, Literal, cast
 
 import matplotlib.colors as mcolors
 import pandas as pd
@@ -176,10 +176,10 @@ def convert_timezone(
             Defaults to ``"UTC"``.
 
     Returns:
-        pd.DataFrame: A copy of the DataFrame with the converted datetime column.
+        pd.Series: The timestamp Series converted to the requested timezone.
 
     Raises:
-        ValueError: If ``column_timestamp`` is not present in ``df``.
+        ValueError: If ``ts`` is not a pandas Series.
     """
     if not isinstance(ts, pd.Series):
         raise ValueError("Input must be a pandas Series")
@@ -188,7 +188,8 @@ def convert_timezone(
     if ts.dt.tz is None:
         ts = ts.dt.tz_localize(assume_tz)
 
-    return ts.dt.tz_convert(target_tz)
+    result = ts.dt.tz_convert(target_tz)
+    return cast(pd.Series, result)
 
 
 # pylint: disable=too-many-arguments, too-many-positional-arguments, too-many-locals
@@ -503,6 +504,18 @@ def set_date_to_midnight(
     return tz.localize(datetime.combine(input_date, time.min))
 
 
+AggFuncLiteral = Literal[
+    "mean",
+    "sum",
+    "count",
+    "min",
+    "max",
+    "median",
+    "std",
+    "var",
+]
+
+
 def long_to_wide(
     df: pd.DataFrame,
     *,
@@ -510,7 +523,7 @@ def long_to_wide(
     category_col: str | None = "Battery",
     value_col: str | None = "Battery Throughput",
     sum_col_name: str | None = None,
-    aggfunc: str = "sum",
+    aggfunc: AggFuncLiteral = "sum",
 ) -> pd.DataFrame:
     """Convert a long-format DataFrame into wide format with optional aggregation.
 

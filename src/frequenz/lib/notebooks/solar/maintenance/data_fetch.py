@@ -15,7 +15,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 import pandas as pd
-from frequenz.client.common.metric import Metric
+from frequenz.client.common.metrics import Metric
 from frequenz.client.reporting import ReportingApiClient
 
 from frequenz.datasci.weather.weather_api import fetch_historical_weather_forecasts
@@ -318,7 +318,7 @@ def _pivot_and_aggregate_data(
         index=["timestamp", "microgrid_id", "metric"],
         columns="component_id",
         values="value",
-        aggfunc="first",
+        aggfunc="first",  # type: ignore[arg-type]
     ).reset_index()
     data.columns.name = None
     power_columns = {}

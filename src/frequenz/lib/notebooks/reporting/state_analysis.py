@@ -5,7 +5,7 @@
 import logging
 from datetime import datetime, timedelta
 
-from frequenz.client.common.metric import Metric
+from frequenz.client.common.metrics import Metric
 from frequenz.client.common.microgrid.components import (
     ComponentErrorCode,
     ComponentStateCode,

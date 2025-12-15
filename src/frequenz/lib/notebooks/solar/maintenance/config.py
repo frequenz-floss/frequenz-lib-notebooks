@@ -16,7 +16,7 @@ from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import numpy as np
-from frequenz.client.common.metric import Metric
+from frequenz.client.common.metrics import Metric
 
 _logger = logging.getLogger(__name__)
 
@@ -161,7 +161,7 @@ class ConfigConstants:
         "bounds": (-np.inf, 0.0),
         "params": {"min_value": -np.inf, "max_value": 0.0},
     }
-    DEFAULT_METRICS_TO_FETCH = [Metric.AC_ACTIVE_POWER]
+    DEFAULT_METRICS_TO_FETCH = [Metric.AC_POWER_ACTIVE]
     DEFAULT_LARGE_RESAMPLE_PERIOD_SECONDS = 60 * 15
     DEFAULT_WEATHER_FEATURES_TO_FETCH = ["SURFACE_SOLAR_RADIATION_DOWNWARDS"]
     DEFAULT_WEATHER_FEATURE_NAMES = ["ssr"]

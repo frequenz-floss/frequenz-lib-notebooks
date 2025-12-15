@@ -635,28 +635,31 @@ class ProfilePlotter(BasePlotter):
         else:
             for _label, _col in zip(labels, cols_to_plot):
                 _label = self.config.translation_manager.translate(_label)
-                if plot_styles["statistics_plot_styles"][_label]["kind"] == "line":
+                line_style = plot_styles["statistics_plot_styles"][_label]
+                x_values = data[self.config.x_axis_label].to_numpy()
+                if line_style["kind"] == "line":
+                    y_values = data[_col].to_numpy(dtype=float)
                     ax.plot(
-                        data[self.config.x_axis_label].values.astype("object"),
-                        data[_col].values.astype("float"),
-                        color=plot_styles["statistics_plot_styles"][_label]["color"],
-                        alpha=plot_styles["statistics_plot_styles"][_label]["alpha"],
+                        x_values,
+                        y_values,
+                        color=line_style["color"],
+                        alpha=line_style["alpha"],
                         label=_label,
                         zorder=self._production_artist_zorder,
                     )
-                elif plot_styles["statistics_plot_styles"][_label]["kind"] == "area":
+                elif line_style["kind"] == "area":
+                    y_lower = data[_col].to_numpy(dtype=float)
+                    curve_2_label = (
+                        f"{self.config.column_label}_" f"{line_style['curve_2']}"
+                    )
+                    y_upper = data[curve_2_label].to_numpy(dtype=float)
                     ax.fill_between(
-                        data[self.config.x_axis_label].values.astype("object"),
-                        data[_col].values.astype("float"),
-                        data[
-                            f"{self.config.column_label}_"
-                            f"{plot_styles['statistics_plot_styles'][_label]['curve_2']}"
-                        ].values.astype("float"),
-                        color=plot_styles["statistics_plot_styles"][_label]["color"],
-                        alpha=plot_styles["statistics_plot_styles"][_label]["alpha"],
-                        label=plot_styles["statistics_plot_styles"][_label][
-                            "area_label"
-                        ],
+                        x_values,
+                        y_lower,
+                        y_upper,
+                        color=line_style["color"],
+                        alpha=line_style["alpha"],
+                        label=line_style["area_label"],
                     )
                 else:
                     continue
