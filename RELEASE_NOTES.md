@@ -16,3 +16,4 @@
 ## Bug Fixes
 
 - Fix nox formatting/type warnings by casting timezone conversions, enforcing literal aggregation functions, and keeping area/line plotting parameters typed in the solar maintenance views.
+- Calculate consumption in scenarios where consumption is missing from the data.

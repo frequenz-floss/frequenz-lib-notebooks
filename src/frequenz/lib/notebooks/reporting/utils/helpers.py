@@ -50,6 +50,7 @@ from frequenz.gridpool import MicrogridConfig
 
 from frequenz.lib.notebooks.reporting.metrics.reporting_metrics import (
     asset_production,
+    consumption,
     grid_consumption,
     grid_feed_in,
     production_excess,
@@ -411,7 +412,20 @@ def add_energy_flows(
         df_flows[col] = _get_numeric_series(df_flows, col)
         consumption_series_cols.append(col)
 
-    df_flows["consumption_total"] = _sum_cols(df_flows, consumption_series_cols)
+    if resolved_consumption_cols:
+        df_flows["consumption_total"] = _sum_cols(df_flows, consumption_series_cols)
+    else:
+        # When no explicit consumption columns exist, infer it from grid info.
+        df_flows["consumption_total"] = consumption(
+            grid_power_series,
+            production=_sum_cols(
+                df_flows, resolved_production_cols
+            ),  # raw production to have the negative production values
+            battery=battery_power_series,
+        )
+
+        # Set consumption to total consumption if no explicit consumption columns exist
+        df_flows["consumption"] = df_flows["consumption_total"].copy()
 
     # Surplus vs. consumption (production is already positive because of the above cleaning)
     df_flows["production_excess"] = production_excess(
