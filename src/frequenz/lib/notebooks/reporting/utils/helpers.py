@@ -39,7 +39,7 @@ from __future__ import annotations
 
 import warnings
 from datetime import date, datetime, time
-from typing import Any, Literal, cast
+from typing import Any, Literal, Mapping, cast
 
 import matplotlib.colors as mcolors
 import pandas as pd
@@ -58,6 +58,16 @@ from frequenz.lib.notebooks.reporting.metrics.reporting_metrics import (
     production_self_consumption,
     production_self_share,
 )
+
+AggregatedComponentConfig = Mapping[str, tuple[str, str]]
+
+DEFAULT_AGGREGATED_COMPONENT_CONFIG: AggregatedComponentConfig = {
+    "battery": ("battery_power_flow", "Battery #"),
+    "pv": ("pv_asset_production", "PV #"),
+    "chp": ("chp_asset_production", "CHP #"),
+    "ev": ("ev_asset_production", "EV #"),
+    "wind": ("wind_asset_production", "Wind #"),
+}
 
 
 def _get_numeric_series(df: pd.DataFrame, col: str | None) -> pd.Series:
@@ -639,3 +649,45 @@ def build_color_map(
                 break
 
     return final
+
+
+def fill_aggregated_component_columns(
+    df: pd.DataFrame,
+    component_types: list[str],
+    config: AggregatedComponentConfig | None = None,
+) -> pd.DataFrame:
+    """Populate missing aggregate columns by summing labeled component columns.
+
+    Args:
+        df: Input DataFrame potentially containing aggregated component columns
+            (e.g., "battery_power_flow") and labeled individual component columns
+            (e.g., "Battery #1", "Battery #2").
+        component_types: List of component types to consider for aggregation
+            (e.g., ["battery", "pv"]).
+
+        config: Mapping of component types to tuples containing the aggregated
+            column name and the prefix used to identify individual component
+            columns.
+
+    Returns:
+        DataFrame with missing aggregated component columns filled in by summing
+        the corresponding individual component columns.
+    """
+    config = config or DEFAULT_AGGREGATED_COMPONENT_CONFIG
+    normalized_types = {comp.lower() for comp in component_types}
+
+    for comp_type, (agg_col, prefix) in config.items():
+        if comp_type not in normalized_types or agg_col not in df.columns:
+            continue
+
+        component_cols = [col for col in df.columns if col.startswith(prefix)]
+
+        # Only proceed if there are components to sum and missing values to fill
+        if component_cols and df[agg_col].isna().any():
+            # min_count=1 ensures all-NaN rows stay NaN instead of becoming 0
+            summed = df[component_cols].sum(axis=1, skipna=True, min_count=1)
+
+            # Fill only the holes
+            df[agg_col] = df[agg_col].fillna(summed)
+
+    return df
