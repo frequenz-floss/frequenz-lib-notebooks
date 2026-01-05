@@ -2,7 +2,7 @@
 
 ## Summary
 
-Minor dependency updates.
+<!-- Here goes a general summary of what this release is about -->
 
 ## Upgrading
 
