@@ -2,18 +2,16 @@
 
 ## Summary
 
-- Align tooling with the latest reporting client, gridpool, and repository config releases while tightening typing and plotting helpers across the solar reporting suites.
+<!-- Here goes a general summary of what this release is about -->
 
 ## Upgrading
 
-- Point dependencies at the new `frequenz-client-reporting >= 0.20` line, `frequenz-gridpool >= 0.1.1`, and `frequenz-repo-config 0.13.8` so packaging matches the newest releases.
-- Update the default solar metric to `Metric.AC_POWER_ACTIVE` alongside the v2 `Metric` import path.
+<!-- Here goes notes on how to upgrade from previous versions, including deprecations and what they should be replaced with -->
 
 ## New Features
 
-- N/A
+<!-- Here goes the main new features and examples or instructions on how to use them -->
 
 ## Bug Fixes
 
-- Fix nox formatting/type warnings by casting timezone conversions, enforcing literal aggregation functions, and keeping area/line plotting parameters typed in the solar maintenance views.
-- Calculate consumption in scenarios where consumption is missing from the data.
+<!-- Here goes notable bug fixes that are worth a special mention or explanation -->
