@@ -11,6 +11,7 @@
 ## New Features
 
 <!-- Here goes the main new features and examples or instructions on how to use them -->
+- Added test cases for reporting metrics.
 
 ## Bug Fixes
 
