@@ -15,4 +15,4 @@
 
 ## Bug Fixes
 
-<!-- Here goes notable bug fixes that are worth a special mention or explanation -->
+- Fill missing values in aggregated component columns.

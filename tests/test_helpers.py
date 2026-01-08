@@ -21,6 +21,7 @@ from frequenz.lib.notebooks.reporting.utils.helpers import (
     _sum_cols,
     build_color_map,
     convert_timezone,
+    fill_aggregated_component_columns,
     fmt_to_de_system,
     label_component_columns,
     long_to_wide,
@@ -196,6 +197,66 @@ def test_long_to_wide_pivots_and_adds_sum_column() -> None:
         ),
     )
     assert_frame_equal(wide, expected)
+
+
+def test_fill_aggregated_component_columns_backfills_missing_summaries() -> None:
+    """Aggregate columns are filled only where NaNs exist via per-component sums."""
+    df = pd.DataFrame(
+        {
+            "battery_power_flow": [0.0, float("nan"), 5.0],
+            "Battery #1": [1.0, 2.0, 2.5],
+            "Battery #2": [3.0, 4.0, 2.5],
+            "pv_asset_production": [float("nan"), float("nan"), 1.0],
+            "PV #1": [0.5, 0.75, 0.3],
+            "PV #2": [0.5, 0.25, 0.0],
+        }
+    )
+
+    result = fill_aggregated_component_columns(
+        df.copy(), component_types=["battery", "pv"]
+    )
+
+    assert result["battery_power_flow"].tolist() == [0.0, 6.0, 5.0]
+    assert result["pv_asset_production"].tolist() == [1.0, 1.0, 1.0]
+
+
+def test_fill_aggregated_component_columns_respects_component_filter() -> None:
+    """Only requested component types trigger aggregation fill-ins."""
+    df = pd.DataFrame(
+        {
+            "battery_power_flow": [0.0, float("nan")],
+            "Battery #1": [1.0, 2.0],
+            "Battery #2": [3.0, 4.0],
+            "pv_asset_production": [float("nan"), float("nan")],
+            "PV #1": [0.5, 0.75],
+            "PV #2": [0.5, 0.25],
+        }
+    )
+
+    result = fill_aggregated_component_columns(df.copy(), component_types=["battery"])
+
+    assert result["pv_asset_production"].iloc[:2].isna().all()
+
+
+def test_fill_aggregated_component_columns_accepts_custom_config() -> None:
+    """An external config mapping can drive aggregation of bespoke components."""
+    df = pd.DataFrame(
+        {
+            "custom_power": [float("nan"), 4.0],
+            "Custom #1": [1.0, 2.0],
+            "Custom #2": [2.0, 3.0],
+        }
+    )
+
+    config = {"custom": ("custom_power", "Custom #")}
+
+    result = fill_aggregated_component_columns(
+        df.copy(),
+        component_types=["custom"],
+        config=config,
+    )
+
+    assert result["custom_power"].tolist() == [3.0, 4.0]
 
 
 def test_long_to_wide_custom_sum_column_name() -> None:

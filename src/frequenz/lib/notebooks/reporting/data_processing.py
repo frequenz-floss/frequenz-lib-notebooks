@@ -27,8 +27,10 @@ from frequenz.gridpool import MicrogridConfig
 
 from frequenz.lib.notebooks.reporting.utils.column_mapper import ColumnMapper
 from frequenz.lib.notebooks.reporting.utils.helpers import (
+    AggregatedComponentConfig,
     add_energy_flows,
     convert_timezone,
+    fill_aggregated_component_columns,
     get_energy_report_columns,
     label_component_columns,
 )
@@ -43,6 +45,8 @@ def create_energy_report_df(
     *,
     tz_name: str = "Europe/Berlin",
     assume_tz: str = "UTC",
+    fill_missing_values: bool = True,
+    aggregated_component_config: AggregatedComponentConfig | None = None,
 ) -> pd.DataFrame:
     """Create a normalized Energy Report DataFrame with selected columns.
 
@@ -59,6 +63,11 @@ def create_energy_report_df(
         mapper: Column Mapper object to standardize the column names.
         tz_name: Target timezone name for timestamp conversion (default: "Europe/Berlin").
         assume_tz: Timezone to assume for naive datetimes before conversion (default: "UTC").
+        fill_missing_values: Whether to fill missing aggregate component columns
+                from per-component sums (default: True).
+        aggregated_component_config: Optional mapping of component types to aggregated
+            column metadata used when filling missing aggregates. Defaults to the shared
+            `DEFAULT_AGGREGATED_COMPONENT_CONFIG`.
 
     Returns:
         The Energy Report DataFrame with standardized and selected columns.
@@ -117,4 +126,13 @@ def create_energy_report_df(
 
     # Select only the relevant columns
     energy_report_df = energy_report_df[energy_report_df_cols]
+
+    if fill_missing_values:
+        # Fill in missing aggregate component columns from per-component sums
+        energy_report_df = fill_aggregated_component_columns(
+            energy_report_df,
+            component_types,
+            aggregated_component_config,
+        )
+
     return energy_report_df
