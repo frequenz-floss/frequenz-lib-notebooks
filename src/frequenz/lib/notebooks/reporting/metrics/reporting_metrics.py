@@ -41,11 +41,9 @@ def asset_production(
 
     Returns:
         A Series where only production values (≥ 0) are retained, with all
-        non-productive values set to zero.
+        non-productive values set to zero. Missing values remain NaN.
     """
-    return (
-        (production if production_is_positive else -production).fillna(0).clip(lower=0)
-    )
+    return (production if production_is_positive else -production).clip(lower=0)
 
 
 def production_excess(
