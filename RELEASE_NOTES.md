@@ -7,6 +7,7 @@
 ## Upgrading
 
 <!-- Here goes notes on how to upgrade from previous versions, including deprecations and what they should be replaced with -->
+- **Breaking change for solar and alert notebooks:** environment variable names have been updated.
 
 ## New Features
 
