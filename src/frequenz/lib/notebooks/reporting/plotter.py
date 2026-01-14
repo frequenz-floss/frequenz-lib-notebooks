@@ -19,7 +19,7 @@ def plot_time_series(
     title: str = "Time Series Plot",
     xaxis_title: str = "Timestamp",
     yaxis_title: str = "kW",
-    legend_title: str = "Components",
+    legend_title: str | None = "Components",
     color_dict: dict[str, str] | None = None,
     long_format_flag: bool = False,
     category_col: str | None = None,
