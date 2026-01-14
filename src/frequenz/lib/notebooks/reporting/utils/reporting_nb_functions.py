@@ -557,6 +557,11 @@ def aggregate_metrics(  # pylint: disable=too-many-locals
     for col_name, result_key in metric_columns.items():
         # Safely get column (or Series of zeros if missing)
         series = energy_report_df.get(col_name, zeros)
+
+        # Clip grid consumption to non-negative values to avoid negative grid feed-in values
+        if col_name == "grid_consumption":
+            series = series.clip(lower=0)
+
         # Calculate energy sum (Power * hours_factor)
         results[result_key] = (series * hours_factor).sum()
 
