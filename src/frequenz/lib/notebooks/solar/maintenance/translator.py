@@ -12,6 +12,7 @@ and special characters. The class uses a dictionary to store translations for
 different languages. Any text that needs to be translated should be added to
 the dictionary with the corresponding translations for each language.
 """
+
 import logging
 import re
 from typing import Any, Callable

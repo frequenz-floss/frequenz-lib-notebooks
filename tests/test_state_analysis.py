@@ -2,6 +2,7 @@
 # Copyright © 2025 Frequenz Energy-as-a-Service GmbH
 
 """Tests for the frequenz.reporting package."""
+
 from datetime import datetime
 from typing import Any
 

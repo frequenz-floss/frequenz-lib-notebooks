@@ -34,7 +34,6 @@ Notes:
     - All numeric outputs are returned as float64 Series to ensure consistency.
 """
 
-
 from __future__ import annotations
 
 import warnings

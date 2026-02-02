@@ -2,6 +2,7 @@
 # Copyright © 2025 Frequenz Energy-as-a-Service GmbH
 
 """Tests for the frequenz.lib.notebooks package."""
+
 import pytest
 
 from frequenz.lib.notebooks import delete_me

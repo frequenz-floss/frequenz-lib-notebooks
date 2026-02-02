@@ -58,6 +58,7 @@ def example():
     print(html_email)
 ```
 """
+
 import html
 import logging
 import os
