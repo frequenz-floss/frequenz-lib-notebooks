@@ -5,7 +5,7 @@
 requires = [
   "setuptools == 80.10.2",
   "setuptools_scm[toml] == 9.2.2",
-  "frequenz-repo-config[lib] == 0.13.8",
+  "frequenz-repo-config[lib] == 0.14.0",
 ]
 build-backend = "setuptools.build_meta"
 
@@ -71,7 +71,7 @@ dev-mkdocs = [
   "mkdocs-material == 9.7.1",
   "mkdocstrings[python] == 1.0.2",
   "mkdocstrings-python == 1.18.2",
-  "frequenz-repo-config[lib] == 0.13.8",
+  "frequenz-repo-config[lib] == 0.14.0",
 ]
 dev-mypy = [
   "mypy == 1.19.1",
@@ -83,7 +83,7 @@ dev-mypy = [
 ]
 dev-noxfile = [
   "nox == 2025.11.12",
-  "frequenz-repo-config[lib] == 0.13.8",
+  "frequenz-repo-config[lib] == 0.14.0",
 ]
 dev-pylint = [
   # dev-pytest already defines a dependency to pylint because of the examples
