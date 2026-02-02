@@ -3,7 +3,7 @@
 
 [build-system]
 requires = [
-  "setuptools == 80.10.1",
+  "setuptools == 80.10.2",
   "setuptools_scm[toml] == 9.2.2",
   "frequenz-repo-config[lib] == 0.13.8",
 ]
@@ -69,7 +69,7 @@ dev-mkdocs = [
   "mkdocs-literate-nav == 0.6.2",
   "mkdocs-macros-plugin == 1.5.0",
   "mkdocs-material == 9.7.1",
-  "mkdocstrings[python] == 1.0.1",
+  "mkdocstrings[python] == 1.0.2",
   "mkdocstrings-python == 1.18.2",
   "frequenz-repo-config[lib] == 0.13.8",
 ]
