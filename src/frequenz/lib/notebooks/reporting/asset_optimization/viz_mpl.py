@@ -3,7 +3,6 @@
 
 """Visualization for asset optimization reporting using matplotlib."""
 
-
 import logging
 
 import matplotlib.pyplot as plt

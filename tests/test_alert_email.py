@@ -2,6 +2,7 @@
 # Copyright © 2025 Frequenz Energy-as-a-Service GmbH
 
 """Tests for the frequenz.lib.notebooks.alerts module."""
+
 from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory

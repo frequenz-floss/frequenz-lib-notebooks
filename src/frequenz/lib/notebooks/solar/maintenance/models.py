@@ -12,6 +12,7 @@ from the model specifications. It returns a dictionary with model labels as keys
 and dictionaries containing the predictions as values. The predictions are stored
 as pandas Series with the same index as the input data and the name 'predictions'.
 """
+
 import logging
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, Callable, cast

@@ -7,6 +7,7 @@ This module provides a class to create a card-based dashboard for microgrid
 production overview. The dashboard can display information about one or more
 mircogrids.
 """
+
 import logging
 from typing import TYPE_CHECKING, cast
 

@@ -2,6 +2,7 @@
 # Copyright © 2025 Frequenz Energy-as-a-Service GmbH
 
 """Functions for analyzing microgrid component state transitions and extracting alerts."""
+
 import logging
 from datetime import datetime, timedelta
 

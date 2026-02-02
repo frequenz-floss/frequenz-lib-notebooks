@@ -3,7 +3,6 @@
 
 """Data fetching for asset optimization reporting."""
 
-
 import logging
 import os
 from datetime import datetime, timedelta

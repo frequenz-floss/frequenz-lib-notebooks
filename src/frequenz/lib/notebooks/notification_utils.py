@@ -7,6 +7,7 @@ Utility functions to support testing, validating, and previewing email notificat
 These are intended to be used in notebooks, Streamlit apps, or other tools that
 help users configure and debug their notification settings interactively.
 """
+
 import html
 import logging
 import os

@@ -47,7 +47,6 @@ All missing or unavailable columns are treated safely (as zero-valued Series),
 ensuring resilient operation even with partially populated datasets.
 """
 
-
 from datetime import datetime, timedelta
 from typing import Iterable, Union, cast
 
