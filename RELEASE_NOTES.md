@@ -2,13 +2,16 @@
 
 ## Summary
 
+<!-- Here goes a general summary of what this release is about -->
+
 ## Upgrading
-- **Breaking change for solar and alert notebooks:** environment variable names have been updated.
+
+<!-- Here goes notes on how to upgrade from previous versions, including deprecations and what they should be replaced with -->
 
 ## New Features
-- Added test cases for reporting metrics.
+
+<!-- Here goes the main new features and examples or instructions on how to use them -->
 
 ## Bug Fixes
-- Fill missing values in aggregated component columns.
-- Update aggregate metrics to have only positive values in grid consumption.
-- Update grid feed-in metrics to first include negative values from grid column and simplify the grid feed-in logic.
+
+<!-- Here goes notable bug fixes that are worth a special mention or explanation -->
