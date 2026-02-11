@@ -99,34 +99,48 @@ def production_excess_in_bat(
 
 
 def grid_feed_in(
-    production: pd.Series,
-    consumption: pd.Series,
-    battery: pd.Series,
-    production_is_positive: bool = False,
+    production: pd.Series | None,
+    consumption: pd.Series | None,
+    battery: pd.Series | None,
+    grid: pd.Series | None,
 ) -> pd.Series:
-    """Calculate the portion of excess production fed into the grid.
+    """Determine grid feed-in using measured or derived series.
 
-    Subtracts the amount of excess energy stored in the battery from the total
-    production surplus to determine how much is exported to the grid.
+    Prefers the measured grid series (negative export). When unavailable,
+    derives grid feed-in from the remaining energy balance.
 
     Args:
-        production: Series of production values (e.g., kW or MW).
-        consumption: Series of consumption values (same units as `production`).
-        battery: Series representing the battery's available
-            charging capacity.
-        production_is_positive: Whether production values are already positive. If False,
-            `production` is inverted before clipping.
+        production: Production power series (PSC-convention), or ``None``.
+        consumption: Consumption power series (PSC-convention), or ``None``.
+        battery: Battery power (PSC-convention: charging positive), or ``None``.
+        grid: Grid power series (negative export), or ``None``.
 
     Returns:
         A Series representing power or energy fed into the grid (≥ 0).
+
+    Raises:
+        ValueError: If no valid series are provided.
     """
-    production_excess_series = production_excess(
-        production, consumption, production_is_positive=production_is_positive
-    )
-    battery_series = production_excess_in_bat(
-        production, consumption, battery, production_is_positive=production_is_positive
-    )
-    return (production_excess_series - battery_series).clip(lower=0)
+    if grid is not None:
+        # If grid is provided, use it to determine feed-in.
+        # Grid feed-in is the negative values recorded in grid.
+        return grid.astype("float64").clip(upper=0).abs()
+
+    if all(s is None for s in (production, consumption, battery)):
+        raise ValueError(
+            "Cannot compute grid_feed_in because no grid, production, "
+            "consumption, or battery series were provided. "
+            "This function follows PSC conventions, so production and battery "
+            "must also follow those conventions."
+        )
+
+    prod = production.astype("float64") if production is not None else 0.0
+    cons = consumption.astype("float64") if consumption is not None else 0.0
+    batt = battery.astype("float64") if battery is not None else 0.0
+
+    inferred = cons + prod + batt
+
+    return inferred.clip(upper=0).abs()  # type: ignore[union-attr]
 
 
 def production_self_consumption(

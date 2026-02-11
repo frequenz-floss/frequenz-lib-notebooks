@@ -46,15 +46,23 @@ def test_production_excess_in_bat_respects_battery_limits() -> None:
     assert_series_equal(result, expected)
 
 
-def test_grid_feed_in_excludes_energy_stored_in_battery() -> None:
-    """Grid feed-in equals production surplus minus what is stored in the battery."""
+def test_grid_feed_in_prefers_measured_grid_and_infers_when_missing() -> None:
+    """Measured grid export is used; otherwise it is inferred from PSC inputs."""
     production = pd.Series([-8, -3], index=pd.RangeIndex(2))
     consumption = pd.Series([2, 1], index=production.index)
     battery = pd.Series([5, 10], index=production.index)
 
-    result = metrics.grid_feed_in(production, consumption, battery)
-    expected = pd.Series([1.0, 0.0], index=production.index)
-    assert_series_equal(result, expected)
+    grid = pd.Series([-4, 2], index=production.index)
+    expected_measured = pd.Series([4.0, 0.0], index=production.index)
+    measured = metrics.grid_feed_in(production, consumption, battery, grid=grid)
+    assert_series_equal(measured, expected_measured)
+
+    inferred = metrics.grid_feed_in(production, consumption, battery, grid=None)
+    expected_inferred = pd.Series([1.0, 0.0], index=production.index)
+    assert_series_equal(inferred, expected_inferred)
+
+    with pytest.raises(ValueError):
+        metrics.grid_feed_in(None, None, None, grid=None)
 
 
 def test_production_self_consumption_warns_on_negative_values() -> None:

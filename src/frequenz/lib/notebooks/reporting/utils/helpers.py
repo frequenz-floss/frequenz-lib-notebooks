@@ -453,10 +453,11 @@ def add_energy_flows(
 
     # Split excess into battery vs. grid
     df_flows["grid_feed_in"] = grid_feed_in(
-        df_flows["production_total"],
+        # To convert positive production back to PSC format (where production is negative)
+        df_flows["production_total"] * -1,
         df_flows["consumption_total"],
-        battery=battery_charge_series,
-        production_is_positive=True,
+        battery=battery_power_series,
+        grid=grid_power_series if resolved_grid_cols else None,
     )
 
     # If no production columns exist, set self-consumption metrics to zero
