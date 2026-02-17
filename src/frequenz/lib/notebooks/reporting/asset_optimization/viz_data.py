@@ -50,6 +50,15 @@ class BatteryPowerData:
     max_abs_battery: float
 
 
+@dataclass(frozen=True)
+class MonthlyAggregateData:
+    """Prepared data for monthly aggregate plotting."""
+
+    months: pd.DataFrame
+    positive: pd.DataFrame
+    negative: pd.DataFrame
+
+
 def require_columns(df: pd.DataFrame, *columns: str) -> None:
     """Validate that a DataFrame contains all required columns.
 
@@ -221,3 +230,69 @@ def prepare_battery_power_data(df: pd.DataFrame) -> BatteryPowerData:
         discharge=discharge,
         max_abs_battery=max_abs_bat,
     )
+
+
+def prepare_monthly_data(df: pd.DataFrame) -> MonthlyAggregateData:
+    """Prepare monthly aggregate data."""
+    if len(df.index) < 2:
+        raise ValueError(
+            "At least two data points are required for monthly aggregation."
+        )
+
+    months: pd.DataFrame = df.resample("1MS").sum()
+    resolution = (df.index[1] - df.index[0]).total_seconds()
+    kW2MWh = resolution / 3600 / 1000  # pylint: disable=invalid-name
+    months *= kW2MWh
+
+    if not isinstance(months.index, pd.DatetimeIndex):
+        months.index = pd.to_datetime(months.index)
+    months.index = pd.Index(months.index.date)
+
+    pos = months[[c for c in months.columns if "_pos" in c]].rename(
+        columns={
+            "grid_pos": "Grid Consumption",
+            "battery_pos": "Battery Charge",
+            "consumption_pos": "Consumption",
+            "pv_pos": "PV Consumption",
+            "chp_pos": "CHP Consumption",
+        }
+    )
+    neg = months[[c for c in months.columns if "_neg" in c]].rename(
+        columns={
+            "grid_neg": "Grid Feed-in",
+            "battery_neg": "Battery Discharge",
+            "consumption_neg": "Unknown Production",
+            "pv_neg": "PV Production",
+            "chp_neg": "CHP Production",
+        }
+    )
+
+    if pos.empty and neg.empty:
+        pos = months.clip(lower=0).add_suffix("_pos")
+        neg = months.clip(upper=0).add_suffix("_neg")
+        months = pd.concat([months, neg, pos], axis=1)
+        pos = pos.rename(
+            columns={
+                "grid_pos": "Grid Consumption",
+                "battery_pos": "Battery Charge",
+                "consumption_pos": "Consumption",
+                "pv_pos": "PV Consumption",
+                "chp_pos": "CHP Consumption",
+                "soc_pos": "SOC",
+            }
+        )
+        neg = neg.rename(
+            columns={
+                "grid_neg": "Grid Feed-in",
+                "battery_neg": "Battery Discharge",
+                "consumption_neg": "Unknown Production",
+                "pv_neg": "PV Production",
+                "chp_neg": "CHP Production",
+                "soc_neg": "SOC",
+            }
+        )
+
+    pos = pos.loc[:, pos.abs().sum(axis=0) > 0]
+    neg = neg.loc[:, neg.abs().sum(axis=0) > 0]
+
+    return MonthlyAggregateData(months=months, positive=pos, negative=neg)
