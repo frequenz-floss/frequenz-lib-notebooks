@@ -2,16 +2,18 @@
 
 ## Summary
 
-<!-- Here goes a general summary of what this release is about -->
+This release updates the asset-optimization reporting visuals to Plotly, improves
+interactivity and styling, and refactors data preparation for reuse.
 
 ## Upgrading
 
-<!-- Here goes notes on how to upgrade from previous versions, including deprecations and what they should be replaced with -->
+- Asset-optimization plotting now returns Plotly figures (instead of matplotlib).
+  Update any downstream code that expects matplotlib `Axes` objects.
 
 ## New Features
 
-<!-- Here goes the main new features and examples or instructions on how to use them -->
+- Plotly-based asset-optimization charts with interactive hover, range sliders,
+  and improved styling (white background, borders, legend layout).
 
 ## Bug Fixes
 - Update the asset optimization notebook with the correct api keys.
-<!-- Here goes notable bug fixes that are worth a special mention or explanation -->
