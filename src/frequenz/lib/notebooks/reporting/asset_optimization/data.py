@@ -10,8 +10,9 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
+from frequenz.gridpool import MicrogridConfig
 
-from frequenz.data.microgrid import MicrogridConfig, MicrogridData
+from frequenz.data.microgrid import MicrogridData
 
 _logger = logging.getLogger(__name__)
 
@@ -34,8 +35,8 @@ def init_microgrid_data(
         load_dotenv(dotenv_path=dotenv_path)
 
     service_address = os.environ["REPORTING_API_URL"]
-    api_key = os.environ["REPORTING_API_KEY"]
-    api_secret = os.environ["REPORTING_API_SECRET"]
+    api_key = os.environ["API_KEY"]
+    api_secret = os.environ["API_SECRET"]
 
     mcfg = MicrogridConfig.load_configs(
         microgrid_config_dir=microgrid_config_dir,

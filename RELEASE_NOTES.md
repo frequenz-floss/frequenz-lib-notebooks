@@ -13,5 +13,5 @@
 <!-- Here goes the main new features and examples or instructions on how to use them -->
 
 ## Bug Fixes
-
+- Update the asset optimization notebook with the correct api keys.
 <!-- Here goes notable bug fixes that are worth a special mention or explanation -->
