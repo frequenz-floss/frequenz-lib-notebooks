@@ -129,6 +129,7 @@ def plot_power_flow(
                 line={"color": CHP},
                 fill="tozeroy",
                 opacity=0.5,
+                hovertemplate="<b>CHP</b>: %{y} kW<extra></extra>",
             )
         )
 
@@ -142,6 +143,7 @@ def plot_power_flow(
                 line={"color": PV},
                 fill="tonexty" if data.has_chp else "tozeroy",
                 opacity=0.7,
+                hovertemplate="<b>%{fullData.name}</b>: %{y} kW<extra></extra>",
             )
         )
 
@@ -153,6 +155,7 @@ def plot_power_flow(
                 name="Consumption (base)",
                 line={"color": TRANSPARENT},
                 showlegend=False,
+                hoverinfo="skip",
             )
         )
         fig.add_trace(
@@ -162,6 +165,7 @@ def plot_power_flow(
                 name="Charge",
                 line={"color": CHARGE},
                 opacity=0.2,
+                hovertemplate="<b>Charge</b>: %{y} kW<extra></extra>",
             )
         )
         fig.add_trace(
@@ -171,6 +175,7 @@ def plot_power_flow(
                 name="Consumption (base)",
                 line={"color": TRANSPARENT},
                 showlegend=False,
+                hoverinfo="skip",
             )
         )
         fig.add_trace(
@@ -180,6 +185,7 @@ def plot_power_flow(
                 name="Discharge",
                 line={"color": DISCHARGE},
                 opacity=0.5,
+                hovertemplate="<b>Discharge</b>: %{y} kW<extra></extra>",
             )
         )
 
@@ -190,6 +196,7 @@ def plot_power_flow(
                 y=data.grid,
                 name="Grid",
                 line={"color": GRID},
+                hovertemplate="<b>Grid</b>: %{y} kW<extra></extra>",
             )
         )
 
@@ -199,6 +206,7 @@ def plot_power_flow(
             y=data.consumption,
             name="Consumption",
             line={"color": CONSUMPTION},
+            hovertemplate="<b>Consumption</b>: %{y} kW<extra></extra>",
         )
     )
 
@@ -260,6 +268,7 @@ def plot_energy_trade(
             name="Buy",
             line={"color": BUY, "shape": "hv"},
             fill="tozeroy",
+            hovertemplate="<b>Buy</b>: %{y} kWh<extra></extra>",
         )
     )
     fig.add_trace(
@@ -269,6 +278,7 @@ def plot_energy_trade(
             name="Sell",
             line={"color": SELL, "shape": "hv"},
             fill="tozeroy",
+            hovertemplate="<b>Sell</b>: %{y} kWh<extra></extra>",
         )
     )
 
@@ -313,6 +323,7 @@ def plot_power_flow_trade(df: pd.DataFrame) -> go.Figure:
         template="plotly_white",
         paper_bgcolor="white",
         plot_bgcolor="white",
+        hovermode="x unified",
         margin={"l": 60, "r": 150, "t": 40, "b": 40}, # Increased 'r' for legends
     )
 
@@ -372,6 +383,7 @@ def plot_battery_power(df: pd.DataFrame) -> go.Figure:
             fill="tozeroy",
             opacity=0.4,
             yaxis="y2",
+            hovertemplate="<b>SOC</b>: %{y}%<extra></extra>",
         ),
     )
 
@@ -381,6 +393,7 @@ def plot_battery_power(df: pd.DataFrame) -> go.Figure:
             y=data.available,
             name="Available power",
             line={"color": AVAILABLE},
+            hovertemplate="<b>Available power</b>: %{y} kW<extra></extra>",
         ),
     )
 
@@ -391,6 +404,7 @@ def plot_battery_power(df: pd.DataFrame) -> go.Figure:
             name="Zero",
             line={"color": ZERO_LINE, "dash": "dash"},
             showlegend=False,
+            hoverinfo="skip",
         ),
     )
 
@@ -401,6 +415,7 @@ def plot_battery_power(df: pd.DataFrame) -> go.Figure:
             name="Charge",
             line={"color": CHARGE},
             opacity=0.9,
+            hovertemplate="<b>Charge</b>: %{y} kW<extra></extra>",
         ),
     )
     fig.add_trace(
@@ -410,6 +425,7 @@ def plot_battery_power(df: pd.DataFrame) -> go.Figure:
             name="Discharge",
             line={"color": DISCHARGE, "shape": "hv"},
             opacity=0.9,
+            hovertemplate="<b>Discharge</b>: %{y} kW<extra></extra>",
         ),
     )
 
