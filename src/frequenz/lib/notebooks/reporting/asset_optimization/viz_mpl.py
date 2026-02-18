@@ -136,7 +136,7 @@ def plot_power_flow(
                 x=data.index,
                 y=data.chp,
                 name="CHP",
-                line={"color": CHP},
+                line={"color": CHP, "shape": "hv"},
                 fill="tozeroy",
                 opacity=0.5,
                 hovertemplate="<b>CHP</b>: %{y} kW<extra></extra>",
@@ -150,7 +150,7 @@ def plot_power_flow(
                 x=data.index,
                 y=data.production,
                 name=pv_label,
-                line={"color": PV},
+                line={"color": PV, "shape": "hv"},
                 fill="tonexty" if data.has_chp else "tozeroy",
                 opacity=0.7,
                 hovertemplate="<b>%{fullData.name}</b>: %{y} kW<extra></extra>",
@@ -163,7 +163,7 @@ def plot_power_flow(
                 x=data.index,
                 y=data.consumption,
                 name="Consumption (base)",
-                line={"color": TRANSPARENT},
+                line={"color": TRANSPARENT, "shape": "hv"},
                 showlegend=False,
                 hoverinfo="skip",
             )
@@ -173,7 +173,7 @@ def plot_power_flow(
                 x=data.index,
                 y=data.charge,
                 name="Charge",
-                line={"color": CHARGE},
+                line={"color": CHARGE, "shape": "hv"},
                 opacity=0.2,
                 hovertemplate="<b>Charge</b>: %{y} kW<extra></extra>",
             )
@@ -183,7 +183,7 @@ def plot_power_flow(
                 x=data.index,
                 y=data.consumption,
                 name="Consumption (base)",
-                line={"color": TRANSPARENT},
+                line={"color": TRANSPARENT, "shape": "hv"},
                 showlegend=False,
                 hoverinfo="skip",
             )
@@ -193,7 +193,7 @@ def plot_power_flow(
                 x=data.index,
                 y=data.discharge,
                 name="Discharge",
-                line={"color": DISCHARGE},
+                line={"color": DISCHARGE, "shape": "hv"},
                 opacity=0.5,
                 hovertemplate="<b>Discharge</b>: %{y} kW<extra></extra>",
             )
@@ -205,7 +205,7 @@ def plot_power_flow(
                 x=data.index,
                 y=data.grid,
                 name="Grid",
-                line={"color": GRID},
+                line={"color": GRID, "shape": "hv"},
                 hovertemplate="<b>Grid</b>: %{y} kW<extra></extra>",
             )
         )
@@ -215,7 +215,7 @@ def plot_power_flow(
             x=data.index,
             y=data.consumption,
             name="Consumption",
-            line={"color": CONSUMPTION},
+            line={"color": CONSUMPTION, "shape": "hv"},
             hovertemplate="<b>Consumption</b>: %{y} kW<extra></extra>",
         )
     )
@@ -392,7 +392,7 @@ def plot_battery_power(df: pd.DataFrame) -> go.Figure:
             x=data.index,
             y=data.soc,
             name="SOC",
-            line={"color": SOC},
+            line={"color": SOC, "shape": "hv"},
             fill="tozeroy",
             opacity=0.4,
             yaxis="y2",
@@ -405,7 +405,7 @@ def plot_battery_power(df: pd.DataFrame) -> go.Figure:
             x=data.index,
             y=data.available,
             name="Available power",
-            line={"color": AVAILABLE},
+            line={"color": AVAILABLE, "shape": "hv"},
             hovertemplate="<b>Available power</b>: %{y} kW<extra></extra>",
         ),
     )
@@ -415,7 +415,7 @@ def plot_battery_power(df: pd.DataFrame) -> go.Figure:
             x=data.index,
             y=[0] * len(data.index),
             name="Zero",
-            line={"color": ZERO_LINE, "dash": "dash"},
+            line={"color": ZERO_LINE, "dash": "dash", "shape": "hv"},
             showlegend=False,
             hoverinfo="skip",
         ),
@@ -426,7 +426,7 @@ def plot_battery_power(df: pd.DataFrame) -> go.Figure:
             x=data.index,
             y=data.charge,
             name="Charge",
-            line={"color": CHARGE},
+            line={"color": CHARGE, "shape": "hv"},
             opacity=0.9,
             hovertemplate="<b>Charge</b>: %{y} kW<extra></extra>",
         ),
