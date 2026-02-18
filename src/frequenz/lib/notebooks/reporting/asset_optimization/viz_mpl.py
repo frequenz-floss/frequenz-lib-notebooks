@@ -309,23 +309,43 @@ def plot_energy_trade(
 
 
 def plot_power_flow_trade(df: pd.DataFrame) -> go.Figure:
+    """Create a combined subplot showing power flow and energy trade.
+
+    Builds a two-row Plotly figure with shared x-axis:
+    - The top subplot renders the power-flow visualization.
+    - The bottom subplot renders the corresponding energy-trade visualization.
+
+    Traces from the underlying figures are merged into a single subplot layout and
+    assigned to two separate legends (one per subplot). The figure applies a common
+    layout configuration, axis styling, subplot-specific y-axis titles, and adds a
+    range slider on the lower subplot.
+
+    Args:
+        df: Input DataFrame containing the columns required by ``plot_power_flow``
+            and ``plot_energy_trade``.
+
+    Returns:
+        A Plotly figure containing the stacked power-flow and energy-trade
+        subplots with independent legends and shared time navigation.
+    """
     fig_final = make_subplots(
-            rows=2, cols=1, 
-            shared_xaxes=True,
-            vertical_spacing=0.1,
-            row_heights=[0.75, 0.25],
-        )
+        rows=2,
+        cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.1,
+        row_heights=[0.75, 0.25],
+    )
 
     # Generate standalone figures
     fig_power = plot_power_flow(df)
     fig_trade = plot_energy_trade(df)
 
     for trace in fig_power.data:
-        trace.legend = "legend" 
+        trace.legend = "legend"
         fig_final.add_trace(trace, row=1, col=1)
 
     for trace in fig_trade.data:
-        trace.legend = "legend2" 
+        trace.legend = "legend2"
         fig_final.add_trace(trace, row=2, col=1)
 
     # Apply "Common Layout" Logic manually to the Subplot
@@ -336,7 +356,7 @@ def plot_power_flow_trade(df: pd.DataFrame) -> go.Figure:
         paper_bgcolor="white",
         plot_bgcolor="white",
         hovermode="x unified",
-        margin={"l": 60, "r": 150, "t": 40, "b": 40}, # Increased 'r' for legends
+        margin={"l": 60, "r": 150, "t": 40, "b": 40},  # Increased 'r' for legends
     )
 
     # Apply Multi-Legend Formatting
@@ -351,16 +371,17 @@ def plot_power_flow_trade(df: pd.DataFrame) -> go.Figure:
     # Configure the layout for both legends
     fig_final.update_layout(
         legend={**legend_style, "y": 1, "yanchor": "top", "title": "Power Flow"},
-        legend2={**legend_style, "y": 0.05, "yanchor": "bottom", "title": "Energy Trade"},
+        legend2={
+            **legend_style,
+            "y": 0.05,
+            "yanchor": "bottom",
+            "title": "Energy Trade",
+        },
     )
 
-    fig_final.update_xaxes(
-        showgrid=True, showline=True, mirror=True, linecolor="black"
-    )
+    fig_final.update_xaxes(showgrid=True, showline=True, mirror=True, linecolor="black")
 
-    fig_final.update_yaxes(
-        showgrid=True, showline=True, mirror=True, linecolor="black"
-    )
+    fig_final.update_yaxes(showgrid=True, showline=True, mirror=True, linecolor="black")
 
     # Set Specific Titles
     fig_final.update_yaxes(title_text="Power (kW)", row=1, col=1)
@@ -368,6 +389,7 @@ def plot_power_flow_trade(df: pd.DataFrame) -> go.Figure:
     _apply_range_slider(fig_final, row=2, col=1)
 
     return fig_final
+
 
 def plot_battery_power(df: pd.DataFrame) -> go.Figure:
     """Plot battery power and state of charge (SOC) over time.
