@@ -87,6 +87,16 @@ def _apply_axis_padding(
     )
 
 
+def _apply_range_slider(
+    fig: go.Figure, *, row: int | None = None, col: int | None = None
+) -> None:
+    fig.update_xaxes(
+        rangeslider={"visible": True, "thickness": 0.08},
+        row=row,
+        col=col,
+    )
+
+
 def plot_power_flow(
     df: pd.DataFrame,
     fig: go.Figure | None = None,
@@ -212,6 +222,7 @@ def plot_power_flow(
 
     if row is None:
         _apply_common_layout(fig, y_title="Power (kW)")
+        _apply_range_slider(fig)
 
     y_series = [data.consumption, data.chp, data.production]
     if data.grid is not None:
@@ -284,6 +295,7 @@ def plot_energy_trade(
 
     if row is None:
         _apply_common_layout(fig, y_title="Energy (kWh)")
+        _apply_range_slider(fig)
     y_all = pd.concat([data.buy, data.sell])
     _apply_axis_padding(
         fig,
@@ -353,6 +365,7 @@ def plot_power_flow_trade(df: pd.DataFrame) -> go.Figure:
     # Set Specific Titles
     fig_final.update_yaxes(title_text="Power (kW)", row=1, col=1)
     fig_final.update_yaxes(title_text="Energy (kWh)", row=2, col=1)
+    _apply_range_slider(fig_final, row=2, col=1)
 
     return fig_final
 
@@ -444,6 +457,7 @@ def plot_battery_power(df: pd.DataFrame) -> go.Figure:
     )
 
     _apply_common_layout(fig)
+    _apply_range_slider(fig)
     return fig
 
 
