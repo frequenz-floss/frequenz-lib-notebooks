@@ -7,7 +7,27 @@ import logging
 
 import matplotlib.pyplot as plt
 import pandas as pd
+from matplotlib import colors as mpl_colors
 from matplotlib.axes import Axes
+
+from .viz_colors import (
+    AVAILABLE,
+    BUY,
+    CHARGE,
+    CHP,
+    CONSUMPTION,
+    DISCHARGE,
+    GRID,
+    PV,
+    SELL,
+    SOC,
+    ZERO_LINE,
+)
+from .viz_data import (
+    prepare_battery_power_data,
+    prepare_energy_trade_data,
+    prepare_power_flow_data,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -15,67 +35,70 @@ _logger = logging.getLogger(__name__)
 FIGURE_SIZE = (30, 6.66)  # Default figure size for plots
 
 
-def require_columns(df: pd.DataFrame, *columns: str) -> None:
-    """Ensure that the DataFrame contains the required columns."""
-    missing = [col for col in columns if col not in df.columns]
-    if missing:
-        raise ValueError(f"DataFrame is missing required columns: {', '.join(missing)}")
+def _mpl_color(color: str) -> str | tuple[float, float, float, float]:
+    """Convert shared color strings to matplotlib-friendly formats."""
+    if color.startswith("rgba(") and color.endswith(")"):
+        parts = color[5:-1].split(",")
+        if len(parts) == 4:
+            r, g, b, a = (float(p.strip()) for p in parts)
+            return (r / 255, g / 255, b / 255, a)
+    return mpl_colors.to_rgba(color)
 
 
 def plot_power_flow(df: pd.DataFrame, ax: Axes | None = None) -> None:
     """Plot the power flow of the microgrid."""
-    require_columns(df, "consumption", "battery", "grid")
-    d = -df.copy()
-    i = d.index
-    cons = -d["consumption"].to_numpy()
-
-    has_chp = "chp" in d.columns
-    has_pv = "pv" in d.columns
-    chp = d["chp"] if has_chp else 0 * cons
-    prod = chp + (d["pv"].clip(lower=0) if has_pv else 0)
+    data = prepare_power_flow_data(df)
+    i = data.index
+    cons = data.consumption.to_numpy()
 
     if ax is None:
         fig, ax = plt.subplots(figsize=FIGURE_SIZE)
 
-    if has_pv:
+    if data.has_pv:
+        pv_label = "PV (on CHP)" if data.has_chp else "PV"
         ax.fill_between(
             i,
-            chp,
-            prod,
-            color="gold",
+            data.chp,
+            data.production,
+            color=_mpl_color(PV),
             alpha=0.7,
-            label="PV" + (" (on CHP)" if has_chp else ""),
+            label=pv_label,
         )
-    if has_chp:
-        ax.fill_between(i, chp, color="cornflowerblue", alpha=0.5, label="CHP")
+    if data.has_chp:
+        ax.fill_between(
+            i,
+            data.chp,
+            color=_mpl_color(CHP),
+            alpha=0.5,
+            label="CHP",
+        )
 
-    if "battery" in d.columns:
-        bat_cons = -(d["consumption"].to_numpy() + d["battery"].to_numpy())
-        charge = bat_cons > cons
-        discharge = bat_cons < cons
+    if data.charge is not None and data.discharge is not None:
+        charge_mask = data.charge.notna().tolist()
+        discharge_mask = data.discharge.notna().tolist()
         ax.fill_between(
             i,
             cons,
-            bat_cons,
-            where=charge,
-            color="green",
+            data.charge,
+            where=charge_mask,
+            color=_mpl_color(CHARGE),
             alpha=0.2,
             label="Charge",
         )
         ax.fill_between(
             i,
             cons,
-            bat_cons,
-            where=discharge,
-            color="lightcoral",
+            data.discharge,
+            where=discharge_mask,
+            color=_mpl_color(DISCHARGE),
             alpha=0.5,
             label="Discharge",
         )
 
-    if "grid" in d.columns:
-        ax.plot(i, -d["grid"], color="grey", label="Grid")
+    if data.grid is not None:
+        ax.plot(i, data.grid, color=_mpl_color(GRID), label="Grid")
 
-    ax.plot(i, cons, "k-", label="Consumption")
+    ax.plot(i, cons, color=_mpl_color(CONSUMPTION), label="Consumption")
     ax.set_ylabel("Power [kW]")
     ax.legend()
     ax.grid(True)
@@ -84,29 +107,23 @@ def plot_power_flow(df: pd.DataFrame, ax: Axes | None = None) -> None:
 
 def plot_energy_trade(df: pd.DataFrame, ax: Axes | None = None) -> None:
     """Plot the energy trade of the microgrid."""
-    require_columns(df, "consumption")
-    d = -df.copy()
-    cons = -d["consumption"]
-    trade = cons.copy()
-
-    has_chp = "chp" in d.columns
-    has_pv = "pv" in d.columns
-    chp = d["chp"] if has_chp else 0 * cons
-    prod = chp + (d["pv"].clip(lower=0) if has_pv else 0)
-    trade -= prod
-
-    g = trade.resample("15min").mean() / 4
+    data = prepare_energy_trade_data(df)
 
     if ax is None:
         fig, ax = plt.subplots(figsize=FIGURE_SIZE)
     ax.fill_between(
-        g.index, 0, g.clip(lower=0).to_numpy(), color="darkred", label="Buy", step="pre"
+        data.index,
+        0,
+        data.buy.to_numpy(),
+        color=_mpl_color(BUY),
+        label="Buy",
+        step="pre",
     )
     ax.fill_between(
-        g.index,
+        data.index,
         0,
-        g.clip(upper=0).to_numpy(),
-        color="darkgreen",
+        data.sell.to_numpy(),
+        color=_mpl_color(SELL),
         label="Sell",
         step="pre",
     )
@@ -128,20 +145,20 @@ def plot_power_flow_trade(df: pd.DataFrame) -> None:
 
 def plot_battery_power(df: pd.DataFrame) -> None:
     """Plot the battery power and state of charge (SOC) of the microgrid."""
-    require_columns(df, "battery", "grid", "soc")
+    data = prepare_battery_power_data(df)
 
     fig, ax1 = plt.subplots(figsize=FIGURE_SIZE)
 
     # Plot Battery SOC
     twin_ax = ax1.twinx()
-    assert df["soc"].ndim == 1, "SOC data should be 1D"
-    soc = df["soc"]
+    assert data.soc.ndim == 1, "SOC data should be 1D"
+    soc = data.soc
     twin_ax.grid(False)
     twin_ax.fill_between(
-        df.index,
+        data.index,
         soc.to_numpy() * 0,
         soc.to_numpy(),
-        color="grey",
+        color=_mpl_color(SOC),
         alpha=0.4,
         label="SOC",
     )
@@ -150,47 +167,40 @@ def plot_battery_power(df: pd.DataFrame) -> None:
     twin_ax.tick_params(axis="y", labelcolor="grey", labelsize=14)
 
     # Available power
-    available = df["battery"] - df["grid"]
     ax1.plot(
-        df.index,
-        available,
-        color="black",
+        data.index,
+        data.available,
+        color=_mpl_color(AVAILABLE),
         linestyle="-",
         label="Available power",
         alpha=1,
     )
 
     # Plot Battery Power on primary y-axis
-    ax1.axhline(y=0, color="grey", linestyle="--", alpha=0.5)
+    ax1.axhline(y=0, color=_mpl_color(ZERO_LINE), linestyle="--", alpha=0.5)
     # Make battery power range symmetric
-    max_abs_bat = max(
-        abs(df["battery"].min()),
-        abs(df["battery"].max()),
-        abs(available.min()),
-        abs(available.max()),
-    )
-    ax1.set_ylim(-max_abs_bat * 1.1, max_abs_bat * 1.1)
+    ax1.set_ylim(-data.max_abs_battery * 1.1, data.max_abs_battery * 1.1)
     ax1.set_ylabel("Battery Power", fontsize=14)
     ax1.tick_params(axis="y", labelcolor="black", labelsize=14)
 
     # Fill Battery Power around zero (reverse sign)
     ax1.fill_between(
-        df.index,
+        data.index,
         0,
-        df["battery"],
-        where=(df["battery"].to_numpy() > 0).tolist(),
+        data.battery,
+        where=data.charge.notna().tolist(),
         interpolate=False,
-        color="green",
+        color=_mpl_color(CHARGE),
         alpha=0.9,
         label="Charge",
     )
     ax1.fill_between(
-        df.index,
+        data.index,
         0,
-        df["battery"],
-        where=(df["battery"].to_numpy() <= 0).tolist(),
+        data.battery,
+        where=data.discharge.notna().tolist(),
         interpolate=False,
-        color="red",
+        color=_mpl_color(DISCHARGE),
         alpha=0.9,
         label="Discharge",
     )
