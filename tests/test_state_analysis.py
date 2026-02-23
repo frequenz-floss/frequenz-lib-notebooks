@@ -3,14 +3,16 @@
 
 """Tests for the frequenz.reporting package."""
 
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 import pytest
-from frequenz.client.common.microgrid.components import (
-    ComponentErrorCode,
-    ComponentStateCode,
+from frequenz.client.common.microgrid.electrical_components import (
+    ElectricalComponentDiagnosticCode,
+    ElectricalComponentStateCode,
 )
+from frequenz.client.common.proto import enum_from_proto
 from frequenz.client.reporting._types import MetricSample
 
 from frequenz.lib.notebooks.reporting.state_analysis import (
@@ -19,11 +21,19 @@ from frequenz.lib.notebooks.reporting.state_analysis import (
     _resolve_enum_name,
 )
 
+
+@dataclass(frozen=True)
+class _DiagnosticValue:
+    """Test helper to mimic reporting diagnostic payloads."""
+
+    diagnostic_code: int
+
+
 test_cases_extract_state_durations = [
     {
         "description": "Empty samples",
         "samples": [],
-        "alert_states": [ComponentStateCode.from_proto(1)],  # type: ignore[arg-type]
+        "alert_states": [enum_from_proto(1, ElectricalComponentStateCode)],
         "include_warnings": True,
         "expected_all_states": [],
         "expected_alert_records": [],
@@ -34,7 +44,7 @@ test_cases_extract_state_durations = [
             MetricSample(datetime(2023, 1, 1, 0, 0), 1, "101", "temperature", 25),
             MetricSample(datetime(2023, 1, 1, 1, 0), 1, "101", "humidity", 60),
         ],
-        "alert_states": [ComponentStateCode.from_proto(1)],  # type: ignore[arg-type]
+        "alert_states": [enum_from_proto(1, ElectricalComponentStateCode)],
         "include_warnings": True,
         "expected_all_states": [],
         "expected_alert_records": [],
@@ -45,14 +55,14 @@ test_cases_extract_state_durations = [
             MetricSample(datetime(2023, 1, 1, 0, 0), 1, "101", "state", 0),
             MetricSample(datetime(2023, 1, 1, 1, 0), 1, "101", "state", 1),
         ],
-        "alert_states": [ComponentStateCode.from_proto(1)],  # type: ignore[arg-type]
+        "alert_states": [enum_from_proto(1, ElectricalComponentStateCode)],
         "include_warnings": True,
         "expected_all_states": [
             {
                 "microgrid_id": 1,
                 "component_id": "101",
                 "state_type": "state",
-                "state_value": _resolve_enum_name(0, ComponentStateCode),
+                "state_value": _resolve_enum_name(0, ElectricalComponentStateCode),
                 "start_time": datetime(2023, 1, 1, 0, 0),
                 "end_time": datetime(2023, 1, 1, 1, 0),
             },
@@ -60,7 +70,7 @@ test_cases_extract_state_durations = [
                 "microgrid_id": 1,
                 "component_id": "101",
                 "state_type": "state",
-                "state_value": _resolve_enum_name(1, ComponentStateCode),
+                "state_value": _resolve_enum_name(1, ElectricalComponentStateCode),
                 "start_time": datetime(2023, 1, 1, 1, 0),
                 "end_time": None,
             },
@@ -70,7 +80,7 @@ test_cases_extract_state_durations = [
                 "microgrid_id": 1,
                 "component_id": "101",
                 "state_type": "state",
-                "state_value": _resolve_enum_name(1, ComponentStateCode),
+                "state_value": _resolve_enum_name(1, ElectricalComponentStateCode),
                 "start_time": datetime(2023, 1, 1, 1, 0),
                 "end_time": None,
             },
@@ -81,19 +91,31 @@ test_cases_extract_state_durations = [
         "samples": [
             MetricSample(datetime(2023, 1, 2, 0, 0), 3, "303", "state", 0),
             MetricSample(datetime(2023, 1, 2, 0, 30), 3, "303", "state", 10),
-            MetricSample(datetime(2023, 1, 2, 0, 30), 3, "303", "warning", 10),
+            MetricSample(
+                datetime(2023, 1, 2, 0, 30),
+                3,
+                "303",
+                "warning",
+                cast(Any, _DiagnosticValue(10)),
+            ),
             MetricSample(datetime(2023, 1, 2, 1, 0), 3, "303", "state", 1),
             MetricSample(datetime(2023, 1, 2, 1, 30), 3, "303", "state", 20),
-            MetricSample(datetime(2023, 1, 2, 1, 30), 3, "303", "error", 20),
+            MetricSample(
+                datetime(2023, 1, 2, 1, 30),
+                3,
+                "303",
+                "error",
+                cast(Any, _DiagnosticValue(20)),
+            ),
         ],
-        "alert_states": [ComponentStateCode.from_proto(1)],  # type: ignore[arg-type]
+        "alert_states": [enum_from_proto(1, ElectricalComponentStateCode)],
         "include_warnings": True,
         "expected_all_states": [
             {
                 "microgrid_id": 3,
                 "component_id": "303",
                 "state_type": "state",
-                "state_value": _resolve_enum_name(0, ComponentStateCode),
+                "state_value": _resolve_enum_name(0, ElectricalComponentStateCode),
                 "start_time": datetime(2023, 1, 2, 0, 0),
                 "end_time": datetime(2023, 1, 2, 0, 30),
             },
@@ -101,7 +123,7 @@ test_cases_extract_state_durations = [
                 "microgrid_id": 3,
                 "component_id": "303",
                 "state_type": "state",
-                "state_value": _resolve_enum_name(10, ComponentStateCode),
+                "state_value": _resolve_enum_name(10, ElectricalComponentStateCode),
                 "start_time": datetime(2023, 1, 2, 0, 30),
                 "end_time": datetime(2023, 1, 2, 1, 0),
             },
@@ -109,7 +131,7 @@ test_cases_extract_state_durations = [
                 "microgrid_id": 3,
                 "component_id": "303",
                 "state_type": "state",
-                "state_value": _resolve_enum_name(1, ComponentStateCode),
+                "state_value": _resolve_enum_name(1, ElectricalComponentStateCode),
                 "start_time": datetime(2023, 1, 2, 1, 0),
                 "end_time": datetime(2023, 1, 2, 1, 30),
             },
@@ -117,7 +139,7 @@ test_cases_extract_state_durations = [
                 "microgrid_id": 3,
                 "component_id": "303",
                 "state_type": "state",
-                "state_value": _resolve_enum_name(20, ComponentStateCode),
+                "state_value": _resolve_enum_name(20, ElectricalComponentStateCode),
                 "start_time": datetime(2023, 1, 2, 1, 30),
                 "end_time": None,
             },
@@ -125,7 +147,9 @@ test_cases_extract_state_durations = [
                 "microgrid_id": 3,
                 "component_id": "303",
                 "state_type": "warning",
-                "state_value": _resolve_enum_name(10, ComponentErrorCode),
+                "state_value": _resolve_enum_name(
+                    10, ElectricalComponentDiagnosticCode
+                ),
                 "start_time": datetime(2023, 1, 2, 0, 30),
                 "end_time": datetime(2023, 1, 2, 1, 0),
             },
@@ -135,7 +159,9 @@ test_cases_extract_state_durations = [
                 "microgrid_id": 3,
                 "component_id": "303",
                 "state_type": "warning",
-                "state_value": _resolve_enum_name(10, ComponentErrorCode),
+                "state_value": _resolve_enum_name(
+                    10, ElectricalComponentDiagnosticCode
+                ),
                 "start_time": datetime(2023, 1, 2, 0, 30),
                 "end_time": datetime(2023, 1, 2, 1, 0),
             },
@@ -143,7 +169,7 @@ test_cases_extract_state_durations = [
                 "microgrid_id": 3,
                 "component_id": "303",
                 "state_type": "state",
-                "state_value": _resolve_enum_name(1, ComponentStateCode),
+                "state_value": _resolve_enum_name(1, ElectricalComponentStateCode),
                 "start_time": datetime(2023, 1, 2, 1, 0),
                 "end_time": datetime(2023, 1, 2, 1, 30),
             },
@@ -215,19 +241,25 @@ def test_extract_and_filter_state_records(test_case: dict[str, Any]) -> None:
 @pytest.mark.parametrize(
     "value, enum_class, expected_name",
     [
-        (ComponentStateCode.READY.value, ComponentStateCode, "READY"),
-        (ComponentStateCode.OFF.value, ComponentStateCode, "OFF"),
         (
-            ComponentErrorCode.OVERTEMPERATURE.value,
-            ComponentErrorCode,
+            ElectricalComponentStateCode.READY.value,
+            ElectricalComponentStateCode,
+            "READY",
+        ),
+        (ElectricalComponentStateCode.OFF.value, ElectricalComponentStateCode, "OFF"),
+        (
+            ElectricalComponentDiagnosticCode.OVERTEMPERATURE.value,
+            ElectricalComponentDiagnosticCode,
             "OVERTEMPERATURE",
         ),
-        (ComponentErrorCode.SHORT_CIRCUIT.value, ComponentErrorCode, "SHORT_CIRCUIT"),
-        (9999.0, ComponentStateCode, "UNSPECIFIED"),  # Invalid state code
-        (-8888.0, ComponentErrorCode, "UNSPECIFIED"),  # Invalid error code
+        (
+            ElectricalComponentDiagnosticCode.SHORT_CIRCUIT.value,
+            ElectricalComponentDiagnosticCode,
+            "SHORT_CIRCUIT",
+        ),
     ],
 )
 def test_resolve_enum_name(value: int, enum_class: Any, expected_name: str) -> None:
-    """Test resolving enum names from float values."""
-    result = _resolve_enum_name(float(value), enum_class)
+    """Test resolving enum names from integer values."""
+    result = _resolve_enum_name(value, enum_class)
     assert result == expected_name

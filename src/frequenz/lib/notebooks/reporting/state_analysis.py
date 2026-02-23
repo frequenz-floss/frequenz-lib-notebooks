@@ -5,18 +5,29 @@
 
 import logging
 from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any, Protocol, TypeVar, cast
 
 from frequenz.client.common.metrics import Metric
-from frequenz.client.common.microgrid.components import (
-    ComponentErrorCode,
-    ComponentStateCode,
+from frequenz.client.common.microgrid.electrical_components import (
+    ElectricalComponentDiagnosticCode,
+    ElectricalComponentStateCode,
 )
+from frequenz.client.common.proto import enum_from_proto
 from frequenz.client.reporting import ReportingApiClient
 from frequenz.client.reporting._types import MetricSample
 
 from ._state_records import StateRecord
 
 _logger = logging.getLogger(__name__)
+
+E_co = TypeVar("E_co", bound=Enum, covariant=True)
+
+
+class HasDiagnosticCode(Protocol[E_co]):
+    """Protocol for error/warning values that have a diagnostic code."""
+
+    diagnostic_code: int
 
 
 # pylint: disable-next=too-many-arguments
@@ -28,7 +39,7 @@ async def fetch_and_extract_state_durations(
     start_time: datetime,
     end_time: datetime,
     resampling_period: timedelta | None,
-    alert_states: list[ComponentStateCode],
+    alert_states: list[ElectricalComponentStateCode],
     include_warnings: bool = True,
 ) -> tuple[list[StateRecord], list[StateRecord]]:
     """Fetch data using the Reporting API and extract state durations and alert records.
@@ -44,13 +55,15 @@ async def fetch_and_extract_state_durations(
         end_time: The end date and time for the period.
         resampling_period: The period for resampling the data. If None, data
             will be returned in its original resolution.
-        alert_states: List of ComponentStateCode names that should trigger an alert.
+        alert_states: List of ElectricalComponentStateCode that should trigger
+            an alert.
         include_warnings: Whether to include warning states in the alert records.
 
     Returns:
-        A tuple containing:
-            - A list of StateRecord instances representing the state changes.
-            - A list of StateRecord instances that match the alert criteria.
+        A tuple containing two lists of StateRecord instances:
+            1. All state records representing the state changes.
+            2. Only the alert records that match the specified alert states and
+                warning inclusion criteria.
     """
     samples = await _fetch_component_data(
         client=client,
@@ -104,6 +117,9 @@ def _process_sample_group(
         microgrid_id: ID of the microgrid.
         component_id: ID of the component.
         samples_by_metric: Dict with keys "state", "error", optionally "warning".
+            Note: MetricSample.value Upstream annotation is too narrow (`float`
+            only); actual values may be float | int | objects. Therefore, we need
+            to cast to the expected types to satisfy the type checker.
 
     Returns:
         A list of StateRecord instances representing the state changes and
@@ -114,15 +130,19 @@ def _process_sample_group(
     warning_by_ts = {s.timestamp: s for s in samples_by_metric.get("warning", [])}
 
     records: list[StateRecord] = []
-    state_val = error_val = warning_val = None
+    state_val: int | None = None
+    error_val: HasDiagnosticCode[Any] | None = None
+    warning_val: HasDiagnosticCode[Any] | None = None
     state_start = error_start = warning_start = None
 
     def emit(
         metric: str,
-        val: float,
+        val: int,
         start: datetime | None,
         end: datetime | None,
-        enum_class: type[ComponentStateCode | ComponentErrorCode],
+        enum_class: type[
+            ElectricalComponentStateCode | ElectricalComponentDiagnosticCode
+        ],
     ) -> None:
         """Emit a state record."""
         records.append(
@@ -142,50 +162,80 @@ def _process_sample_group(
         # State change
         if sample.value != state_val:
             if state_val is not None:
-                emit("state", state_val, state_start, ts, ComponentStateCode)
-            state_val = sample.value
+                emit("state", state_val, state_start, ts, ElectricalComponentStateCode)
+            state_val = cast(int, sample.value)
             state_start = ts
 
             # Close error/warning if exiting ERROR
-            if state_val != ComponentStateCode.ERROR.value:
+            if state_val != ElectricalComponentStateCode.ERROR.value:
                 if error_val is not None:
-                    emit("error", error_val, error_start, ts, ComponentErrorCode)
+                    emit(
+                        "error",
+                        error_val.diagnostic_code,
+                        error_start,
+                        ts,
+                        ElectricalComponentDiagnosticCode,
+                    )
                     error_val = error_start = None
                 if warning_val is not None:
-                    emit("warning", warning_val, warning_start, ts, ComponentErrorCode)
+                    emit(
+                        "warning",
+                        warning_val.diagnostic_code,
+                        warning_start,
+                        ts,
+                        ElectricalComponentDiagnosticCode,
+                    )
                     warning_val = warning_start = None
 
         # While in ERROR
-        if state_val == ComponentStateCode.ERROR.value:
+        if state_val == ElectricalComponentStateCode.ERROR.value:
             if ts in error_by_ts:
-                new_err = error_by_ts[ts].value
+                new_err = cast(HasDiagnosticCode[Any], error_by_ts[ts].value)
                 if new_err != error_val:
                     if error_val is not None:
-                        emit("error", error_val, error_start, ts, ComponentErrorCode)
+                        emit(
+                            "error",
+                            error_val.diagnostic_code,
+                            error_start,
+                            ts,
+                            ElectricalComponentDiagnosticCode,
+                        )
                     error_val = new_err
                     error_start = ts
 
             if ts in warning_by_ts:
-                new_warn = warning_by_ts[ts].value
+                new_warn = cast(HasDiagnosticCode[Any], warning_by_ts[ts].value)
                 if new_warn != warning_val:
                     if warning_val is not None:
                         emit(
                             "warning",
-                            warning_val,
+                            warning_val.diagnostic_code,
                             warning_start,
                             ts,
-                            ComponentErrorCode,
+                            ElectricalComponentDiagnosticCode,
                         )
                     warning_val = new_warn
                     warning_start = ts
 
     if state_val is not None:
-        emit("state", state_val, state_start, None, ComponentStateCode)
-    if state_val == ComponentStateCode.ERROR.value:
+        emit("state", state_val, state_start, None, ElectricalComponentStateCode)
+    if state_val == ElectricalComponentStateCode.ERROR.value:
         if error_val is not None:
-            emit("error", error_val, error_start, None, ComponentErrorCode)
+            emit(
+                "error",
+                error_val.diagnostic_code,
+                error_start,
+                None,
+                ElectricalComponentDiagnosticCode,
+            )
         if warning_val is not None:
-            emit("warning", warning_val, warning_start, None, ComponentErrorCode)
+            emit(
+                "warning",
+                warning_val.diagnostic_code,
+                warning_start,
+                None,
+                ElectricalComponentDiagnosticCode,
+            )
     return records
 
 
@@ -199,8 +249,10 @@ def _group_samples_by_component(
         include_warnings: Whether to include warning states in the alert records.
 
     Returns:
-        A dictionary where keys are tuples of (microgrid_id, component_id) and values
-        are dictionaries with metric names as keys and lists of MetricSample as values.
+        A nested dictionary where the first key is a tuple of
+        (microgrid_id, component_id), and the value is another dictionary with
+        keys "state", "error", optionally "warning", mapping to lists of
+        MetricSample instances.
     """
     alert_metrics = {"state", "error"}
     if include_warnings:
@@ -217,32 +269,33 @@ def _group_samples_by_component(
 
 
 def _resolve_enum_name(
-    value: float, enum_class: type[ComponentStateCode | ComponentErrorCode]
+    value: int,
+    enum_class: type[ElectricalComponentStateCode | ElectricalComponentDiagnosticCode],
 ) -> str:
-    """Resolve the name of an enum member from its integer value.
+    """Resolve the name of an enum member.
 
     Args:
-        value: The integer value of the enum.
+        value: The integer value of the enum member to resolve.
         enum_class: The enum class to convert the value to.
 
     Returns:
-        The name of the enum member if it exists, otherwise if the value is invalid,
-        the enum class will return a default value (e.g., "UNSPECIFIED").
+        The name of the enum member corresponding to the given value.
     """
-    result = enum_class.from_proto(int(value))  # type: ignore[arg-type]
+    result = enum_from_proto(value, enum_class, allow_invalid=False)
     return result.name
 
 
 def _filter_alerts(
     all_states: list[StateRecord],
-    alert_states: list[ComponentStateCode],
+    alert_states: list[ElectricalComponentStateCode],
     include_warnings: bool,
 ) -> list[StateRecord]:
     """Identify alert records from all states.
 
     Args:
         all_states: List of all state records.
-        alert_states: List of ComponentStateCode names that should trigger an alert.
+        alert_states: List of ElectricalComponentStateCode that should trigger
+            an alert.
         include_warnings: Whether to include warning states in the alert records.
 
     Returns:
