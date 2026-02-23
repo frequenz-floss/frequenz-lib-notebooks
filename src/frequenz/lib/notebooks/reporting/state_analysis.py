@@ -13,6 +13,7 @@ from frequenz.client.common.microgrid.electrical_components import (
     ElectricalComponentDiagnosticCode,
     ElectricalComponentStateCode,
 )
+from frequenz.client.common.proto import enum_from_proto
 from frequenz.client.reporting import ReportingApiClient
 from frequenz.client.reporting._types import MetricSample
 
@@ -278,10 +279,9 @@ def _resolve_enum_name(
         enum_class: The enum class to convert the value to.
 
     Returns:
-        The name of the enum member if it exists, otherwise if the value is invalid,
-        the enum class will return a default value (e.g., "UNSPECIFIED").
+        The name of the enum member corresponding to the given value.
     """
-    result = enum_class.from_proto(value)  # type: ignore[arg-type]
+    result = enum_from_proto(value, enum_class, allow_invalid=False)
     return result.name
 
 
