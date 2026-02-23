@@ -5,6 +5,8 @@
 
 import logging
 from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any, Protocol, TypeVar, cast
 
 from frequenz.client.common.metrics import Metric
 from frequenz.client.common.microgrid.electrical_components import (
@@ -17,6 +19,14 @@ from frequenz.client.reporting._types import MetricSample
 from ._state_records import StateRecord
 
 _logger = logging.getLogger(__name__)
+
+E_co = TypeVar("E_co", bound=Enum, covariant=True)
+
+
+class HasDiagnosticCode(Protocol[E_co]):
+    """Protocol for error/warning values that have a diagnostic code."""
+
+    diagnostic_code: int
 
 
 # pylint: disable-next=too-many-arguments
@@ -104,6 +114,9 @@ def _process_sample_group(
         microgrid_id: ID of the microgrid.
         component_id: ID of the component.
         samples_by_metric: Dict with keys "state", "error", optionally "warning".
+            Note: MetricSample.value Upstream annotation is too narrow (`float`
+            only); actual values may be float | int | objects. Therefore, we need
+            to cast to the expected types to satisfy the type checker.
 
     Returns:
         A list of StateRecord instances representing the state changes and
@@ -114,12 +127,14 @@ def _process_sample_group(
     warning_by_ts = {s.timestamp: s for s in samples_by_metric.get("warning", [])}
 
     records: list[StateRecord] = []
-    state_val = error_val = warning_val = None
+    state_val: int | None = None
+    error_val: HasDiagnosticCode[Any] | None = None
+    warning_val: HasDiagnosticCode[Any] | None = None
     state_start = error_start = warning_start = None
 
     def emit(
         metric: str,
-        val: float,
+        val: int,
         start: datetime | None,
         end: datetime | None,
         enum_class: type[
@@ -145,7 +160,7 @@ def _process_sample_group(
         if sample.value != state_val:
             if state_val is not None:
                 emit("state", state_val, state_start, ts, ElectricalComponentStateCode)
-            state_val = sample.value
+            state_val = cast(int, sample.value)
             state_start = ts
 
             # Close error/warning if exiting ERROR
@@ -172,7 +187,7 @@ def _process_sample_group(
         # While in ERROR
         if state_val == ElectricalComponentStateCode.ERROR.value:
             if ts in error_by_ts:
-                new_err = error_by_ts[ts].value
+                new_err = cast(HasDiagnosticCode[Any], error_by_ts[ts].value)
                 if new_err != error_val:
                     if error_val is not None:
                         emit(
@@ -186,7 +201,7 @@ def _process_sample_group(
                     error_start = ts
 
             if ts in warning_by_ts:
-                new_warn = warning_by_ts[ts].value
+                new_warn = cast(HasDiagnosticCode[Any], warning_by_ts[ts].value)
                 if new_warn != warning_val:
                     if warning_val is not None:
                         emit(
@@ -249,13 +264,13 @@ def _group_samples_by_component(
 
 
 def _resolve_enum_name(
-    value: float,
+    value: int,
     enum_class: type[ElectricalComponentStateCode | ElectricalComponentDiagnosticCode],
 ) -> str:
     """Resolve the name of an enum member from its integer value.
 
     Args:
-        value: The integer value of the enum.
+        value: The integer value of the enum member to resolve.
         enum_class: The enum class to convert the value to.
 
     Returns:
