@@ -7,9 +7,9 @@ import logging
 from datetime import datetime, timedelta
 
 from frequenz.client.common.metrics import Metric
-from frequenz.client.common.microgrid.components import (
-    ComponentErrorCode,
-    ComponentStateCode,
+from frequenz.client.common.microgrid.electrical_components import (
+    ElectricalComponentDiagnosticCode,
+    ElectricalComponentStateCode,
 )
 from frequenz.client.reporting import ReportingApiClient
 from frequenz.client.reporting._types import MetricSample
@@ -28,7 +28,7 @@ async def fetch_and_extract_state_durations(
     start_time: datetime,
     end_time: datetime,
     resampling_period: timedelta | None,
-    alert_states: list[ComponentStateCode],
+    alert_states: list[ElectricalComponentStateCode],
     include_warnings: bool = True,
 ) -> tuple[list[StateRecord], list[StateRecord]]:
     """Fetch data using the Reporting API and extract state durations and alert records.
@@ -122,7 +122,9 @@ def _process_sample_group(
         val: float,
         start: datetime | None,
         end: datetime | None,
-        enum_class: type[ComponentStateCode | ComponentErrorCode],
+        enum_class: type[
+            ElectricalComponentStateCode | ElectricalComponentDiagnosticCode
+        ],
     ) -> None:
         """Emit a state record."""
         records.append(
@@ -142,26 +144,44 @@ def _process_sample_group(
         # State change
         if sample.value != state_val:
             if state_val is not None:
-                emit("state", state_val, state_start, ts, ComponentStateCode)
+                emit("state", state_val, state_start, ts, ElectricalComponentStateCode)
             state_val = sample.value
             state_start = ts
 
             # Close error/warning if exiting ERROR
-            if state_val != ComponentStateCode.ERROR.value:
+            if state_val != ElectricalComponentStateCode.ERROR.value:
                 if error_val is not None:
-                    emit("error", error_val, error_start, ts, ComponentErrorCode)
+                    emit(
+                        "error",
+                        error_val.diagnostic_code,
+                        error_start,
+                        ts,
+                        ElectricalComponentDiagnosticCode,
+                    )
                     error_val = error_start = None
                 if warning_val is not None:
-                    emit("warning", warning_val, warning_start, ts, ComponentErrorCode)
+                    emit(
+                        "warning",
+                        warning_val.diagnostic_code,
+                        warning_start,
+                        ts,
+                        ElectricalComponentDiagnosticCode,
+                    )
                     warning_val = warning_start = None
 
         # While in ERROR
-        if state_val == ComponentStateCode.ERROR.value:
+        if state_val == ElectricalComponentStateCode.ERROR.value:
             if ts in error_by_ts:
                 new_err = error_by_ts[ts].value
                 if new_err != error_val:
                     if error_val is not None:
-                        emit("error", error_val, error_start, ts, ComponentErrorCode)
+                        emit(
+                            "error",
+                            error_val.diagnostic_code,
+                            error_start,
+                            ts,
+                            ElectricalComponentDiagnosticCode,
+                        )
                     error_val = new_err
                     error_start = ts
 
@@ -171,21 +191,33 @@ def _process_sample_group(
                     if warning_val is not None:
                         emit(
                             "warning",
-                            warning_val,
+                            warning_val.diagnostic_code,
                             warning_start,
                             ts,
-                            ComponentErrorCode,
+                            ElectricalComponentDiagnosticCode,
                         )
                     warning_val = new_warn
                     warning_start = ts
 
     if state_val is not None:
-        emit("state", state_val, state_start, None, ComponentStateCode)
-    if state_val == ComponentStateCode.ERROR.value:
+        emit("state", state_val, state_start, None, ElectricalComponentStateCode)
+    if state_val == ElectricalComponentStateCode.ERROR.value:
         if error_val is not None:
-            emit("error", error_val, error_start, None, ComponentErrorCode)
+            emit(
+                "error",
+                error_val.diagnostic_code,
+                error_start,
+                None,
+                ElectricalComponentDiagnosticCode,
+            )
         if warning_val is not None:
-            emit("warning", warning_val, warning_start, None, ComponentErrorCode)
+            emit(
+                "warning",
+                warning_val.diagnostic_code,
+                warning_start,
+                None,
+                ElectricalComponentDiagnosticCode,
+            )
     return records
 
 
@@ -217,7 +249,8 @@ def _group_samples_by_component(
 
 
 def _resolve_enum_name(
-    value: float, enum_class: type[ComponentStateCode | ComponentErrorCode]
+    value: float,
+    enum_class: type[ElectricalComponentStateCode | ElectricalComponentDiagnosticCode],
 ) -> str:
     """Resolve the name of an enum member from its integer value.
 
@@ -229,13 +262,13 @@ def _resolve_enum_name(
         The name of the enum member if it exists, otherwise if the value is invalid,
         the enum class will return a default value (e.g., "UNSPECIFIED").
     """
-    result = enum_class.from_proto(int(value))  # type: ignore[arg-type]
+    result = enum_class.from_proto(value)  # type: ignore[arg-type]
     return result.name
 
 
 def _filter_alerts(
     all_states: list[StateRecord],
-    alert_states: list[ComponentStateCode],
+    alert_states: list[ElectricalComponentStateCode],
     include_warnings: bool,
 ) -> list[StateRecord]:
     """Identify alert records from all states.
