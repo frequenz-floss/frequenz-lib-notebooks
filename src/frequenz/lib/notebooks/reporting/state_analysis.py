@@ -54,13 +54,15 @@ async def fetch_and_extract_state_durations(
         end_time: The end date and time for the period.
         resampling_period: The period for resampling the data. If None, data
             will be returned in its original resolution.
-        alert_states: List of ComponentStateCode names that should trigger an alert.
+        alert_states: List of ElectricalComponentStateCode that should trigger
+            an alert.
         include_warnings: Whether to include warning states in the alert records.
 
     Returns:
-        A tuple containing:
-            - A list of StateRecord instances representing the state changes.
-            - A list of StateRecord instances that match the alert criteria.
+        A tuple containing two lists of StateRecord instances:
+            1. All state records representing the state changes.
+            2. Only the alert records that match the specified alert states and
+                warning inclusion criteria.
     """
     samples = await _fetch_component_data(
         client=client,
@@ -246,8 +248,10 @@ def _group_samples_by_component(
         include_warnings: Whether to include warning states in the alert records.
 
     Returns:
-        A dictionary where keys are tuples of (microgrid_id, component_id) and values
-        are dictionaries with metric names as keys and lists of MetricSample as values.
+        A nested dictionary where the first key is a tuple of
+        (microgrid_id, component_id), and the value is another dictionary with
+        keys "state", "error", optionally "warning", mapping to lists of
+        MetricSample instances.
     """
     alert_metrics = {"state", "error"}
     if include_warnings:
@@ -267,7 +271,7 @@ def _resolve_enum_name(
     value: int,
     enum_class: type[ElectricalComponentStateCode | ElectricalComponentDiagnosticCode],
 ) -> str:
-    """Resolve the name of an enum member from its integer value.
+    """Resolve the name of an enum member.
 
     Args:
         value: The integer value of the enum member to resolve.
@@ -290,7 +294,8 @@ def _filter_alerts(
 
     Args:
         all_states: List of all state records.
-        alert_states: List of ComponentStateCode names that should trigger an alert.
+        alert_states: List of ElectricalComponentStateCode that should trigger
+            an alert.
         include_warnings: Whether to include warning states in the alert records.
 
     Returns:
