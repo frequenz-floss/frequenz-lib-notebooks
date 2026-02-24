@@ -129,6 +129,7 @@ def plot_time_series(
                 y=pdf[col],
                 mode="lines",
                 name=col,
+                hovertemplate=f"<b>{col}</b>: %{{y}} {yaxis_title}<extra></extra>",
                 line=dict(
                     color=line_color,
                     shape="hv",
@@ -181,6 +182,7 @@ def plot_time_series(
         legend=dict(title=dict(text=legend_title), traceorder="normal"),
         xaxis_title=xaxis_title,
         yaxis_title=yaxis_title,
+        hovermode="x unified",
         template="plotly_white",
     )
     return fig
