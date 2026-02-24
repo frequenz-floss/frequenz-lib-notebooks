@@ -165,7 +165,7 @@ def plot_time_series(
                 bgcolor="rgba(0,0,0,0)",  # Transparent background
                 activecolor="#2C7BE5",  # Highlight color for active button
                 font=dict(size=12),
-                x=0.65,
+                x=0,
                 xanchor="left",
                 y=1.05,
                 yanchor="top",
