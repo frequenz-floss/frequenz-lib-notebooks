@@ -6,8 +6,23 @@
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+from matplotlib import colors as mcolors
 
 from frequenz.lib.notebooks.reporting.utils.helpers import build_color_map, long_to_wide
+
+
+def _with_alpha(color: str | None, alpha: float) -> str | None:
+    """Return color as rgba string with the given alpha, or None if invalid."""
+    if not color:
+        return None
+    try:
+        r, g, b, _ = mcolors.to_rgba(color)
+    except ValueError:
+        return None
+    r255 = int(round(r * 255))
+    g255 = int(round(g * 255))
+    b255 = int(round(b * 255))
+    return f"rgba({r255},{g255},{b255},{alpha:.3f})"
 
 
 # pylint: disable=too-many-arguments, too-many-positional-arguments,
@@ -98,11 +113,9 @@ def plot_time_series(
 
     # Add one line trace per column
     for i, col in enumerate(cols):
-        fill_mode = "tonextx" if col in fill_cols else "none"
+        fill_mode = "tozeroy" if col in fill_cols else "none"
         line_color = color_map.get(col)
-        fill_color = (
-            line_color.replace("1)", "0.3)") if isinstance(line_color, str) else None
-        )
+        fill_color = _with_alpha(line_color, 0.9)
 
         fig.add_trace(
             go.Scatter(

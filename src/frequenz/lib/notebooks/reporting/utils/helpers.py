@@ -57,6 +57,7 @@ from frequenz.lib.notebooks.reporting.metrics.reporting_metrics import (
     production_self_consumption,
     production_self_share,
 )
+from frequenz.lib.notebooks.reporting.utils.colors import COLOR_DICT
 
 AggregatedComponentConfig = Mapping[str, tuple[str, str]]
 
@@ -642,13 +643,13 @@ def build_color_map(
     """Generate a color mapping for columns or categories.
 
     Creates a mapping from column names (or categorical labels) to color
-    values. If user-specified colors are provided via `color_dict`, those
-    are applied first. Remaining columns are assigned distinct colors from
-    a chosen palette, ensuring no duplicates.
+    values. Default colors are sourced from the in-code color dictionary
+    and can be overridden via `color_dict`. Remaining columns are assigned
+    distinct colors from a chosen palette, ensuring no duplicates.
 
     Args:
         cols: List of column names or category labels to assign colors to.
-        color_dict: Optional dictionary of pre-defined color mappings.
+        color_dict: Optional dictionary of color mappings to override defaults.
             Columns found here are assigned these colors directly.
         palette: Optional list of color codes to use as defaults.
             If None, a combined Plotly qualitative palette is used.
@@ -673,13 +674,16 @@ def build_color_map(
     final = {}
     used = set()
 
-    # First assign user-provided colors
+    # First assign default colors, then override with user-provided
+    merged_color_dict = COLOR_DICT
     if color_dict:
-        for c, v in color_dict.items():
-            if c in cols:
-                rgba = to_rgba_str(v)
-                final[c] = rgba
-                used.add(rgba)
+        merged_color_dict = {**merged_color_dict, **color_dict}
+
+    for c, v in merged_color_dict.items():
+        if c in cols:
+            rgba = to_rgba_str(v)
+            final[c] = rgba
+            used.add(rgba)
 
     # Then assign defaults, skipping already-used colors
     palette_iter = iter(palette * (len(cols) // len(palette) + 1))
