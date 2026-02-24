@@ -11,7 +11,8 @@
 ## New Features
 
 <!-- Here goes the main new features and examples or instructions on how to use them -->
+- `build_color_map` now sources default colors from the in-code color dictionary rather than a YAML file.
 
 ## Bug Fixes
 
-Fix state analysis to support new `ElectricalComponent*Code` enums and diagnostic code handling.
+- Added `normalize_date_for_report` to return current time for today, midnight for past dates, and reject future dates.
