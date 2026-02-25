@@ -525,7 +525,52 @@ def set_date_to_midnight(
         )
         tz = ZoneInfo("UTC")
 
-    return tz.localize(datetime.combine(input_date, time.min))
+    return datetime.combine(input_date, time.min).replace(tzinfo=tz)
+
+
+def normalize_date_for_reporting(
+    input_date: date | datetime, timezone_name: str = "UTC"
+) -> datetime:
+    """Return midnight for past dates or current time for today.
+
+    If the input date is today (in the target timezone), this returns the
+    current time in that timezone. If the date is in the future, a ValueError
+    is raised to prevent selecting future dates. For past dates, midnight is
+    returned via ``set_date_to_midnight``.
+
+    Args:
+        input_date: Date or datetime object to evaluate.
+        timezone_name: Name of the target timezone (e.g., "Europe/Berlin").
+            Defaults to "UTC". Falls back to UTC if the timezone name
+            is invalid.
+
+    Returns:
+        A timezone-aware datetime object representing the current time
+        when the input date is today, or midnight for past dates.
+
+    Raises:
+        ValueError: If the input date is in the future.
+    """
+    input_day = input_date.date() if isinstance(input_date, datetime) else input_date
+
+    try:
+        tz = ZoneInfo(timezone_name)
+    except (ZoneInfoNotFoundError, KeyError):
+        warnings.warn(
+            f"Unknown timezone '{timezone_name}', falling back to UTC.",
+            RuntimeWarning,
+        )
+        tz = ZoneInfo("UTC")
+
+    now = datetime.now(tz)
+    today = now.date()
+
+    if input_day > today:
+        raise ValueError("Future dates can't be selected.")
+    if input_day == today:
+        return now
+
+    return set_date_to_midnight(input_date, timezone_name)
 
 
 AggFuncLiteral = Literal[
