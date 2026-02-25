@@ -39,11 +39,11 @@ from __future__ import annotations
 import warnings
 from datetime import date, datetime, time
 from typing import Any, Literal, Mapping, cast
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import matplotlib.colors as mcolors
 import pandas as pd
 import plotly.express as px
-import pytz
 import yaml
 from frequenz.gridpool import MicrogridConfig
 
@@ -517,13 +517,13 @@ def set_date_to_midnight(
         input_date = input_date.date()
 
     try:
-        tz = pytz.timezone(timezone_name)
-    except pytz.UnknownTimeZoneError:
+        tz = ZoneInfo(timezone_name)
+    except (ZoneInfoNotFoundError, KeyError):
         warnings.warn(
             f"Unknown timezone '{timezone_name}', falling back to UTC.",
             RuntimeWarning,
         )
-        tz = pytz.UTC
+        tz = ZoneInfo("UTC")
 
     return tz.localize(datetime.combine(input_date, time.min))
 

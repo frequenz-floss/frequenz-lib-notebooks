@@ -44,7 +44,6 @@ dependencies = [
   "types-pyyaml>=6.0.12.20250915",
   "marshmallow>=4.1.0,<5",
   "pyyaml>=6.0.3",
-  "pytz>=2025.2",
 ]
 dynamic = ["version"]
 

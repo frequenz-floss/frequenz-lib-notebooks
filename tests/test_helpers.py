@@ -8,10 +8,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime
 from typing import cast
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import pytest
-import pytz
 from frequenz.gridpool import MicrogridConfig
 from pandas.testing import assert_frame_equal, assert_series_equal
 
@@ -153,20 +153,19 @@ def test_label_component_columns_applies_expected_prefixes() -> None:
 def test_set_date_to_midnight_creates_timezone_aware_midnight() -> None:
     """Date and datetime inputs both produce midnight timestamps in the target TZ."""
     result_date = set_date_to_midnight(date(2024, 5, 1), "Europe/Berlin")
-    expected_date = pytz.timezone("Europe/Berlin").localize(datetime(2024, 5, 1))
+    expected_date = datetime(2024, 5, 1, tzinfo=ZoneInfo("Europe/Berlin"))
     assert result_date == expected_date
 
     noon_input = datetime(2024, 5, 2, 12, 30)
     result_datetime = set_date_to_midnight(noon_input, "UTC")
-    tz_utc = pytz.timezone("UTC")
-    assert result_datetime == tz_utc.localize(datetime(2024, 5, 2))
+    assert result_datetime == datetime(2024, 5, 2, tzinfo=ZoneInfo("UTC"))
 
 
 def test_set_date_to_midnight_unknown_timezone_warns_and_falls_back() -> None:
     """Unknown timezone name triggers a warning and falls back to UTC."""
     with pytest.warns(RuntimeWarning):
         result = set_date_to_midnight(date(2024, 6, 1), "Invalid/Zone")
-    assert result == pytz.timezone("UTC").localize(datetime(2024, 6, 1))
+    assert result == datetime(2024, 6, 1, tzinfo=ZoneInfo("UTC"))
 
 
 def test_long_to_wide_pivots_and_adds_sum_column() -> None:
