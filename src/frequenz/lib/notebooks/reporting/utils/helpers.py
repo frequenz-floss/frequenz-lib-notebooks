@@ -39,11 +39,11 @@ from __future__ import annotations
 import warnings
 from datetime import date, datetime, time
 from typing import Any, Literal, Mapping, cast
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import matplotlib.colors as mcolors
 import pandas as pd
 import plotly.express as px
-import pytz
 import yaml
 from frequenz.gridpool import MicrogridConfig
 
@@ -57,6 +57,7 @@ from frequenz.lib.notebooks.reporting.metrics.reporting_metrics import (
     production_self_consumption,
     production_self_share,
 )
+from frequenz.lib.notebooks.reporting.utils.colors import COLOR_DICT
 
 AggregatedComponentConfig = Mapping[str, tuple[str, str]]
 
@@ -517,15 +518,60 @@ def set_date_to_midnight(
         input_date = input_date.date()
 
     try:
-        tz = pytz.timezone(timezone_name)
-    except pytz.UnknownTimeZoneError:
+        tz = ZoneInfo(timezone_name)
+    except (ZoneInfoNotFoundError, KeyError):
         warnings.warn(
             f"Unknown timezone '{timezone_name}', falling back to UTC.",
             RuntimeWarning,
         )
-        tz = pytz.UTC
+        tz = ZoneInfo("UTC")
 
-    return tz.localize(datetime.combine(input_date, time.min))
+    return datetime.combine(input_date, time.min).replace(tzinfo=tz)
+
+
+def normalize_date_for_reporting(
+    input_date: date | datetime, timezone_name: str = "UTC"
+) -> datetime:
+    """Return midnight for past dates or current time for today.
+
+    If the input date is today (in the target timezone), this returns the
+    current time in that timezone. If the date is in the future, a ValueError
+    is raised to prevent selecting future dates. For past dates, midnight is
+    returned via ``set_date_to_midnight``.
+
+    Args:
+        input_date: Date or datetime object to evaluate.
+        timezone_name: Name of the target timezone (e.g., "Europe/Berlin").
+            Defaults to "UTC". Falls back to UTC if the timezone name
+            is invalid.
+
+    Returns:
+        A timezone-aware datetime object representing the current time
+        when the input date is today, or midnight for past dates.
+
+    Raises:
+        ValueError: If the input date is in the future.
+    """
+    input_day = input_date.date() if isinstance(input_date, datetime) else input_date
+
+    try:
+        tz = ZoneInfo(timezone_name)
+    except (ZoneInfoNotFoundError, KeyError):
+        warnings.warn(
+            f"Unknown timezone '{timezone_name}', falling back to UTC.",
+            RuntimeWarning,
+        )
+        tz = ZoneInfo("UTC")
+
+    now = datetime.now(tz)
+    today = now.date()
+
+    if input_day > today:
+        raise ValueError("Future dates can't be selected.")
+    if input_day == today:
+        return now
+
+    return set_date_to_midnight(input_date, timezone_name)
 
 
 AggFuncLiteral = Literal[
@@ -597,13 +643,13 @@ def build_color_map(
     """Generate a color mapping for columns or categories.
 
     Creates a mapping from column names (or categorical labels) to color
-    values. If user-specified colors are provided via `color_dict`, those
-    are applied first. Remaining columns are assigned distinct colors from
-    a chosen palette, ensuring no duplicates.
+    values. Default colors are sourced from the in-code color dictionary
+    and can be overridden via `color_dict`. Remaining columns are assigned
+    distinct colors from a chosen palette, ensuring no duplicates.
 
     Args:
         cols: List of column names or category labels to assign colors to.
-        color_dict: Optional dictionary of pre-defined color mappings.
+        color_dict: Optional dictionary of color mappings to override defaults.
             Columns found here are assigned these colors directly.
         palette: Optional list of color codes to use as defaults.
             If None, a combined Plotly qualitative palette is used.
@@ -628,13 +674,16 @@ def build_color_map(
     final = {}
     used = set()
 
-    # First assign user-provided colors
+    # First assign default colors, then override with user-provided
+    merged_color_dict = COLOR_DICT
     if color_dict:
-        for c, v in color_dict.items():
-            if c in cols:
-                rgba = to_rgba_str(v)
-                final[c] = rgba
-                used.add(rgba)
+        merged_color_dict = {**merged_color_dict, **color_dict}
+
+    for c, v in merged_color_dict.items():
+        if c in cols:
+            rgba = to_rgba_str(v)
+            final[c] = rgba
+            used.add(rgba)
 
     # Then assign defaults, skipping already-used colors
     palette_iter = iter(palette * (len(cols) // len(palette) + 1))

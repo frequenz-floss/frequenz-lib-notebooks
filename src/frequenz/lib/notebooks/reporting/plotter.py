@@ -6,8 +6,23 @@
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+from matplotlib import colors as mcolors
 
 from frequenz.lib.notebooks.reporting.utils.helpers import build_color_map, long_to_wide
+
+
+def _with_alpha(color: str | None, alpha: float) -> str | None:
+    """Return color as rgba string with the given alpha, or None if invalid."""
+    if not color:
+        return None
+    try:
+        r, g, b, _ = mcolors.to_rgba(color)
+    except ValueError:
+        return None
+    r255 = int(round(r * 255))
+    g255 = int(round(g * 255))
+    b255 = int(round(b * 255))
+    return f"rgba({r255},{g255},{b255},{alpha:.3f})"
 
 
 # pylint: disable=too-many-arguments, too-many-positional-arguments,
@@ -25,6 +40,7 @@ def plot_time_series(
     category_col: str | None = None,
     value_col: str | None = None,
     fill_cols: list[str] | None = None,
+    dotted_cols: list[str] | None = None,
     plot_order: list[str] | None = None,
 ) -> go.Figure:
     """Create an interactive time-series plot using Plotly.
@@ -53,6 +69,8 @@ def plot_time_series(
             format. Used only if `long_format_flag=True`.
         fill_cols: List of column names to plot as filled areas under the curve.
             Defaults to None (no fill).
+        dotted_cols: List of column names to render with dotted lines.
+            Defaults to None (no dotted lines).
         plot_order: Optional list specifying the order of columns to plot. If None,
             the order in `cols` is used.
 
@@ -95,14 +113,15 @@ def plot_time_series(
     # Check if fill_cols is provided
     if fill_cols is None:
         fill_cols = []
+    if dotted_cols is None:
+        dotted_cols = []
+    dotted_set = set(dotted_cols)
 
     # Add one line trace per column
     for i, col in enumerate(cols):
-        fill_mode = "tonextx" if col in fill_cols else "none"
+        fill_mode = "tozeroy" if col in fill_cols else "none"
         line_color = color_map.get(col)
-        fill_color = (
-            line_color.replace("1)", "0.3)") if isinstance(line_color, str) else None
-        )
+        fill_color = _with_alpha(line_color, 0.9)
 
         fig.add_trace(
             go.Scatter(
@@ -110,7 +129,12 @@ def plot_time_series(
                 y=pdf[col],
                 mode="lines",
                 name=col,
-                line=dict(color=line_color, shape="hv"),
+                hovertemplate=f"<b>{col}</b>: %{{y}} {yaxis_title}<extra></extra>",
+                line=dict(
+                    color=line_color,
+                    shape="hv",
+                    dash="dot" if col in dotted_set else "solid",
+                ),
                 fill=fill_mode,
                 fillcolor=fill_color,
                 legendrank=rank_map.get(col, 10_000 + i),
@@ -142,7 +166,7 @@ def plot_time_series(
                 bgcolor="rgba(0,0,0,0)",  # Transparent background
                 activecolor="#2C7BE5",  # Highlight color for active button
                 font=dict(size=12),
-                x=0.65,
+                x=0,
                 xanchor="left",
                 y=1.05,
                 yanchor="top",
@@ -158,6 +182,7 @@ def plot_time_series(
         legend=dict(title=dict(text=legend_title), traceorder="normal"),
         xaxis_title=xaxis_title,
         yaxis_title=yaxis_title,
+        hovermode="x unified",
         template="plotly_white",
     )
     return fig
