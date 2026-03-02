@@ -10,7 +10,7 @@ statistical metrics, segment and analyse the data, and transform weather feature
 
 import logging
 import re
-from typing import Any, Callable, cast
+from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
 import numpy as np
@@ -135,13 +135,9 @@ def preprocess_data(
 
     # Compute the energy consumed
     time_diff_series = df.index.to_series().diff()
-
-    # Cast the result of .diff() to Series[pd.Timedelta]
-    time_diff_timedelta_series = cast(pd.Series, time_diff_series)
     time_diff_seconds_arr = (
-        time_diff_timedelta_series.dt.total_seconds()
+        time_diff_series.dt.total_seconds()
     )  # divide by 3600 for hours
-
     time_diff_seconds_series = time_diff_seconds_arr[
         time_diff_seconds_arr.notna() & (time_diff_seconds_arr != 0)
     ]
