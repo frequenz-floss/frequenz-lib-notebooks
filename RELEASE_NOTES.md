@@ -11,8 +11,7 @@
 ## New Features
 
 <!-- Here goes the main new features and examples or instructions on how to use them -->
-- `build_color_map` now sources default colors from the in-code color dictionary rather than a YAML file.
+- Added production self-usage metrics to reporting flows and aggregations (`production_self_usage`, `production_self_share`).
 
 ## Bug Fixes
 
-- Added `normalize_date_for_report` to return current time for today, midnight for past dates, and reject future dates.
