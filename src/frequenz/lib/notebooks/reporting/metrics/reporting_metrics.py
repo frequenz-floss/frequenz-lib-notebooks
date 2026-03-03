@@ -183,7 +183,7 @@ def production_self_consumption(
     return result
 
 
-def production_self_share(
+def production_self_usage(
     production: pd.Series, consumption: pd.Series, production_is_positive: bool = False
 ) -> pd.Series:
     """Calculate the self-consumption share of total consumption.
@@ -208,6 +208,40 @@ def production_self_share(
     denom = denom.mask(denom <= 0)  # NaN when consumption <= 0
     share = production_self_use.astype("float64") / denom
     return share
+
+
+def production_self_share(
+    production: pd.Series, consumption: pd.Series, production_is_positive: bool = False
+) -> pd.Series:
+    """Compute the self-consumption share relative to total production.
+
+    Calculates the fraction of total production that is directly self-consumed.
+    The denominator is the positive production portion (after applying the
+    sign convention), and values are masked to ``NaN`` where production is
+    zero or negative to avoid invalid divisions.
+
+    Args:
+        production:
+            Series of production power values (e.g., kW).
+        consumption:
+            Series of consumption power values (same unit as ``production``).
+        production_is_positive:
+            Whether production values are already positive. If ``False``,
+            the production series is inverted before clipping to its
+            positive (productive) portion.
+
+    Returns:
+        Series of self-consumption share values (typically between 0 and 1).
+        Returns ``NaN`` for timestamps where total production is zero or negative.
+    """
+    production_self_use = production_self_consumption(
+        production, consumption, production_is_positive=production_is_positive
+    )
+    denom = asset_production(
+        production, production_is_positive=production_is_positive
+    ).astype("float64")
+    denom = denom.mask(denom <= 0)  # NaN when production <= 0
+    return production_self_use.astype("float64") / denom
 
 
 def consumption(
