@@ -77,14 +77,45 @@ def test_production_self_consumption_warns_on_negative_values() -> None:
     assert_series_equal(result, expected)
 
 
-def test_production_self_share_masks_zero_or_negative_consumption() -> None:
-    """Self-consumption share returns NaN where consumption is not positive."""
-    production = pd.Series([-4.0, -2.0], index=pd.RangeIndex(2))
-    consumption = pd.Series([3.0, 0.0], index=production.index)
+def test_production_self_share_masks_zero_or_negative_production() -> None:
+    """Self-consumption share returns NaN where production is not positive."""
+    production = pd.Series([-4.0, 0.0], index=pd.RangeIndex(2))
+    consumption = pd.Series([3.0, 3.0], index=production.index)
 
     result = metrics.production_self_share(production, consumption)
-    expected = pd.Series([1.0, float("nan")], index=production.index)
+    expected = pd.Series([0.75, float("nan")], index=production.index)
     assert_series_equal(result, expected)
+
+
+def test_production_self_usage_masks_zero_or_negative_consumption() -> None:
+    """Self-usage returns NaN where consumption is not positive."""
+    production = pd.Series([-4.0, -2.0], index=pd.RangeIndex(2))
+    consumption = pd.Series([0.0, -1.0], index=production.index)
+
+    with pytest.warns(UserWarning):
+        result = metrics.production_self_usage(production, consumption)
+    expected = pd.Series([float("nan"), float("nan")], index=production.index)
+    assert_series_equal(result, expected)
+
+
+def test_production_self_usage_computes_expected_values() -> None:
+    """Self-usage computes expected ratios with PSC inputs."""
+    production = pd.Series([-10.0, -5.0], index=pd.RangeIndex(2))
+    consumption = pd.Series([8.0, 2.0], index=production.index)
+
+    usage = metrics.production_self_usage(production, consumption)
+    expected = pd.Series([1.0, 1.0], index=production.index)
+    assert_series_equal(usage, expected)
+
+
+def test_production_self_share_computes_expected_values() -> None:
+    """Self-share computes expected ratios with PSC inputs."""
+    production = pd.Series([-10.0, -5.0], index=pd.RangeIndex(2))
+    consumption = pd.Series([8.0, 2.0], index=production.index)
+
+    share = metrics.production_self_share(production, consumption)
+    expected = pd.Series([0.8, 0.4], index=production.index)
+    assert_series_equal(share, expected)
 
 
 def test_consumption_infers_total_and_sets_series_name() -> None:
