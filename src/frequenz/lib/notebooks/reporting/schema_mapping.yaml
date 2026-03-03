@@ -94,15 +94,25 @@ columns:
       de: "Menge der Energie, die direkt vor Ort verbraucht wird."
     implementation: "reporting_metrics.py::prod_self_consumption"
 
-  prod_self_share:
-    raw: "prod_self_share"
+  production_self_share:
+    raw: "production_self_share"
+    display:
+      en: "Self-Production Share"
+      de: "Autarkiegrad"
+    description:
+      en: "Share of self-used production to total production."
+      de: "Anteil der Eigenproduktion am Gesamtverbrauch."
+    implementation: "reporting_metrics.py::production_self_share"
+
+  production_self_usage:
+    raw: "production_self_usage"
     display:
       en: "Self-Consumption Share"
       de: "Eigenverbrauchsanteil"
     description:
-      en: "Share of total consumption covered by production."
-      de: "Anteil des Gesamtverbrauchs, der durch Produktion gedeckt wird."
-    implementation: "reporting_metrics.py::prod_self_share"
+      en: "Share of self-used production to total consumption."
+      de: "Anteil der selbstgenutzten Produktion am Gesamtverbrauch."
+    implementation: "reporting_metrics.py::production_self_usage"
 
 
 # Generated and used within the notebook for reporting metrics
