@@ -56,6 +56,7 @@ from frequenz.lib.notebooks.reporting.metrics.reporting_metrics import (
     production_excess_in_bat,
     production_self_consumption,
     production_self_share,
+    production_self_usage,
 )
 from frequenz.lib.notebooks.reporting.utils.colors import COLOR_DICT
 
@@ -315,6 +316,7 @@ def get_energy_report_columns(
         "production_self_use",
         "grid_feed_in",
         "production_self_share",
+        "production_self_usage",
     ]
 
     # Columns available ONLY when battery exists
@@ -375,7 +377,10 @@ def add_energy_flows(
             - "production_excess_in_bat": Portion of excess stored in the battery.
             - "grid_feed_in": Portion of excess fed into the grid.
             - "production_self_use": Self-consumed portion of production.
-            - "production_self_share": Share of consumption covered by self-production.
+            - "production_self_share": Share of production that is self-consumed
+              (self-consumed / total production).
+            - "production_self_usage": Share of consumption covered by
+              self-production (self-consumed / total consumption).
     """
     df_flows = df.copy()
 
@@ -475,9 +480,15 @@ def add_energy_flows(
             df_flows["consumption_total"],
             production_is_positive=True,
         )
+        df_flows["production_self_usage"] = production_self_usage(
+            df_flows["production_total"],
+            df_flows["consumption_total"],
+            production_is_positive=True,
+        )
     else:
         df_flows["production_self_use"] = 0.0
         df_flows["production_self_share"] = 0.0
+        df_flows["production_self_usage"] = 0.0
 
     # Add grid consumption column - grid is later renamed as grid_consumption
     if "grid" not in df_flows.columns:

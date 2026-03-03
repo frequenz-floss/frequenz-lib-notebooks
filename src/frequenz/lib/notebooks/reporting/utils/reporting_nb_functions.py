@@ -519,6 +519,10 @@ def aggregate_metrics(  # pylint: disable=too-many-locals
             Total site consumption (kWh)
             - ``prod_self_consumption_share``
             Fraction of site consumption covered by self-production (0-1)
+            - ``production_self_share``
+            Fraction of total production that is self-consumed (0-1)
+            - ``production_self_usage``
+            Fraction of site consumption covered by self-production (0-1)
             - ``peak``
             Maximum grid import power (kW)
             - ``peak_date``
@@ -578,6 +582,12 @@ def aggregate_metrics(  # pylint: disable=too-many-locals
     results["prod_self_consumption_share"] = (
         prod_self_consumption_sum / total_consumption_sum
         if total_consumption_sum > 0
+        else 0
+    )
+
+    results["prod_self_production_share"] = (
+        prod_self_consumption_sum / total_production_sum
+        if total_production_sum > 0
         else 0
     )
 
