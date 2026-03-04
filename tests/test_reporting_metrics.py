@@ -13,16 +13,12 @@ from frequenz.lib.notebooks.reporting.metrics import reporting_metrics as metric
 
 
 def test_asset_production_respects_sign_and_missing_values() -> None:
-    """Positive flag controls sign inversion and NaNs stay missing."""
-    production = pd.Series([10, -5, None], index=pd.RangeIndex(3))
+    """Production is negated and NaNs stay missing."""
+    production = pd.Series([-10, 5, None], index=pd.RangeIndex(3))
 
-    positive = metrics.asset_production(production, production_is_positive=True)
-    expected_positive = pd.Series([10.0, 0.0, float("nan")], index=production.index)
-    assert_series_equal(positive, expected_positive)
-
-    negative = metrics.asset_production(production, production_is_positive=False)
-    expected_negative = pd.Series([0.0, 5.0, float("nan")], index=production.index)
-    assert_series_equal(negative, expected_negative)
+    result = metrics.asset_production(production)
+    expected = pd.Series([10.0, 0.0, float("nan")], index=production.index)
+    assert_series_equal(result, expected)
 
 
 def test_production_excess_clips_negative_surplus() -> None:
