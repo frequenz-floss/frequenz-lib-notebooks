@@ -125,7 +125,9 @@ def _apply_common_layout(
         tickcolor="rgba(0,0,0,0.35)",
         zeroline=False,
     )
-    fig.update_traces(line={"width": LINE_WIDTH, "simplify": False})
+    fig.update_traces(
+        line={"width": LINE_WIDTH, "simplify": False}, selector={"type": "scatter"}
+    )
 
 
 # pylint: disable=too-many-arguments
@@ -603,27 +605,39 @@ def plot_monthly(df: pd.DataFrame) -> tuple[go.Figure, pd.DataFrame]:
     for column in data.positive.columns:
         fig.add_trace(
             go.Bar(
-                x=[x_labels, [column] * len(x_labels)],
+                x=x_labels,
                 y=data.positive[column],
                 name=column,
                 text=data.positive[column].round(3),
                 textposition="outside",
+                offsetgroup=column,
             )
         )
     for column in data.negative.columns:
         fig.add_trace(
             go.Bar(
-                x=[x_labels, [column] * len(x_labels)],
+                x=x_labels,
                 y=data.negative[column],
                 name=column,
                 opacity=0.7,
                 text=data.negative[column].round(3),
                 textposition="outside",
+                offsetgroup=column,
             )
         )
 
     _apply_common_layout(fig, y_title="Energy (MWh)")
-    fig.update_layout(title={"text": "Monthly Energy", "x": 0.0, "xanchor": "left"})
+    fig.update_layout(
+        barmode="group",
+        title={
+            "text": "Monthly Energy",
+            "x": 0.05,
+            "xanchor": "left",
+            "y": 1.0,
+            "yanchor": "top",
+            "pad": {"t": 8},
+        },
+    )
     fig.update_xaxes(
         tickangle=45, showdividers=False, dividercolor="rgba(0,0,0,0)", automargin=True
     )
