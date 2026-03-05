@@ -134,6 +134,7 @@ def plot_time_series(
                     color=line_color,
                     shape="hv",
                     dash="dot" if col in dotted_set else "solid",
+                    width=1,
                 ),
                 fill=fill_mode,
                 fillcolor=fill_color,
