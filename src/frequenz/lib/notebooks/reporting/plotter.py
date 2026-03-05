@@ -8,6 +8,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from matplotlib import colors as mcolors
 
+from frequenz.lib.notebooks.reporting.utils.colors import LINE_DASH_MAP
 from frequenz.lib.notebooks.reporting.utils.helpers import build_color_map, long_to_wide
 
 
@@ -25,8 +26,92 @@ def _with_alpha(color: str | None, alpha: float) -> str | None:
     return f"rgba({r255},{g255},{b255},{alpha:.3f})"
 
 
+def _split_battery_power_flow(
+    df: pd.DataFrame,
+    cols: list[str],
+    plot_order: list[str] | None,
+    fill_cols: list[str] | None,
+    dotted_cols: list[str] | None,
+) -> tuple[
+    pd.DataFrame, list[str], list[str] | None, list[str] | None, list[str] | None
+]:
+    """Split battery power flow into charge and discharge columns if present."""
+    split_map = {
+        "Batterie Leistungsfluss": ("Batterie Entladung", "Batterie Beladung"),
+        "Battery Power Flow": ("Battery Discharge", "Battery Charge"),
+    }
+
+    def replace(
+        seq: list[str] | None, target: str, repl: tuple[str, str]
+    ) -> list[str] | None:
+        if not seq:
+            return seq
+        new_seq: list[str] = []
+        for item in seq:
+            if item == target:
+                new_seq.extend(repl)
+            else:
+                new_seq.append(item)
+        return new_seq
+
+    active_order = plot_order or cols
+    for base, (discharge, charge) in split_map.items():
+        if base not in df.columns:
+            continue
+        if base not in active_order:
+            continue
+
+        series = pd.to_numeric(df[base], errors="coerce")
+        df = df.copy()
+        df[charge] = series.clip(lower=0)
+        df[discharge] = series.clip(upper=0)
+        df = df.drop(columns=[base])
+
+        cols = replace(cols, base, (discharge, charge)) or cols
+        plot_order = replace(plot_order, base, (discharge, charge))
+        fill_cols = replace(fill_cols, base, (discharge, charge))
+        dotted_cols = replace(dotted_cols, base, (discharge, charge))
+
+    return df, cols, plot_order, fill_cols, dotted_cols
+
+
+def _apply_stack_for_production(
+    df: pd.DataFrame,
+    cols: list[str],
+) -> tuple[pd.DataFrame, dict[str, str]]:
+    """Apply stacking for CHP, PV, and battery discharge series."""
+    stack_labels = {
+        "BHKW-Erzeugung",
+        "BHKW Erzeugung",
+        "CHP-Production",
+        "CHP Production",
+        "PV-Erzeugung",
+        "PV Erzeugung",
+        "PV-Production",
+        "PV Production",
+        "Batterie Entladung",
+        "Battery Discharge",
+        "Stromspeicher-entladen",
+    }
+
+    stackgroup_map: dict[str, str] = {}
+    if not any(c in stack_labels for c in cols):
+        return df, stackgroup_map
+
+    df = df.copy()
+    for col in cols:
+        if col not in stack_labels or col not in df.columns:
+            continue
+        # Stack battery discharge as positive magnitude
+        if col in {"Batterie Entladung", "Battery Discharge", "Stromspeicher-entladen"}:
+            df[col] = pd.to_numeric(df[col], errors="coerce").abs()
+        stackgroup_map[col] = "production_stack"
+
+    return df, stackgroup_map
+
+
 # pylint: disable=too-many-arguments, too-many-positional-arguments,
-# pylint: disable=use-dict-literal, too-many-locals
+# pylint: disable=use-dict-literal, too-many-locals, too-many-branches
 def plot_time_series(
     df: pd.DataFrame,
     time_col: str | None = None,
@@ -98,8 +183,14 @@ def plot_time_series(
     if cols is None:
         cols = [c for c in pdf.select_dtypes(include="number").columns if c != time_col]
 
+    pdf, cols, plot_order, fill_cols, dotted_cols = _split_battery_power_flow(
+        pdf, cols, plot_order, fill_cols, dotted_cols
+    )
+
     # Safe reorder: use plot_order if provided, else keep cols as-is
     cols = [c for c in (plot_order or cols) if c in pdf.columns]
+
+    pdf, stackgroup_map = _apply_stack_for_production(pdf, cols)
 
     # Legend ranking independent of draw order
     rank_map = {c: i for i, c in enumerate(cols)}
@@ -119,7 +210,11 @@ def plot_time_series(
 
     # Add one line trace per column
     for i, col in enumerate(cols):
-        fill_mode = "tozeroy" if col in fill_cols else "none"
+        stackgroup = stackgroup_map.get(col)
+        if stackgroup:
+            fill_mode = "tonexty"
+        else:
+            fill_mode = "tozeroy" if col in fill_cols else "none"
         line_color = color_map.get(col)
         fill_color = _with_alpha(line_color, 0.9)
 
@@ -133,9 +228,12 @@ def plot_time_series(
                 line=dict(
                     color=line_color,
                     shape="hv",
-                    dash="dot" if col in dotted_set else "solid",
+                    dash=(
+                        "dot" if col in dotted_set else LINE_DASH_MAP.get(col, "solid")
+                    ),
                     width=1,
                 ),
+                stackgroup=stackgroup,
                 fill=fill_mode,
                 fillcolor=fill_color,
                 legendrank=rank_map.get(col, 10_000 + i),
