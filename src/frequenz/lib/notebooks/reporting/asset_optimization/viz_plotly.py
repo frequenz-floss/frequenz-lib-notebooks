@@ -33,36 +33,101 @@ from .viz_data import (
 _logger = logging.getLogger(__name__)
 
 
-FIGURE_SIZE = (900, 500)
+FIGURE_SIZE = (1000, 700)
+LINE_WIDTH = 1
+FONT_SIZE = 14
+FONT_FAMILY = "Golos Text, sans-serif"
+AXIS_LINE_WIDTH = 1.5
+GRID_LINE_WIDTH = 1
+HOVER_BG = "rgba(255,255,255,0.95)"
+HOVER_BORDER = "rgba(0,0,0,0.2)"
+HOVER_FONT_COLOR = "#111"
+LEGEND_COLS = 3
 
 
-def _apply_common_layout(fig: go.Figure, *, y_title: str | None = None) -> None:
+def _legend_grid(num_items: int, *, cols: int = LEGEND_COLS) -> dict[str, int]:
+    items = max(num_items, 1)
+    cols_eff = min(cols, items)
+    rows = (items + cols_eff - 1) // cols_eff
+    return {"rows": rows, "cols": cols_eff}
+
+
+def _legend_config(
+    *,
+    num_items: int,
+    y: float,
+    x: float = 0.0,
+    cols: int = LEGEND_COLS,
+) -> dict[str, object]:
+    grid = _legend_grid(num_items, cols=cols)
+    config: dict[str, object] = {
+        "orientation": "h",
+        "yanchor": "top",
+        "y": y,
+        "xanchor": "left",
+        "x": x,
+        "bgcolor": "rgba(255,255,255,0)",
+    }
+    config["entrywidth"] = 1.0 / grid["cols"]
+    config["entrywidthmode"] = "fraction"
+    return config
+
+
+def _apply_common_layout(
+    fig: go.Figure,
+    *,
+    y_title: str | None = None,
+    legend_items: int | None = None,
+) -> None:
     fig.update_layout(
         width=FIGURE_SIZE[0],
         height=FIGURE_SIZE[1],
         template="plotly_white",
-        legend={
-            "orientation": "v",
-            "yanchor": "top",
-            "y": 1,
-            "xanchor": "left",
-            "x": 1.05,
-            "bordercolor": "black",
-            "borderwidth": 1,
-        },
+        font={"size": FONT_SIZE, "family": FONT_FAMILY},
+        hovermode="x unified",
         margin={"l": 60, "r": 20, "t": 40, "b": 40},
         paper_bgcolor="white",
         plot_bgcolor="white",
+        hoverlabel={
+            "bgcolor": HOVER_BG,
+            "bordercolor": HOVER_BORDER,
+            "font": {
+                "family": FONT_FAMILY,
+                "size": FONT_SIZE,
+                "color": HOVER_FONT_COLOR,
+            },
+            "align": "left",
+            "namelength": -1,
+        },
+        separators=",.",
     )
+    if legend_items is not None:
+        fig.update_layout(legend=_legend_config(num_items=legend_items, y=1.05))
     if y_title:
         fig.update_yaxes(title_text=y_title)
     fig.update_xaxes(
         showgrid=True,
-        showline=True,
-        mirror=True,
-        linecolor="black",
+        showline=False,
+        mirror=False,
+        gridwidth=GRID_LINE_WIDTH,
+        ticks="outside",
+        ticklen=6,
+        tickcolor="rgba(0,0,0,0.35)",
+        zeroline=False,
     )
-    fig.update_yaxes(showgrid=True, showline=True, mirror=True, linecolor="black")
+    fig.update_yaxes(
+        showgrid=True,
+        showline=False,
+        mirror=False,
+        gridwidth=GRID_LINE_WIDTH,
+        ticks="outside",
+        ticklen=6,
+        tickcolor="rgba(0,0,0,0.35)",
+        zeroline=False,
+    )
+    fig.update_traces(
+        line={"width": LINE_WIDTH, "simplify": False}, selector={"type": "scatter"}
+    )
 
 
 # pylint: disable=too-many-arguments
@@ -130,32 +195,37 @@ def plot_power_flow(
     if fig is None:
         fig = go.Figure()
 
+    legend_items = 0
+
     if data.has_chp:
         fig.add_trace(
             go.Scatter(
                 x=data.index,
                 y=data.chp,
                 name="CHP",
+                stackgroup="production",
                 line={"color": CHP, "shape": "hv"},
-                fill="tozeroy",
                 opacity=0.5,
                 hovertemplate="<b>CHP</b>: %{y} kW<extra></extra>",
             )
         )
+        legend_items += 1
 
     if data.has_pv:
         pv_label = "PV (on CHP)" if data.has_chp else "PV"
+        pv_series = data.production - data.chp
         fig.add_trace(
             go.Scatter(
                 x=data.index,
-                y=data.production,
+                y=pv_series,
                 name=pv_label,
+                stackgroup="production",
                 line={"color": PV, "shape": "hv"},
-                fill="tonexty" if data.has_chp else "tozeroy",
                 opacity=0.7,
                 hovertemplate="<b>%{fullData.name}</b>: %{y} kW<extra></extra>",
             )
         )
+        legend_items += 1
 
     if data.charge is not None and data.discharge is not None:
         fig.add_trace(
@@ -178,6 +248,7 @@ def plot_power_flow(
                 hovertemplate="<b>Charge</b>: %{y} kW<extra></extra>",
             )
         )
+        legend_items += 1
         fig.add_trace(
             go.Scatter(
                 x=data.index,
@@ -198,6 +269,7 @@ def plot_power_flow(
                 hovertemplate="<b>Discharge</b>: %{y} kW<extra></extra>",
             )
         )
+        legend_items += 1
 
     if data.grid is not None:
         fig.add_trace(
@@ -209,6 +281,7 @@ def plot_power_flow(
                 hovertemplate="<b>Grid</b>: %{y} kW<extra></extra>",
             )
         )
+        legend_items += 1
 
     fig.add_trace(
         go.Scatter(
@@ -219,9 +292,11 @@ def plot_power_flow(
             hovertemplate="<b>Consumption</b>: %{y} kW<extra></extra>",
         )
     )
+    legend_items += 1
 
     if row is None:
-        _apply_common_layout(fig, y_title="Power (kW)")
+        _apply_common_layout(fig, y_title="Power (kW)", legend_items=legend_items)
+        fig.update_layout(title={"text": "Power Flow", "x": 0.0, "xanchor": "left"})
         _apply_range_slider(fig)
 
     y_series = [data.consumption, data.chp, data.production]
@@ -294,7 +369,8 @@ def plot_energy_trade(
     )
 
     if row is None:
-        _apply_common_layout(fig, y_title="Energy (kWh)")
+        _apply_common_layout(fig, y_title="Energy (kWh)", legend_items=2)
+        fig.update_layout(title={"text": "Energy Trade", "x": 0.0, "xanchor": "left"})
         _apply_range_slider(fig)
     y_all = pd.concat([data.buy, data.sell])
     _apply_axis_padding(
@@ -332,7 +408,7 @@ def plot_power_flow_trade(df: pd.DataFrame) -> go.Figure:
         rows=2,
         cols=1,
         shared_xaxes=True,
-        vertical_spacing=0.1,
+        vertical_spacing=0.2,
         row_heights=[0.75, 0.25],
     )
 
@@ -356,32 +432,52 @@ def plot_power_flow_trade(df: pd.DataFrame) -> go.Figure:
         paper_bgcolor="white",
         plot_bgcolor="white",
         hovermode="x unified",
-        margin={"l": 60, "r": 150, "t": 40, "b": 40},  # Increased 'r' for legends
+        font={"size": FONT_SIZE, "family": FONT_FAMILY},
+        margin={"l": 30, "r": 70, "t": 30, "b": 40},
+        hoverlabel={
+            "bgcolor": HOVER_BG,
+            "bordercolor": HOVER_BORDER,
+            "font": {
+                "family": FONT_FAMILY,
+                "size": FONT_SIZE,
+                "color": HOVER_FONT_COLOR,
+            },
+            "align": "left",
+            "namelength": -1,
+        },
+        separators=",.",
     )
-
-    # Apply Multi-Legend Formatting
-    legend_style = {
-        "orientation": "v",
-        "xanchor": "left",
-        "x": 1.05,
-        "bordercolor": "black",
-        "borderwidth": 1,
-    }
 
     # Configure the layout for both legends
+    power_items = len([t for t in fig_power.data if t.showlegend is not False])
+    trade_items = len([t for t in fig_trade.data if t.showlegend is not False])
     fig_final.update_layout(
-        legend={**legend_style, "y": 1, "yanchor": "top", "title": "Power Flow"},
-        legend2={
-            **legend_style,
-            "y": 0.05,
-            "yanchor": "bottom",
-            "title": "Energy Trade",
-        },
+        legend=_legend_config(num_items=power_items, y=1.1),
+        legend2=_legend_config(num_items=trade_items, y=0.30),
     )
 
-    fig_final.update_xaxes(showgrid=True, showline=True, mirror=True, linecolor="black")
+    fig_final.update_xaxes(
+        showgrid=True,
+        showline=False,
+        mirror=False,
+        gridwidth=GRID_LINE_WIDTH,
+        ticks="outside",
+        ticklen=6,
+        tickcolor="rgba(0,0,0,0.35)",
+        zeroline=False,
+    )
 
-    fig_final.update_yaxes(showgrid=True, showline=True, mirror=True, linecolor="black")
+    fig_final.update_yaxes(
+        showgrid=True,
+        showline=False,
+        mirror=False,
+        gridwidth=GRID_LINE_WIDTH,
+        ticks="outside",
+        ticklen=6,
+        tickcolor="rgba(0,0,0,0.35)",
+        zeroline=False,
+    )
+    fig_final.update_traces(line={"width": LINE_WIDTH, "simplify": False})
 
     # Set Specific Titles
     fig_final.update_yaxes(title_text="Power (kW)", row=1, col=1)
@@ -449,6 +545,7 @@ def plot_battery_power(df: pd.DataFrame) -> go.Figure:
             y=data.charge,
             name="Charge",
             line={"color": CHARGE, "shape": "hv"},
+            fill="tozeroy",
             opacity=0.9,
             hovertemplate="<b>%{fullData.name}</b>: %{y} kW<extra></extra>",
         ),
@@ -459,6 +556,7 @@ def plot_battery_power(df: pd.DataFrame) -> go.Figure:
             y=data.discharge,
             name="Discharge",
             line={"color": DISCHARGE, "shape": "hv"},
+            fill="tozeroy",
             opacity=0.9,
             hovertemplate="<b>%{fullData.name}</b>: %{y} kW<extra></extra>",
         ),
@@ -478,7 +576,8 @@ def plot_battery_power(df: pd.DataFrame) -> go.Figure:
         },
     )
 
-    _apply_common_layout(fig)
+    _apply_common_layout(fig, legend_items=4)
+    fig.update_layout(legend=_legend_config(num_items=4, y=1.1, cols=4))
     _apply_range_slider(fig)
     return fig
 
@@ -506,26 +605,39 @@ def plot_monthly(df: pd.DataFrame) -> tuple[go.Figure, pd.DataFrame]:
     for column in data.positive.columns:
         fig.add_trace(
             go.Bar(
-                x=[x_labels, [column] * len(x_labels)],
+                x=x_labels,
                 y=data.positive[column],
                 name=column,
                 text=data.positive[column].round(3),
                 textposition="outside",
+                offsetgroup=column,
             )
         )
     for column in data.negative.columns:
         fig.add_trace(
             go.Bar(
-                x=[x_labels, [column] * len(x_labels)],
+                x=x_labels,
                 y=data.negative[column],
                 name=column,
                 opacity=0.7,
                 text=data.negative[column].round(3),
                 textposition="outside",
+                offsetgroup=column,
             )
         )
 
     _apply_common_layout(fig, y_title="Energy (MWh)")
+    fig.update_layout(
+        barmode="group",
+        title={
+            "text": "Monthly Energy",
+            "x": 0.05,
+            "xanchor": "left",
+            "y": 1.0,
+            "yanchor": "top",
+            "pad": {"t": 8},
+        },
+    )
     fig.update_xaxes(
         tickangle=45, showdividers=False, dividercolor="rgba(0,0,0,0)", automargin=True
     )
