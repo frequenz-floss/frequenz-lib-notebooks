@@ -8,7 +8,11 @@ import plotly.express as px
 import plotly.graph_objects as go
 from matplotlib import colors as mcolors
 
-from frequenz.lib.notebooks.reporting.utils.colors import LINE_DASH_MAP
+from frequenz.lib.notebooks.reporting.utils.colors import (
+    COLOR_DICT,
+    LINE_DASH_MAP,
+    generate_shades,
+)
 from frequenz.lib.notebooks.reporting.utils.helpers import build_color_map, long_to_wide
 
 
@@ -127,6 +131,7 @@ def plot_time_series(
     fill_cols: list[str] | None = None,
     dotted_cols: list[str] | None = None,
     plot_order: list[str] | None = None,
+    shade_by_category: bool = False,
 ) -> go.Figure:
     """Create an interactive time-series plot using Plotly.
 
@@ -158,6 +163,8 @@ def plot_time_series(
             Defaults to None (no dotted lines).
         plot_order: Optional list specifying the order of columns to plot. If None,
             the order in `cols` is used.
+        shade_by_category: When plotting a long-format series, render all
+            categories as different shades of the same base color.
 
     Returns:
         A Plotly Figure object representing the interactive time-series plot.
@@ -196,7 +203,15 @@ def plot_time_series(
     rank_map = {c: i for i, c in enumerate(cols)}
 
     # Colour Mapping
-    color_map = build_color_map(cols, color_dict)
+    if shade_by_category and long_format_flag and category_col and len(cols) > 1:
+        base_color = (color_dict or {}).get(category_col) or COLOR_DICT.get(
+            category_col
+        )
+        base_color = base_color or px.colors.qualitative.Plotly[0]
+        shades = generate_shades(base_color, len(cols))
+        color_map = {c: shades[i] for i, c in enumerate(cols)}
+    else:
+        color_map = build_color_map(cols, color_dict)
 
     # Timeseries-Plot
     fig = go.Figure()
