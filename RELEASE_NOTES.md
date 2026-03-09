@@ -6,6 +6,9 @@
 
 ## Upgrading
 
+- Reporting metrics now consistently assume PSC sign conventions for production and no longer accept a `production_is_positive` toggle.
+- Removed `production_is_positive` from reporting metric helpers and `add_energy_flows()`.
+- If you previously passed already-positive production to these helpers, pass `-production` instead (PSC convention: production is negative).
 
 ## New Features
 

@@ -8,7 +8,7 @@ flows within a hybrid power system — including production, consumption,
 battery charging, grid feed-in, and self-consumption metrics.
 
 Key features:
-It standardizes sign conventions (via `production_is_positive`) and ensures
+It standardizes sign conventions (production is negative in PSC) and ensures
 consistency in derived quantities such as:
   - Production surplus (excess generation)
   - Energy stored in a battery
@@ -26,46 +26,36 @@ import warnings
 import pandas as pd
 
 
-def asset_production(
-    production: pd.Series, production_is_positive: bool = False
-) -> pd.Series:
+def asset_production(production: pd.Series) -> pd.Series:
     """Extract the positive production portion from a power series.
 
-    Ensures only productive (non-negative) values remain, regardless of the
-    sign convention used for production vs. consumption.
+    Assumes PSC convention (production negative) and inverts to keep the
+    productive (non-negative) portion.
 
     Args:
         production: Series of power values (e.g., kW or MW).
-        production_is_positive: Whether production values are already positive.
-            If False, `production` is inverted before clipping.
 
     Returns:
         A Series where only production values (≥ 0) are retained, with all
         non-productive values set to zero. Missing values remain NaN.
     """
-    return (production if production_is_positive else -production).clip(lower=0)
+    return (-production).clip(lower=0)
 
 
-def production_excess(
-    production: pd.Series, consumption: pd.Series, production_is_positive: bool = False
-) -> pd.Series:
+def production_excess(production: pd.Series, consumption: pd.Series) -> pd.Series:
     """Compute the excess production relative to consumption.
 
     Calculates surplus by subtracting consumption from production and removing
     negative results. Production is optionally sign-corrected first.
 
     Args:
-        production: Series of production values (e.g., kW or MW).
+        production: Series of production values (PSC convention, negative).
         consumption: Series of consumption values (same units as `production`).
-        production_is_positive: Whether production values are already positive.
-            If False, `production` is inverted before clipping.
 
     Returns:
         A Series representing excess production (≥ 0).
     """
-    asset_production_series = asset_production(
-        production, production_is_positive=production_is_positive
-    )
+    asset_production_series = asset_production(production)
     return (asset_production_series - consumption).clip(lower=0)
 
 
@@ -73,7 +63,6 @@ def production_excess_in_bat(
     production: pd.Series,
     consumption: pd.Series,
     battery: pd.Series,
-    production_is_positive: bool = False,
 ) -> pd.Series:
     """Calculate the portion of excess production stored in the battery.
 
@@ -85,15 +74,11 @@ def production_excess_in_bat(
         consumption: Series of consumption values (same units as `production`).
         battery: Series representing the battery's available charging capacity
             or power limit at each timestamp.
-        production_is_positive: Whether production values are already positive.
-            If False, `production` is inverted before clipping.
 
     Returns:
         A Series showing the actual production power stored in the battery.
     """
-    production_excess_series = production_excess(
-        production, consumption, production_is_positive=production_is_positive
-    )
+    production_excess_series = production_excess(production, consumption)
     battery = battery.astype("float64").clip(lower=0)
     return pd.concat([production_excess_series, battery], axis=1).min(axis=1)
 
@@ -144,7 +129,7 @@ def grid_feed_in(
 
 
 def production_self_consumption(
-    production: pd.Series, consumption: pd.Series, production_is_positive: bool = False
+    production: pd.Series, consumption: pd.Series
 ) -> pd.Series:
     """Compute the portion of production directly self-consumed.
 
@@ -154,8 +139,6 @@ def production_self_consumption(
     Args:
         production: Series of production values (e.g., kW or MW).
         consumption: Series of consumption values (same units as `production`).
-        production_is_positive: Whether production values are already positive.
-            If False, `production` is inverted before clipping.
 
     Returns:
         A Series representing self-consumed production.
@@ -164,12 +147,8 @@ def production_self_consumption(
         UserWarning: If negative self-consumption values are detected, indicating
             that the computed excess exceeds total production for some entries.
     """
-    asset_production_series = asset_production(
-        production, production_is_positive=production_is_positive
-    )
-    production_excess_series = production_excess(
-        production, consumption, production_is_positive=production_is_positive
-    )
+    asset_production_series = asset_production(production)
+    production_excess_series = production_excess(production, consumption)
     result = asset_production_series - production_excess_series
 
     if (result < 0).any():
@@ -183,9 +162,7 @@ def production_self_consumption(
     return result
 
 
-def production_self_usage(
-    production: pd.Series, consumption: pd.Series, production_is_positive: bool = False
-) -> pd.Series:
+def production_self_usage(production: pd.Series, consumption: pd.Series) -> pd.Series:
     """Calculate the self-consumption share of total consumption.
 
     Computes the ratio of self-used production to total consumption,
@@ -194,52 +171,36 @@ def production_self_usage(
     Args:
         production: Series of production values (e.g., kW or MW).
         consumption: Series of consumption values (same units as `production`).
-        production_is_positive: Whether production values are already positive.
-            If False, `production` is inverted before clipping.
 
     Returns:
         A Series expressing the self-consumption share (values between 0 and 1).
         Returns NaN where consumption is zero.
     """
-    production_self_use = production_self_consumption(
-        production, consumption, production_is_positive=production_is_positive
-    )
+    production_self_use = production_self_consumption(production, consumption)
     denom = consumption.astype("float64")
     denom = denom.mask(denom <= 0)  # NaN when consumption <= 0
     share = production_self_use.astype("float64") / denom
     return share
 
 
-def production_self_share(
-    production: pd.Series, consumption: pd.Series, production_is_positive: bool = False
-) -> pd.Series:
+def production_self_share(production: pd.Series, consumption: pd.Series) -> pd.Series:
     """Compute the self-consumption share relative to total production.
 
     Calculates the fraction of total production that is directly self-consumed.
-    The denominator is the positive production portion (after applying the
-    sign convention), and values are masked to ``NaN`` where production is
-    zero or negative to avoid invalid divisions.
+    The denominator is the positive production portion, and values are masked
+    to ``NaN`` where production is zero or negative to avoid invalid divisions.
 
     Args:
         production:
             Series of production power values (e.g., kW).
         consumption:
             Series of consumption power values (same unit as ``production``).
-        production_is_positive:
-            Whether production values are already positive. If ``False``,
-            the production series is inverted before clipping to its
-            positive (productive) portion.
-
     Returns:
         Series of self-consumption share values (typically between 0 and 1).
         Returns ``NaN`` for timestamps where total production is zero or negative.
     """
-    production_self_use = production_self_consumption(
-        production, consumption, production_is_positive=production_is_positive
-    )
-    denom = asset_production(
-        production, production_is_positive=production_is_positive
-    ).astype("float64")
+    production_self_use = production_self_consumption(production, consumption)
+    denom = asset_production(production).astype("float64")
     denom = denom.mask(denom <= 0)  # NaN when production <= 0
     return production_self_use.astype("float64") / denom
 

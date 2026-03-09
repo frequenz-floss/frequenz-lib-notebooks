@@ -89,7 +89,6 @@ def create_energy_report_df(
         consumption_cols=["consumption"],
         grid_cols=["grid"],
         battery_cols=["battery"],
-        production_is_positive=False,
     )
 
     # Standardize column names (from raw to canonical)

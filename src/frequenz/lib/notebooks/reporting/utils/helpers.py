@@ -351,7 +351,6 @@ def add_energy_flows(
     consumption_cols: list[str] | None = None,
     grid_cols: list[str] | None = None,
     battery_cols: list[str] | None = None,
-    production_is_positive: bool = False,
 ) -> pd.DataFrame:
     """Compute and add derived energy flow metrics to the DataFrame.
 
@@ -368,8 +367,6 @@ def add_energy_flows(
         grid_cols: list of column names representing grid import/export.
         battery_cols: optional list of column names for battery charging power. If None,
             battery-related flows are set to zero.
-        production_is_positive: Whether production values are already positive.
-            If False, `production` is inverted before clipping.
 
     Returns:
         A DataFrame including additional columns:
@@ -413,7 +410,6 @@ def add_energy_flows(
         )
         asset_series = asset_production(
             series,
-            production_is_positive=production_is_positive,
         )
         asset_col_name = f"{col}_asset_production"
         df_flows[asset_col_name] = asset_series
@@ -444,17 +440,15 @@ def add_energy_flows(
 
     # Surplus vs. consumption (production is already positive because of the above cleaning)
     df_flows["production_excess"] = production_excess(
-        df_flows["production_total"],
+        df_flows["production_total"] * -1,
         df_flows["consumption_total"],
-        production_is_positive=True,
     )
 
     # Battery charging power (optional)
     df_flows["production_excess_in_bat"] = production_excess_in_bat(
-        df_flows["production_total"],
+        df_flows["production_total"] * -1,
         df_flows["consumption_total"],
         battery=battery_charge_series,
-        production_is_positive=True,
     )
 
     # Split excess into battery vs. grid
@@ -471,19 +465,16 @@ def add_energy_flows(
         # Use total production for self-consumption instead of asset_production
         # (which may not exist)
         df_flows["production_self_use"] = production_self_consumption(
-            df_flows["production_total"],
+            df_flows["production_total"] * -1,
             df_flows["consumption_total"],
-            production_is_positive=True,
         )
         df_flows["production_self_share"] = production_self_share(
-            df_flows["production_total"],
+            df_flows["production_total"] * -1,
             df_flows["consumption_total"],
-            production_is_positive=True,
         )
         df_flows["production_self_usage"] = production_self_usage(
-            df_flows["production_total"],
+            df_flows["production_total"] * -1,
             df_flows["consumption_total"],
-            production_is_positive=True,
         )
     else:
         df_flows["production_self_use"] = 0.0
