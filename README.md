@@ -28,9 +28,8 @@ Install the package, open the example notebooks, and explore the available modul
 ### Installation
 
 ```
-# Choose the version you want to install
-VERSION=0.9.2
-pip install frequenz‑lib‑notebooks==$VERSION
+# Choose the version you want to install or use the latest
+pip install frequenz‑lib‑notebooks
 ```
 
 Then open the prebuilt example notebooks using your preferred interface:
