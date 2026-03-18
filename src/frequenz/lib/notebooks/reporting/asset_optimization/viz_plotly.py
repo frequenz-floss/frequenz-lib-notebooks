@@ -6,6 +6,7 @@
 import logging
 
 import pandas as pd
+import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
@@ -160,6 +161,24 @@ def _apply_range_slider(
         row=row,
         col=col,
     )
+
+
+def _add_zero_boundaries(series: pd.Series) -> pd.Series:
+    """
+    For each transition valid→NaN or NaN→valid, insert a 0-value point
+    at that boundary so fill='tozeroy' closes cleanly instead of bridging.
+    """
+    s = series.copy().astype(float)
+    is_null = s.isna()
+
+    # Index positions just before a gap (last valid before NaN run)
+    before_gap = (~is_null) & is_null.shift(-1, fill_value=False)
+    # Index positions just after a gap (first valid after NaN run)
+    after_gap  = (~is_null) & is_null.shift(1, fill_value=False)
+
+    s[before_gap] = 0.0
+    s[after_gap]  = 0.0
+    return s
 
 
 def plot_power_flow(
@@ -505,12 +524,25 @@ def plot_battery_power(df: pd.DataFrame) -> go.Figure:
 
     fig = go.Figure()
 
+    charge_pos = data.charge.clip(lower=0)
+    available_pos = data.available.clip(lower=0)
+    charge_plot = charge_pos.where(charge_pos > 0)
+    charge_plot = charge_plot.where(charge_plot.notna(), None)
+    mask = charge_plot.notna() & available_pos.notna()
+    charge_plot = charge_plot.where(
+        ~mask, charge_plot.where(charge_plot <= available_pos, available_pos)
+    )
+    discharge_plot = data.battery.where(data.discharge.notna(), None)
+
+    charge_plot = _add_zero_boundaries(charge_plot)
+    discharge_plot = _add_zero_boundaries(discharge_plot)
+
     fig.add_trace(
         go.Scatter(
             x=data.index,
             y=data.soc,
             name="SOC",
-            line={"color": SOC, "shape": "hv"},
+            line={"color": SOC, "shape": "linear"},
             fill="tozeroy",
             opacity=0.4,
             yaxis="y2",
@@ -523,7 +555,7 @@ def plot_battery_power(df: pd.DataFrame) -> go.Figure:
             x=data.index,
             y=data.available,
             name="Available power",
-            line={"color": AVAILABLE, "shape": "hv"},
+            line={"color": AVAILABLE, "shape": "linear"},
             hovertemplate="<b>%{fullData.name}</b>: %{y} kW<extra></extra>",
         ),
     )
@@ -533,30 +565,59 @@ def plot_battery_power(df: pd.DataFrame) -> go.Figure:
             x=data.index,
             y=[0] * len(data.index),
             name="Zero",
-            line={"color": ZERO_LINE, "dash": "dash", "shape": "hv"},
+            line={"color": ZERO_LINE, "dash": "dash", "shape": "linear"},
             showlegend=False,
             hoverinfo="skip",
         ),
     )
 
+    # Fill trace (no line, so no connecting line across gaps)
     fig.add_trace(
         go.Scatter(
             x=data.index,
-            y=data.charge,
-            name="Charge",
-            line={"color": CHARGE, "shape": "hv"},
+            y=charge_plot,
+            mode="none",
             fill="tozeroy",
-            opacity=0.9,
+            fillcolor=CHARGE,
+            connectgaps=False,
+            showlegend=False,
+            hoverinfo="skip",
+            line={"shape": "linear"},
+        ),
+    )
+
+    # Line trace (carries the legend entry and tooltip)
+    fig.add_trace(
+        go.Scatter(
+            x=data.index,
+            y=charge_plot,
+            name="Charge",
+            line={"color": CHARGE, "shape": "linear"},
+            connectgaps=False,
             hovertemplate="<b>%{fullData.name}</b>: %{y} kW<extra></extra>",
         ),
     )
     fig.add_trace(
         go.Scatter(
             x=data.index,
-            y=data.discharge,
-            name="Discharge",
-            line={"color": DISCHARGE, "shape": "hv"},
+            y=discharge_plot,
+            mode="none",
             fill="tozeroy",
+            fillcolor=DISCHARGE,
+            connectgaps=False,
+            showlegend=False,
+            hoverinfo="skip",
+            line={"shape": "linear"},
+        ),
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=data.index,
+            y=discharge_plot,
+            name="Discharge",
+            line={"color": DISCHARGE, "shape": "linear"},
+            connectgaps=False,
             opacity=0.9,
             hovertemplate="<b>%{fullData.name}</b>: %{y} kW<extra></extra>",
         ),
