@@ -44,23 +44,25 @@ def init_microgrid_data(
         _logger.warning(
             "ASSETS_API_URL is not set. Falling back to static microgrid configs."
         )
-        return MicrogridConfig.load_configs(microgrid_config_dir=microgrid_config_dir)
-
-    try:
-        mcfg = asyncio.run(
-            MicrogridConfig.load_configs_with_formulas(
-                assets_url=assets_url,
-                assets_auth_key=api_key,
-                assets_sign_secret=api_secret,
-                microgrid_config_dir=microgrid_config_dir,
-            )
-        )
-    except RuntimeError:
-        _logger.warning(
-            "Could not run async formula loading in current context. "
-            "Falling back to loading static microgrid configs."
-        )
         mcfg = MicrogridConfig.load_configs(microgrid_config_dir=microgrid_config_dir)
+    else:
+        try:
+            mcfg = asyncio.run(
+                MicrogridConfig.load_configs_with_formulas(
+                    assets_url=assets_url,
+                    assets_auth_key=api_key,
+                    assets_sign_secret=api_secret,
+                    microgrid_config_dir=microgrid_config_dir,
+                )
+            )
+        except RuntimeError:
+            _logger.warning(
+                "Could not run async formula loading in current context. "
+                "Falling back to loading static microgrid configs."
+            )
+            mcfg = MicrogridConfig.load_configs(
+                microgrid_config_dir=microgrid_config_dir
+            )
 
     return MicrogridData(
         server_url=service_address,
