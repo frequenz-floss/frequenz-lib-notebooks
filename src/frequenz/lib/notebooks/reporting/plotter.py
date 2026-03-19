@@ -3,11 +3,17 @@
 
 """Plotting functions for the reporting module."""
 
+from collections.abc import Sequence
+
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from matplotlib import colors as mcolors
 
+from frequenz.lib.notebooks.reporting.utils.battery_usecase_plot import (
+    _with_alpha,
+    add_battery_usecase_overlay_traces,
+    prepare_battery_usecase_plot,
+)
 from frequenz.lib.notebooks.reporting.utils.colors import (
     COLOR_DICT,
     LINE_DASH_MAP,
@@ -16,18 +22,12 @@ from frequenz.lib.notebooks.reporting.utils.colors import (
 from frequenz.lib.notebooks.reporting.utils.helpers import build_color_map, long_to_wide
 
 
-def _with_alpha(color: str | None, alpha: float) -> str | None:
-    """Return color as rgba string with the given alpha, or None if invalid."""
-    if not color:
-        return None
-    try:
-        r, g, b, _ = mcolors.to_rgba(color)
-    except ValueError:
-        return None
-    r255 = int(round(r * 255))
-    g255 = int(round(g * 255))
-    b255 = int(round(b * 255))
-    return f"rgba({r255},{g255},{b255},{alpha:.3f})"
+def _coerce_numeric_series(series: pd.Series) -> pd.Series:
+    """Convert series to numeric, handling comma decimal strings."""
+    if pd.api.types.is_numeric_dtype(series):
+        return pd.to_numeric(series, errors="coerce")
+    as_str = series.astype(str).str.replace(",", ".", regex=False)
+    return pd.to_numeric(as_str, errors="coerce")
 
 
 def _split_battery_power_flow(
@@ -116,6 +116,7 @@ def _apply_stack_for_production(
 
 # pylint: disable=too-many-arguments, too-many-positional-arguments,
 # pylint: disable=use-dict-literal, too-many-locals, too-many-branches
+# pylint: disable=too-many-statements
 def plot_time_series(
     df: pd.DataFrame,
     time_col: str | None = None,
@@ -123,7 +124,7 @@ def plot_time_series(
     title: str = "Time Series Plot",
     xaxis_title: str = "Timestamp",
     yaxis_title: str = "kW",
-    legend_title: str | None = "Components",
+    legend_title: str | None = "",
     color_dict: dict[str, str] | None = None,
     long_format_flag: bool = False,
     category_col: str | None = None,
@@ -132,6 +133,8 @@ def plot_time_series(
     dotted_cols: list[str] | None = None,
     plot_order: list[str] | None = None,
     shade_by_category: bool = False,
+    secondary_y_cols: Sequence[str] | None = None,
+    secondary_y_title: str | None = None,
 ) -> go.Figure:
     """Create an interactive time-series plot using Plotly.
 
@@ -165,6 +168,9 @@ def plot_time_series(
             the order in `cols` is used.
         shade_by_category: When plotting a long-format series, render all
             categories as different shades of the same base color.
+        secondary_y_cols: Optional plotted columns to render on a secondary y-axis.
+        secondary_y_title: Optional title for the secondary y-axis. Defaults to
+            `secondary_y_cols` when not provided.
 
     Returns:
         A Plotly Figure object representing the interactive time-series plot.
@@ -194,8 +200,25 @@ def plot_time_series(
         pdf, cols, plot_order, fill_cols, dotted_cols
     )
 
+    if secondary_y_cols:
+        for col in secondary_y_cols:
+            if col not in cols and col in pdf.columns:
+                cols.append(col)
+
     # Safe reorder: use plot_order if provided, else keep cols as-is
     cols = [c for c in (plot_order or cols) if c in pdf.columns]
+
+    secondary_cols: list[str] = list(secondary_y_cols or [])
+
+    if secondary_cols:
+        for col in secondary_cols:
+            if col not in pdf.columns:
+                raise KeyError(f"Column '{col}' not found in DataFrame.")
+            if col not in cols:
+                raise KeyError(
+                    f"Secondary y-axis column '{col}' is not included in the plotted columns."
+                )
+    secondary_col_set = set(secondary_cols)
 
     pdf, stackgroup_map = _apply_stack_for_production(pdf, cols)
 
@@ -222,7 +245,6 @@ def plot_time_series(
     if dotted_cols is None:
         dotted_cols = []
     dotted_set = set(dotted_cols)
-
     # Add one line trace per column
     for i, col in enumerate(cols):
         stackgroup = stackgroup_map.get(col)
@@ -231,15 +253,26 @@ def plot_time_series(
         else:
             fill_mode = "tozeroy" if col in fill_cols else "none"
         line_color = color_map.get(col)
+        if col.lower() == "da_price":
+            line_color = COLOR_DICT.get("da_price", line_color)
         fill_color = _with_alpha(line_color, 0.9)
+        y_values = _coerce_numeric_series(pdf[col])
+        if col in secondary_col_set:
+            if col.lower() == "da_price":
+                trace_unit = "EUR/MWh"
+            else:
+                trace_unit = secondary_y_title or col
+        else:
+            trace_unit = yaxis_title
 
         fig.add_trace(
             go.Scatter(
                 x=pdf.index,
-                y=pdf[col],
+                y=y_values,
                 mode="lines",
                 name=col,
-                hovertemplate=f"<b>{col}</b>: %{{y}} {yaxis_title}<extra></extra>",
+                hovertemplate=f"<b>{col}</b>: %{{y}} {trace_unit}<extra></extra>",
+                yaxis="y2" if col in secondary_col_set else "y",
                 line=dict(
                     color=line_color,
                     shape="hv",
@@ -260,11 +293,14 @@ def plot_time_series(
     fig.update_layout(
         title=dict(
             text=title,
-            x=0.1,  # Center
+            x=0.08,  # Center
+            y=0.99,
             xanchor="left",
             yanchor="top",
             font=dict(size=22),
         ),
+        height=700,
+        width=950,
         margin=dict(t=120),
         xaxis=dict(
             type="date",
@@ -282,7 +318,7 @@ def plot_time_series(
                 font=dict(size=12),
                 x=0,
                 xanchor="left",
-                y=1.05,
+                y=1.1,
                 yanchor="top",
             ),
             rangeslider=dict(  # Add an interactive range slider below the x-axis
@@ -293,11 +329,144 @@ def plot_time_series(
                 thickness=0.09,
             ),
         ),
-        legend=dict(title=dict(text=legend_title), traceorder="normal"),
+        legend=dict(
+            title=dict(text=legend_title),
+            traceorder="normal",
+            orientation="h",
+            x=0.0,
+            xanchor="left",
+            y=1.2,
+            yanchor="top",
+        ),
         xaxis_title=xaxis_title,
         yaxis_title=yaxis_title,
         hovermode="x unified",
         template="plotly_white",
+    )
+    if secondary_cols:
+        default_secondary_title = secondary_y_title or ", ".join(secondary_cols)
+        yaxis2_updates: dict[str, object] = {
+            "title": default_secondary_title,
+            "anchor": "x",
+            "overlaying": "y",
+            "side": "right",
+            "showgrid": False,
+        }
+        fig.update_layout(
+            yaxis2=yaxis2_updates,
+        )
+    return fig
+
+
+# pylint: disable=too-many-statements
+def plot_time_series_battery_usecase(
+    df: pd.DataFrame,
+    time_col: str | None = None,
+    cols: list[str] | None = None,
+    title: str = "Time Series Plot",
+    xaxis_title: str = "Timestamp",
+    yaxis_title: str = "kW",
+    legend_title: str | None = "Components",
+    color_dict: dict[str, str] | None = None,
+    long_format_flag: bool = False,
+    category_col: str | None = None,
+    value_col: str | None = None,
+    fill_cols: list[str] | None = None,
+    dotted_cols: list[str] | None = None,
+    plot_order: list[str] | None = None,
+    shade_by_category: bool = False,
+    battery_power_flow: str = "battery_power_flow",
+    battery_charging: str = "battery_discharge",
+    battery_discharging: str = "battery_charge",
+    pv_col: str = "pv",
+    grid_consumption_without_battery: str = "grid_consumption_without_battery",
+    grid_consumption: str = "grid_consumption",
+    secondary_y_cols: Sequence[str] | None = None,
+    secondary_y_title: str | None = None,
+) -> go.Figure:
+    """Plot a battery-usecase time series with charge/discharge overlays.
+
+    Builds a reporting plot for battery-usecase analysis by combining the
+    standard time-series traces with dedicated filled overlays for battery
+    charging and discharging between the grid-consumption baselines.
+
+    Args:
+        df: Source DataFrame containing the battery-usecase time series.
+        time_col: Optional timestamp column to use as the x-axis.
+        cols: Optional columns to plot.
+        title: Plot title.
+        xaxis_title: X-axis label.
+        yaxis_title: Primary y-axis label.
+        legend_title: Legend title.
+        color_dict: Optional color mapping for traces.
+        long_format_flag: Whether ``df`` is in long format.
+        category_col: Category column name for long-format inputs.
+        value_col: Value column name for long-format inputs.
+        fill_cols: Columns to render as filled traces.
+        dotted_cols: Columns to render with dotted lines.
+        plot_order: Optional explicit trace order.
+        shade_by_category: Whether to generate color shades by category.
+        battery_power_flow: Column containing battery power flow values.
+        battery_charging: Column containing the battery charging series.
+        battery_discharging: Column containing the battery discharging series.
+        pv_col: Column containing PV production values.
+        grid_consumption_without_battery: Column containing grid consumption
+            without battery support.
+        grid_consumption: Column containing grid consumption with battery
+            support.
+        secondary_y_cols: Optional columns to render on the secondary y-axis.
+        secondary_y_title: Secondary y-axis label.
+
+    Returns:
+        A Plotly figure for battery-usecase analysis.
+    """
+    plot_df, cols, fill_cols, dotted_cols, plot_order, secondary_y_cols, color_dict = (
+        prepare_battery_usecase_plot(
+            df,
+            cols=cols,
+            fill_cols=fill_cols,
+            dotted_cols=dotted_cols,
+            plot_order=plot_order,
+            secondary_y_cols=secondary_y_cols,
+            color_dict=color_dict,
+            time_col=time_col,
+            battery_power_flow=battery_power_flow,
+            battery_charging=battery_charging,
+            battery_discharging=battery_discharging,
+            pv_col=pv_col,
+            grid_consumption_without_battery=grid_consumption_without_battery,
+            grid_consumption=grid_consumption,
+        )
+    )
+    fig = plot_time_series(
+        plot_df,
+        time_col=time_col,
+        cols=cols,
+        title=title,
+        xaxis_title=xaxis_title,
+        yaxis_title=yaxis_title,
+        legend_title=legend_title,
+        color_dict=color_dict,
+        long_format_flag=long_format_flag,
+        category_col=category_col,
+        value_col=value_col,
+        fill_cols=fill_cols,
+        dotted_cols=dotted_cols,
+        plot_order=plot_order,
+        shade_by_category=shade_by_category,
+        secondary_y_cols=secondary_y_cols,
+        secondary_y_title=secondary_y_title,
+    )
+    fig.update_layout(
+        legend=dict(y=1.28, yanchor="top"),
+        margin=dict(t=145),
+    )
+    source_df = plot_df if time_col is None else plot_df.set_index(time_col)
+    add_battery_usecase_overlay_traces(
+        fig,
+        source_df,
+        color_dict=color_dict,
+        yaxis_title=yaxis_title,
     )
     return fig
 
