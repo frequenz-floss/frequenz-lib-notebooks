@@ -2,10 +2,17 @@
 
 ## Summary
 
-- Fixed asset optimization battery and power-flow rendering for more accurate charge/discharge visuals.
+This release adds formula-aware microgrid configuration initialization for
+reporting data workflows. When API credentials are available, microgrid
+configurations are enriched with formulas from the Assets service; otherwise
+the existing static config loading path is used.
+
+Also fixed asset optimization battery and power-flow rendering for more accurate charge/discharge visuals.
 
 ## Upgrading
 
+- `init_microgrid_data()` now conditionally loads configs with formulas when
+  both `API_KEY` and `API_SECRET` are set.
 
 ## New Features
 
