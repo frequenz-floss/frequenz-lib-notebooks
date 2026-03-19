@@ -2,16 +2,16 @@
 
 ## Summary
 
-<!-- Here goes a general summary of what this release is about -->
+- Fixed asset optimization battery and power-flow rendering for more accurate charge/discharge visuals.
 
 ## Upgrading
 
-<!-- Here goes notes on how to upgrade from previous versions, including deprecations and what they should be replaced with -->
 
 ## New Features
 
-<!-- Here goes the main new features and examples or instructions on how to use them -->
+- Refactored asset optimization Plotly code to reduce duplication in layout finalization and battery trace creation.
 
 ## Bug Fixes
-
-<!-- Here goes notable bug fixes that are worth a special mention or explanation -->
+- Fixed asset optimization power-flow charge/discharge fills to be anchored to the consumption baseline while keeping hover values on actual series.
+- Fixed battery power chart fills across missing data by inserting zero boundaries at NaN edges to avoid visual bridging through gaps.
+- Fixed battery charge rendering to align positive charge fill with available power bounds in the asset optimization Plotly chart.
