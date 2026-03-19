@@ -5,8 +5,8 @@
 
 import logging
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
@@ -21,7 +21,6 @@ from .viz_colors import (
     PV,
     SELL,
     SOC,
-    TRANSPARENT,
     ZERO_LINE,
 )
 from .viz_data import (
@@ -38,7 +37,6 @@ FIGURE_SIZE = (1000, 700)
 LINE_WIDTH = 1
 FONT_SIZE = 14
 FONT_FAMILY = "Golos Text, sans-serif"
-AXIS_LINE_WIDTH = 1.5
 GRID_LINE_WIDTH = 1
 HOVER_BG = "rgba(255,255,255,0.95)"
 HOVER_BORDER = "rgba(0,0,0,0.2)"
@@ -163,10 +161,75 @@ def _apply_range_slider(
     )
 
 
+def _finalize_time_series_plot(
+    fig: go.Figure,
+    *,
+    title: str,
+    y_title: str,
+    legend_items: int,
+    x_index: pd.Index,
+    y_series: list[pd.Series | None],
+    row: int | None = None,
+) -> None:
+    if row is None:
+        _apply_common_layout(fig, y_title=y_title, legend_items=legend_items)
+        fig.update_layout(title={"text": title, "x": 0.0, "xanchor": "left"})
+        _apply_range_slider(fig)
+    y_all = pd.concat([series for series in y_series if series is not None])
+    _apply_axis_padding(
+        fig,
+        x_index=x_index,
+        y_min=float(y_all.min()),
+        y_max=float(y_all.max()),
+        row=row,
+        col=1 if row is not None else None,
+    )
+
+
+def _add_battery_fill_line_traces(
+    fig: go.Figure,
+    *,
+    x_index: pd.Index,
+    y: pd.Series,
+    name: str,
+    color: str,
+    opacity: float | None = None,
+) -> None:
+    fig.add_trace(
+        go.Scatter(
+            x=x_index,
+            y=y,
+            mode="none",
+            fill="tozeroy",
+            fillcolor=color,
+            connectgaps=False,
+            showlegend=False,
+            hoverinfo="skip",
+            line={"shape": "linear"},
+        ),
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=x_index,
+            y=y,
+            name=name,
+            line={"color": color, "shape": "linear"},
+            connectgaps=False,
+            opacity=opacity,
+            hovertemplate="<b>%{fullData.name}</b>: %{y} kW<extra></extra>",
+        ),
+    )
+
+
 def _add_zero_boundaries(series: pd.Series) -> pd.Series:
-    """
-    For each transition valid→NaN or NaN→valid, insert a 0-value point
-    at that boundary so fill='tozeroy' closes cleanly instead of bridging.
+    """Replace values at NaN boundaries with 0.0 to prevent visual bridging across gaps.
+
+    For each transition between valid values and NaNs, the function sets:
+    - the last valid value before a NaN sequence to 0.0
+    - the first valid value after a NaN sequence to 0.0
+
+    This is useful for plotting (e.g., with fill='tozeroy'), where gaps (NaNs)
+    would otherwise be visually connected.
     """
     s = series.copy().astype(float)
     is_null = s.isna()
@@ -174,10 +237,10 @@ def _add_zero_boundaries(series: pd.Series) -> pd.Series:
     # Index positions just before a gap (last valid before NaN run)
     before_gap = (~is_null) & is_null.shift(-1, fill_value=False)
     # Index positions just after a gap (first valid after NaN run)
-    after_gap  = (~is_null) & is_null.shift(1, fill_value=False)
+    after_gap = (~is_null) & is_null.shift(1, fill_value=False)
 
     s[before_gap] = 0.0
-    s[after_gap]  = 0.0
+    s[after_gap] = 0.0
     return s
 
 
@@ -320,26 +383,21 @@ def plot_power_flow(
     )
     legend_items += 1
 
-    if row is None:
-        _apply_common_layout(fig, y_title="Power (kW)", legend_items=legend_items)
-        fig.update_layout(title={"text": "Power Flow", "x": 0.0, "xanchor": "left"})
-        _apply_range_slider(fig)
-
-    y_series = [data.consumption, data.chp, data.production]
-    if data.grid is not None:
-        y_series.append(data.grid)
-    if data.charge is not None:
-        y_series.append(data.charge)
-    if data.discharge is not None:
-        y_series.append(data.discharge)
-    y_all = pd.concat(y_series)
-    _apply_axis_padding(
+    _finalize_time_series_plot(
         fig,
+        title="Power Flow",
+        y_title="Power (kW)",
+        legend_items=legend_items,
         x_index=data.index,
-        y_min=float(y_all.min()),
-        y_max=float(y_all.max()),
+        y_series=[
+            data.consumption,
+            data.chp,
+            data.production,
+            data.grid,
+            data.charge,
+            data.discharge,
+        ],
         row=row,
-        col=1 if row is not None else None,
     )
     return fig
 
@@ -394,18 +452,14 @@ def plot_energy_trade(
         )
     )
 
-    if row is None:
-        _apply_common_layout(fig, y_title="Energy (kWh)", legend_items=2)
-        fig.update_layout(title={"text": "Energy Trade", "x": 0.0, "xanchor": "left"})
-        _apply_range_slider(fig)
-    y_all = pd.concat([data.buy, data.sell])
-    _apply_axis_padding(
+    _finalize_time_series_plot(
         fig,
+        title="Energy Trade",
+        y_title="Energy (kWh)",
+        legend_items=2,
         x_index=data.index,
-        y_min=float(y_all.min()),
-        y_max=float(y_all.max()),
+        y_series=[data.buy, data.sell],
         row=row,
-        col=1 if row is not None else None,
     )
     return fig
 
@@ -450,29 +504,8 @@ def plot_power_flow_trade(df: pd.DataFrame) -> go.Figure:
         trace.legend = "legend2"
         fig_final.add_trace(trace, row=2, col=1)
 
-    # Apply "Common Layout" Logic manually to the Subplot
-    fig_final.update_layout(
-        width=FIGURE_SIZE[0],
-        height=FIGURE_SIZE[1],
-        template="plotly_white",
-        paper_bgcolor="white",
-        plot_bgcolor="white",
-        hovermode="x unified",
-        font={"size": FONT_SIZE, "family": FONT_FAMILY},
-        margin={"l": 30, "r": 70, "t": 30, "b": 40},
-        hoverlabel={
-            "bgcolor": HOVER_BG,
-            "bordercolor": HOVER_BORDER,
-            "font": {
-                "family": FONT_FAMILY,
-                "size": FONT_SIZE,
-                "color": HOVER_FONT_COLOR,
-            },
-            "align": "left",
-            "namelength": -1,
-        },
-        separators=",.",
-    )
+    _apply_common_layout(fig_final)
+    fig_final.update_layout(margin={"l": 30, "r": 70, "t": 30, "b": 40})
 
     # Configure the layout for both legends
     power_items = len([t for t in fig_power.data if t.showlegend is not False])
@@ -481,29 +514,6 @@ def plot_power_flow_trade(df: pd.DataFrame) -> go.Figure:
         legend=_legend_config(num_items=power_items, y=1.1),
         legend2=_legend_config(num_items=trade_items, y=0.30),
     )
-
-    fig_final.update_xaxes(
-        showgrid=True,
-        showline=False,
-        mirror=False,
-        gridwidth=GRID_LINE_WIDTH,
-        ticks="outside",
-        ticklen=6,
-        tickcolor="rgba(0,0,0,0.35)",
-        zeroline=False,
-    )
-
-    fig_final.update_yaxes(
-        showgrid=True,
-        showline=False,
-        mirror=False,
-        gridwidth=GRID_LINE_WIDTH,
-        ticks="outside",
-        ticklen=6,
-        tickcolor="rgba(0,0,0,0.35)",
-        zeroline=False,
-    )
-    fig_final.update_traces(line={"width": LINE_WIDTH, "simplify": False})
 
     # Set Specific Titles
     fig_final.update_yaxes(title_text="Power (kW)", row=1, col=1)
@@ -533,13 +543,16 @@ def plot_battery_power(df: pd.DataFrame) -> go.Figure:
 
     charge_pos = data.charge.clip(lower=0)
     available_pos = data.available.clip(lower=0)
+
     charge_plot = charge_pos.where(charge_pos > 0)
-    charge_plot = charge_plot.where(charge_plot.notna(), None)
+    charge_plot = charge_plot.mask(charge_plot.isna(), np.nan)
+
     mask = charge_plot.notna() & available_pos.notna()
     charge_plot = charge_plot.where(
         ~mask, charge_plot.where(charge_plot <= available_pos, available_pos)
     )
-    discharge_plot = data.battery.where(data.discharge.notna(), None)
+
+    discharge_plot = data.battery.where(data.discharge.notna())
 
     charge_plot = _add_zero_boundaries(charge_plot)
     discharge_plot = _add_zero_boundaries(discharge_plot)
@@ -578,56 +591,20 @@ def plot_battery_power(df: pd.DataFrame) -> go.Figure:
         ),
     )
 
-    # Fill trace (no line, so no connecting line across gaps)
-    fig.add_trace(
-        go.Scatter(
-            x=data.index,
-            y=charge_plot,
-            mode="none",
-            fill="tozeroy",
-            fillcolor=CHARGE,
-            connectgaps=False,
-            showlegend=False,
-            hoverinfo="skip",
-            line={"shape": "linear"},
-        ),
+    _add_battery_fill_line_traces(
+        fig,
+        x_index=data.index,
+        y=charge_plot,
+        name="Charge",
+        color=CHARGE,
     )
-
-    # Line trace (carries the legend entry and tooltip)
-    fig.add_trace(
-        go.Scatter(
-            x=data.index,
-            y=charge_plot,
-            name="Charge",
-            line={"color": CHARGE, "shape": "linear"},
-            connectgaps=False,
-            hovertemplate="<b>%{fullData.name}</b>: %{y} kW<extra></extra>",
-        ),
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=data.index,
-            y=discharge_plot,
-            mode="none",
-            fill="tozeroy",
-            fillcolor=DISCHARGE,
-            connectgaps=False,
-            showlegend=False,
-            hoverinfo="skip",
-            line={"shape": "linear"},
-        ),
-    )
-
-    fig.add_trace(
-        go.Scatter(
-            x=data.index,
-            y=discharge_plot,
-            name="Discharge",
-            line={"color": DISCHARGE, "shape": "linear"},
-            connectgaps=False,
-            opacity=0.9,
-            hovertemplate="<b>%{fullData.name}</b>: %{y} kW<extra></extra>",
-        ),
+    _add_battery_fill_line_traces(
+        fig,
+        x_index=data.index,
+        y=discharge_plot,
+        name="Discharge",
+        color=DISCHARGE,
+        opacity=0.9,
     )
 
     fig.update_layout(
