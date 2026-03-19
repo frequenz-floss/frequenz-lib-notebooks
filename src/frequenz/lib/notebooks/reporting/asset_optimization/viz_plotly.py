@@ -223,8 +223,8 @@ def plot_power_flow(
                 y=data.chp,
                 name="CHP",
                 stackgroup="production",
-                line={"color": CHP, "shape": "hv"},
-                opacity=0.5,
+                line={"color": CHP, "shape": "linear"},
+                opacity=0.8,
                 hovertemplate="<b>CHP</b>: %{y} kW<extra></extra>",
             )
         )
@@ -239,56 +239,63 @@ def plot_power_flow(
                 y=pv_series,
                 name=pv_label,
                 stackgroup="production",
-                line={"color": PV, "shape": "hv"},
-                opacity=0.7,
+                line={"color": PV, "shape": "linear"},
+                opacity=0.9,
                 hovertemplate="<b>%{fullData.name}</b>: %{y} kW<extra></extra>",
             )
         )
         legend_items += 1
 
     if data.charge is not None and data.discharge is not None:
+        # 1. Consumption Reference (The 'Floor' for Charge, 'Ceiling' for Discharge)
         fig.add_trace(
             go.Scatter(
                 x=data.index,
                 y=data.consumption,
-                name="Consumption (base)",
-                line={"color": TRANSPARENT, "shape": "hv"},
+                stackgroup="charge_stack",
+                fill="none",
+                line={"color": "rgba(0,0,0,0)", "width": 0},
                 showlegend=False,
                 hoverinfo="skip",
             )
         )
+        charge_delta = (data.charge - data.consumption).clip(lower=0)
         fig.add_trace(
             go.Scatter(
                 x=data.index,
-                y=data.charge,
+                y=charge_delta,
                 name="Charge",
-                line={"color": CHARGE, "shape": "hv"},
-                opacity=0.2,
-                hovertemplate="<b>Charge</b>: %{y} kW<extra></extra>",
+                stackgroup="charge_stack",
+                line={"color": CHARGE, "shape": "linear", "width": 1},
+                customdata=data.charge,
+                hovertemplate="<b>Charge</b>: %{customdata} kW<extra></extra>",
             )
         )
-        legend_items += 1
+
         fig.add_trace(
             go.Scatter(
                 x=data.index,
                 y=data.consumption,
-                name="Consumption (base)",
-                line={"color": TRANSPARENT, "shape": "hv"},
+                stackgroup="discharge_stack",
+                fill="none",
+                line={"color": "rgba(0,0,0,0)", "width": 0},
                 showlegend=False,
                 hoverinfo="skip",
             )
         )
+        discharge_delta = (data.discharge - data.consumption).clip(upper=0)
         fig.add_trace(
             go.Scatter(
                 x=data.index,
-                y=data.discharge,
+                y=discharge_delta,
                 name="Discharge",
-                line={"color": DISCHARGE, "shape": "hv"},
-                opacity=0.5,
-                hovertemplate="<b>Discharge</b>: %{y} kW<extra></extra>",
+                stackgroup="discharge_stack",
+                line={"color": DISCHARGE, "shape": "linear", "width": 1},
+                customdata=data.discharge,
+                hovertemplate="<b>Discharge</b>: %{customdata} kW<extra></extra>",
             )
         )
-        legend_items += 1
+        legend_items += 2
 
     if data.grid is not None:
         fig.add_trace(
