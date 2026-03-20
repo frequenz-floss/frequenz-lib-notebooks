@@ -3,7 +3,6 @@
 
 """Data fetching for asset optimization reporting."""
 
-import asyncio
 import logging
 import os
 from datetime import datetime, timedelta
@@ -18,7 +17,7 @@ from frequenz.data.microgrid import MicrogridData
 _logger = logging.getLogger(__name__)
 
 
-def init_microgrid_data(
+async def init_microgrid_data(
     *,
     microgrid_config_dir: str,
     dotenv_path: str | None = None,
@@ -47,13 +46,11 @@ def init_microgrid_data(
         mcfg = MicrogridConfig.load_configs(microgrid_config_dir=microgrid_config_dir)
     else:
         try:
-            mcfg = asyncio.run(
-                MicrogridConfig.load_configs_with_formulas(
-                    assets_url=assets_url,
-                    assets_auth_key=api_key,
-                    assets_sign_secret=api_secret,
-                    microgrid_config_dir=microgrid_config_dir,
-                )
+            mcfg = await MicrogridConfig.load_configs_with_formulas(
+                assets_url=assets_url,
+                assets_auth_key=api_key,
+                assets_sign_secret=api_secret,
+                microgrid_config_dir=microgrid_config_dir,
             )
         except RuntimeError:
             _logger.warning(
