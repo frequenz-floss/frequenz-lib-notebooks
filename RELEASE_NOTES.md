@@ -11,8 +11,9 @@ Also fixed asset optimization battery and power-flow rendering for more accurate
 
 ## Upgrading
 
-- `init_microgrid_data()` now conditionally loads configs with formulas when
-  both `API_KEY` and `API_SECRET` are set.
+- `init_microgrid_data()`
+  - now conditionally loads configs with formulas when both `API_KEY` and `API_SECRET` are set.
+  - now supports a file argument in addition to the folder argument.
 
 ## New Features
 
