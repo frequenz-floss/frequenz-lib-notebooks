@@ -17,14 +17,16 @@ from frequenz.data.microgrid import MicrogridData
 _logger = logging.getLogger(__name__)
 
 
-def init_microgrid_data(
+async def init_microgrid_data(
     *,
-    microgrid_config_dir: str,
+    microgrid_config_file: str | None = None,
+    microgrid_config_dir: str | None = None,
     dotenv_path: str | None = None,
 ) -> MicrogridData:
     """Load MicrogridData instance using environment variables.
 
     Args:
+        microgrid_config_file: Path to a microgrid configuration file.
         microgrid_config_dir: Directory containing microgrid configuration files.
         dotenv_path: Optional path to an environment variable file.
 
@@ -35,12 +37,37 @@ def init_microgrid_data(
         load_dotenv(dotenv_path=dotenv_path)
 
     service_address = os.environ["REPORTING_API_URL"]
-    api_key = os.environ["API_KEY"]
-    api_secret = os.environ["API_SECRET"]
+    api_key = os.getenv("API_KEY", "")
+    api_secret = os.getenv("API_SECRET", "")
 
-    mcfg = MicrogridConfig.load_configs(
-        microgrid_config_dir=microgrid_config_dir,
-    )
+    assets_url = os.environ.get("ASSETS_API_URL")
+    if not assets_url:
+        _logger.warning(
+            "ASSETS_API_URL is not set. Falling back to static microgrid configs."
+        )
+        mcfg = MicrogridConfig.load_configs(
+            microgrid_config_files=microgrid_config_file,
+            microgrid_config_dir=microgrid_config_dir,
+        )
+    else:
+        try:
+            mcfg = await MicrogridConfig.load_configs_with_formulas(
+                assets_url=assets_url,
+                assets_auth_key=api_key,
+                assets_sign_secret=api_secret,
+                microgrid_config_files=microgrid_config_file,
+                microgrid_config_dir=microgrid_config_dir,
+            )
+        except RuntimeError:
+            _logger.warning(
+                "Could not run async formula loading in current context. "
+                "Falling back to loading static microgrid configs."
+            )
+            mcfg = MicrogridConfig.load_configs(
+                microgrid_config_files=microgrid_config_file,
+                microgrid_config_dir=microgrid_config_dir,
+            )
+
     return MicrogridData(
         server_url=service_address,
         auth_key=api_key,
