@@ -13,7 +13,7 @@ colours).
 
 import logging
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 import matplotlib.pyplot as plt
@@ -160,7 +160,9 @@ class StatisticalPlotStyle(PlotStyleStrategy):
             duration = int(data_index.to_series().diff().mode()[0].total_seconds() / 60)
         except TypeError:
             duration = int(
-                data_index.map(lambda t: datetime.combine(datetime.today(), t))
+                data_index.map(
+                    lambda t: datetime.combine(datetime.now(UTC).date(), t, tzinfo=UTC)
+                )
                 .to_series()
                 .diff()
                 .mode()[0]

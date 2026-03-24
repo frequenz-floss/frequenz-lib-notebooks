@@ -166,7 +166,7 @@ class ConfigConstants:
     DEFAULT_WEATHER_FEATURES_TO_FETCH = ["SURFACE_SOLAR_RADIATION_DOWNWARDS"]
     DEFAULT_WEATHER_FEATURE_NAMES = ["ssr"]
     DEFAULT_TIME_ZONE = ZoneInfo("UTC")
-    DEFAULT_END_TIMESTAMP = datetime.datetime.now().astimezone(
+    DEFAULT_END_TIMESTAMP = datetime.datetime.now(datetime.UTC).astimezone(
         DEFAULT_TIME_ZONE
     ) - datetime.timedelta(minutes=15)
     DEFAULT_START_TIMESTAMP = DEFAULT_END_TIMESTAMP - datetime.timedelta(days=1)

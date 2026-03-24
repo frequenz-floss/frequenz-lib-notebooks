@@ -10,7 +10,7 @@ and reporting APIs or csv files.
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -40,14 +40,14 @@ class BaseRetrievalConfig:
     )
 
     start_timestamp: datetime = field(
-        default=datetime.now() - pd.Timedelta(days=1),
+        default_factory=lambda: datetime.now(UTC) - timedelta(days=1),
         metadata={
             "description": "Start timestamp for data retrieval",
         },
     )
 
     end_timestamp: datetime = field(
-        default=datetime.now(),
+        default_factory=lambda: datetime.now(UTC),
         metadata={
             "description": "End timestamp for data retrieval",
         },

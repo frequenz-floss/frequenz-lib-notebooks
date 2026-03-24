@@ -23,3 +23,4 @@ Also fixed asset optimization battery and power-flow rendering for more accurate
 - Fixed asset optimization power-flow charge/discharge fills to be anchored to the consumption baseline while keeping hover values on actual series.
 - Fixed battery power chart fills across missing data by inserting zero boundaries at NaN edges to avoid visual bridging through gaps.
 - Fixed battery charge rendering to align positive charge fill with available power bounds in the asset optimization Plotly chart.
+- Fixed timezone-related datetime usage across notification and solar maintenance helpers by using explicit UTC-aware datetimes for defaults and generated timestamps.

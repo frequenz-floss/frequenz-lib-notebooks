@@ -3,7 +3,7 @@
 
 """Tests for the frequenz.lib.notebooks.alerts module."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
@@ -115,7 +115,10 @@ def test_plot_alerts_empty_df_does_nothing(caplog: pytest.LogCaptureFixture) -> 
     "input_value, expected_output",
     [
         ("2024-01-01 12:00", pd.Timestamp("2024-01-01 12:00", tz="UTC")),
-        (datetime(2024, 1, 1, 12, 0), pd.Timestamp("2024-01-01 12:00", tz="UTC")),
+        (
+            datetime(2024, 1, 1, 12, 0, tzinfo=UTC),
+            pd.Timestamp("2024-01-01 12:00", tz="UTC"),
+        ),
         (pd.Timestamp("2024-01-01 12:00"), pd.Timestamp("2024-01-01 12:00", tz="UTC")),
         (
             pd.Timestamp("2024-01-01 12:00", tz="UTC"),

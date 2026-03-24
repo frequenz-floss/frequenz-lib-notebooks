@@ -60,7 +60,7 @@ def send_test_email(config: EmailConfig) -> bool:
 
         <p><strong>✉️ Sent from:</strong> {config.from_email}</p>
         <p><strong>📩 Sent to:</strong> {config.recipients}</p>
-        <p><strong>⏳ Timestamp:</strong> {datetime.now().astimezone(UTC)}</p>
+        <p><strong>⏳ Timestamp:</strong> {datetime.now(UTC)}</p>
 
         <hr style="border: 1px solid #ddd;">
 

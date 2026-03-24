@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import cast
 from zoneinfo import ZoneInfo
 
@@ -156,7 +156,7 @@ def test_set_date_to_midnight_creates_timezone_aware_midnight() -> None:
     expected_date = datetime(2024, 5, 1, tzinfo=ZoneInfo("Europe/Berlin"))
     assert result_date == expected_date
 
-    noon_input = datetime(2024, 5, 2, 12, 30)
+    noon_input = datetime(2024, 5, 2, 12, 30, tzinfo=UTC)
     result_datetime = set_date_to_midnight(noon_input, "UTC")
     assert result_datetime == datetime(2024, 5, 2, tzinfo=ZoneInfo("UTC"))
 

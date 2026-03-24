@@ -14,7 +14,7 @@ as pandas Series with the same index as the input data and the name 'predictions
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, Callable, cast
 from zoneinfo import ZoneInfo
 
@@ -419,7 +419,9 @@ def run_pvlib_simulation(  # pylint: disable=unused-argument
             endyear=end_year,
             url="https://re.jrc.ec.europa.eu/api/v5_2/",
         )
-        tmy_df.index = tmy_df.index.map(lambda x: x.replace(year=datetime.now().year))
+        tmy_df.index = tmy_df.index.map(
+            lambda x: x.replace(year=datetime.now(UTC).year)
+        )
         tmy_df.sort_index(inplace=True)
         tmy_df.index = tmy_df.index.tz_convert(location_parameters["timezone"])
 
@@ -465,7 +467,7 @@ def run_pvlib_simulation(  # pylint: disable=unused-argument
         pvgis_df.index = pvgis_df.index - pd.Timedelta(
             minutes=pvgis_df.index.minute.unique()[0]
         )
-        year_offset = datetime.now().year - end_year
+        year_offset = datetime.now(UTC).year - end_year
         pvgis_df.index = pvgis_df.index.map(
             lambda x: x.replace(year=x.year + year_offset)
         )

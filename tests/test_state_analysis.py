@@ -4,7 +4,7 @@
 """Tests for the frequenz.reporting package."""
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, cast
 
 import pytest
@@ -41,8 +41,12 @@ test_cases_extract_state_durations = [
     {
         "description": "No matching metrics",
         "samples": [
-            MetricSample(datetime(2023, 1, 1, 0, 0), 1, "101", "temperature", 25),
-            MetricSample(datetime(2023, 1, 1, 1, 0), 1, "101", "humidity", 60),
+            MetricSample(
+                datetime(2023, 1, 1, 0, 0, tzinfo=UTC), 1, "101", "temperature", 25
+            ),
+            MetricSample(
+                datetime(2023, 1, 1, 1, 0, tzinfo=UTC), 1, "101", "humidity", 60
+            ),
         ],
         "alert_states": [enum_from_proto(1, ElectricalComponentStateCode)],
         "include_warnings": True,
@@ -52,8 +56,8 @@ test_cases_extract_state_durations = [
     {
         "description": "Single state change",
         "samples": [
-            MetricSample(datetime(2023, 1, 1, 0, 0), 1, "101", "state", 0),
-            MetricSample(datetime(2023, 1, 1, 1, 0), 1, "101", "state", 1),
+            MetricSample(datetime(2023, 1, 1, 0, 0, tzinfo=UTC), 1, "101", "state", 0),
+            MetricSample(datetime(2023, 1, 1, 1, 0, tzinfo=UTC), 1, "101", "state", 1),
         ],
         "alert_states": [enum_from_proto(1, ElectricalComponentStateCode)],
         "include_warnings": True,
@@ -63,15 +67,15 @@ test_cases_extract_state_durations = [
                 "component_id": "101",
                 "state_type": "state",
                 "state_value": _resolve_enum_name(0, ElectricalComponentStateCode),
-                "start_time": datetime(2023, 1, 1, 0, 0),
-                "end_time": datetime(2023, 1, 1, 1, 0),
+                "start_time": datetime(2023, 1, 1, 0, 0, tzinfo=UTC),
+                "end_time": datetime(2023, 1, 1, 1, 0, tzinfo=UTC),
             },
             {
                 "microgrid_id": 1,
                 "component_id": "101",
                 "state_type": "state",
                 "state_value": _resolve_enum_name(1, ElectricalComponentStateCode),
-                "start_time": datetime(2023, 1, 1, 1, 0),
+                "start_time": datetime(2023, 1, 1, 1, 0, tzinfo=UTC),
                 "end_time": None,
             },
         ],
@@ -81,7 +85,7 @@ test_cases_extract_state_durations = [
                 "component_id": "101",
                 "state_type": "state",
                 "state_value": _resolve_enum_name(1, ElectricalComponentStateCode),
-                "start_time": datetime(2023, 1, 1, 1, 0),
+                "start_time": datetime(2023, 1, 1, 1, 0, tzinfo=UTC),
                 "end_time": None,
             },
         ],
@@ -89,19 +93,23 @@ test_cases_extract_state_durations = [
     {
         "description": "Warnings and errors included",
         "samples": [
-            MetricSample(datetime(2023, 1, 2, 0, 0), 3, "303", "state", 0),
-            MetricSample(datetime(2023, 1, 2, 0, 30), 3, "303", "state", 10),
+            MetricSample(datetime(2023, 1, 2, 0, 0, tzinfo=UTC), 3, "303", "state", 0),
             MetricSample(
-                datetime(2023, 1, 2, 0, 30),
+                datetime(2023, 1, 2, 0, 30, tzinfo=UTC), 3, "303", "state", 10
+            ),
+            MetricSample(
+                datetime(2023, 1, 2, 0, 30, tzinfo=UTC),
                 3,
                 "303",
                 "warning",
                 cast(Any, _DiagnosticValue(10)),
             ),
-            MetricSample(datetime(2023, 1, 2, 1, 0), 3, "303", "state", 1),
-            MetricSample(datetime(2023, 1, 2, 1, 30), 3, "303", "state", 20),
+            MetricSample(datetime(2023, 1, 2, 1, 0, tzinfo=UTC), 3, "303", "state", 1),
             MetricSample(
-                datetime(2023, 1, 2, 1, 30),
+                datetime(2023, 1, 2, 1, 30, tzinfo=UTC), 3, "303", "state", 20
+            ),
+            MetricSample(
+                datetime(2023, 1, 2, 1, 30, tzinfo=UTC),
                 3,
                 "303",
                 "error",
@@ -116,31 +124,31 @@ test_cases_extract_state_durations = [
                 "component_id": "303",
                 "state_type": "state",
                 "state_value": _resolve_enum_name(0, ElectricalComponentStateCode),
-                "start_time": datetime(2023, 1, 2, 0, 0),
-                "end_time": datetime(2023, 1, 2, 0, 30),
+                "start_time": datetime(2023, 1, 2, 0, 0, tzinfo=UTC),
+                "end_time": datetime(2023, 1, 2, 0, 30, tzinfo=UTC),
             },
             {
                 "microgrid_id": 3,
                 "component_id": "303",
                 "state_type": "state",
                 "state_value": _resolve_enum_name(10, ElectricalComponentStateCode),
-                "start_time": datetime(2023, 1, 2, 0, 30),
-                "end_time": datetime(2023, 1, 2, 1, 0),
+                "start_time": datetime(2023, 1, 2, 0, 30, tzinfo=UTC),
+                "end_time": datetime(2023, 1, 2, 1, 0, tzinfo=UTC),
             },
             {
                 "microgrid_id": 3,
                 "component_id": "303",
                 "state_type": "state",
                 "state_value": _resolve_enum_name(1, ElectricalComponentStateCode),
-                "start_time": datetime(2023, 1, 2, 1, 0),
-                "end_time": datetime(2023, 1, 2, 1, 30),
+                "start_time": datetime(2023, 1, 2, 1, 0, tzinfo=UTC),
+                "end_time": datetime(2023, 1, 2, 1, 30, tzinfo=UTC),
             },
             {
                 "microgrid_id": 3,
                 "component_id": "303",
                 "state_type": "state",
                 "state_value": _resolve_enum_name(20, ElectricalComponentStateCode),
-                "start_time": datetime(2023, 1, 2, 1, 30),
+                "start_time": datetime(2023, 1, 2, 1, 30, tzinfo=UTC),
                 "end_time": None,
             },
             {
@@ -150,8 +158,8 @@ test_cases_extract_state_durations = [
                 "state_value": _resolve_enum_name(
                     10, ElectricalComponentDiagnosticCode
                 ),
-                "start_time": datetime(2023, 1, 2, 0, 30),
-                "end_time": datetime(2023, 1, 2, 1, 0),
+                "start_time": datetime(2023, 1, 2, 0, 30, tzinfo=UTC),
+                "end_time": datetime(2023, 1, 2, 1, 0, tzinfo=UTC),
             },
         ],
         "expected_alert_records": [
@@ -162,16 +170,16 @@ test_cases_extract_state_durations = [
                 "state_value": _resolve_enum_name(
                     10, ElectricalComponentDiagnosticCode
                 ),
-                "start_time": datetime(2023, 1, 2, 0, 30),
-                "end_time": datetime(2023, 1, 2, 1, 0),
+                "start_time": datetime(2023, 1, 2, 0, 30, tzinfo=UTC),
+                "end_time": datetime(2023, 1, 2, 1, 0, tzinfo=UTC),
             },
             {
                 "microgrid_id": 3,
                 "component_id": "303",
                 "state_type": "state",
                 "state_value": _resolve_enum_name(1, ElectricalComponentStateCode),
-                "start_time": datetime(2023, 1, 2, 1, 0),
-                "end_time": datetime(2023, 1, 2, 1, 30),
+                "start_time": datetime(2023, 1, 2, 1, 0, tzinfo=UTC),
+                "end_time": datetime(2023, 1, 2, 1, 30, tzinfo=UTC),
             },
         ],
     },
