@@ -262,7 +262,7 @@ def _group_samples_by_component(
     for sample in samples:
         if sample.metric not in alert_metrics:
             continue
-        key = (sample.microgrid_id, sample.component_id)
+        key = (sample.microgrid_id, str(sample.component_id))
         metric_dict = component_groups.setdefault(key, {})
         metric_dict.setdefault(sample.metric, []).append(sample)
     return component_groups
