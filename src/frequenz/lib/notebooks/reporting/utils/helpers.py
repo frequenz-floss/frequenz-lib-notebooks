@@ -66,7 +66,6 @@ DEFAULT_AGGREGATED_COMPONENT_CONFIG: AggregatedComponentConfig = {
     "battery": ("battery_power_flow", "Battery #"),
     "pv": ("pv_asset_production", "PV #"),
     "chp": ("chp_asset_production", "CHP #"),
-    "ev": ("ev_asset_production", "EV #"),
     "wind": ("wind_asset_production", "Wind #"),
 }
 
@@ -305,7 +304,6 @@ def get_energy_report_columns(
         "battery": ["battery_power_flow"],
         "pv": ["pv_asset_production"],
         "chp": ["chp_asset_production"],
-        "ev": ["ev_asset_production"],
         "wind": ["wind_asset_production"],
     }
 
