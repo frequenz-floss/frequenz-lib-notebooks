@@ -7,7 +7,8 @@ reporting data workflows. When API credentials are available, microgrid
 configurations are enriched with formulas from the Assets service; otherwise
 the existing static config loading path is used.
 
-Also fixed asset optimization battery and power-flow rendering for more accurate charge/discharge visuals.
+It also adds a dedicated reporting battery-usecase plot, including standardized
+data preparation and support for PV and battery overlays.
 
 ## Upgrading
 
@@ -18,6 +19,10 @@ Also fixed asset optimization battery and power-flow rendering for more accurate
 ## New Features
 
 - Refactored asset optimization Plotly code to reduce duplication in layout finalization and battery trace creation.
+- `plot_time_series_battery_usecase()`
+  - added as a dedicated reporting plot for battery-usecase analysis.
+- `create_battery_usecase_df()`
+  - added to prepare standardized input data for the battery-usecase plot.
 
 ## Bug Fixes
 - Fixed asset optimization power-flow charge/discharge fills to be anchored to the consumption baseline while keeping hover values on actual series.
