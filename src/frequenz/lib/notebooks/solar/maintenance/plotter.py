@@ -28,12 +28,13 @@ Functions:
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Callable
+from typing import Any, Callable, cast
 from warnings import warn
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.artist import Artist
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
@@ -276,7 +277,8 @@ class BasePlotter(ABC):
                 lower-left corner, and (1, 1) is the upper-right corner of the figure.
                 This is useful for placing the legend outside the axes or figure.
         """
-        handles, labels = [], []
+        handles: list[Artist] = []
+        labels: list[str] = []
         seen = set()
         for ax in axs:
             if ax.get_visible():
@@ -287,10 +289,10 @@ class BasePlotter(ABC):
                         labels.append(label)
         if handles and labels:
             fig.legend(
-                handles,
-                labels,
+                handles=handles,
+                labels=labels,
                 bbox_to_anchor=bbox_to_anchor,
-                loc=loc,
+                loc=cast(Any, loc),
                 ncol=ncol,
             )
             fig.tight_layout()
