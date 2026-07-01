@@ -21,7 +21,7 @@ The PlotManager class allows users to:
 import logging
 import os
 from contextlib import contextmanager
-from typing import Any, Generator, TypeGuard
+from typing import Any, Generator, TypeGuard, cast
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -324,7 +324,7 @@ class PlotManager:
             base_theme: str = themes[theme]["base"]["base_theme"]
             theme_params: dict[str, Any] = themes[theme]["params"]
             plt.style.use(base_theme)
-            plt.rcParams.update(theme_params)
+            plt.rcParams.update(cast(Any, theme_params))
             self.current_style_params = theme_params
             _logger.info("Applied theme: %s", theme)
         else:
