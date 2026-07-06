@@ -4089,7 +4089,7 @@ Defaults to <code>"UTC"</code>.</p>
             <td class="doc-param-details">
               <div class="doc-md-description">
                 <p>List of component types to consider for aggregation
-(e.g., ["battery", "pv"]).</p>
+(e.g., ["battery", "pv", "chp", "wind"]).</p>
               </div>
               <p>
                   <span class="doc-param-annotation">
@@ -4214,7 +4214,7 @@ columns.</p>
 </span><span id="__span-0-712"><a id="__codelineno-0-712" name="__codelineno-0-712"></a><span class="sd">            (e.g., &quot;battery_power_flow&quot;) and labeled individual component columns</span>
 </span><span id="__span-0-713"><a id="__codelineno-0-713" name="__codelineno-0-713"></a><span class="sd">            (e.g., &quot;Battery #1&quot;, &quot;Battery #2&quot;).</span>
 </span><span id="__span-0-714"><a id="__codelineno-0-714" name="__codelineno-0-714"></a><span class="sd">        component_types: List of component types to consider for aggregation</span>
-</span><span id="__span-0-715"><a id="__codelineno-0-715" name="__codelineno-0-715"></a><span class="sd">            (e.g., [&quot;battery&quot;, &quot;pv&quot;]).</span>
+</span><span id="__span-0-715"><a id="__codelineno-0-715" name="__codelineno-0-715"></a><span class="sd">            (e.g., [&quot;battery&quot;, &quot;pv&quot;, &quot;chp&quot;, &quot;wind&quot;]).</span>
 </span><span id="__span-0-716"><a id="__codelineno-0-716" name="__codelineno-0-716"></a>
 </span><span id="__span-0-717"><a id="__codelineno-0-717" name="__codelineno-0-717"></a><span class="sd">        config: Mapping of component types to tuples containing the aggregated</span>
 </span><span id="__span-0-718"><a id="__codelineno-0-718" name="__codelineno-0-718"></a><span class="sd">            column name and the prefix used to identify individual component</span>
@@ -4404,7 +4404,7 @@ as the decimal separator and a dot as the thousands separator.</p>
             </td>
             <td class="doc-param-details">
               <div class="doc-md-description">
-                <p>List of component types (e.g. ["pv", "battery"])</p>
+                <p>List of component types (e.g. ["pv", "wind", "chp", "battery"])</p>
               </div>
               <p>
                   <span class="doc-param-annotation">
@@ -4529,7 +4529,7 @@ as the decimal separator and a dot as the thousands separator.</p>
 </span><span id="__span-0-286"><a id="__codelineno-0-286" name="__codelineno-0-286"></a><span class="sd">    The selected columns depend on the available component types.</span>
 </span><span id="__span-0-287"><a id="__codelineno-0-287" name="__codelineno-0-287"></a>
 </span><span id="__span-0-288"><a id="__codelineno-0-288" name="__codelineno-0-288"></a><span class="sd">    Args:</span>
-</span><span id="__span-0-289"><a id="__codelineno-0-289" name="__codelineno-0-289"></a><span class="sd">        component_types: List of component types (e.g. [&quot;pv&quot;, &quot;battery&quot;])</span>
+</span><span id="__span-0-289"><a id="__codelineno-0-289" name="__codelineno-0-289"></a><span class="sd">        component_types: List of component types (e.g. [&quot;pv&quot;, &quot;wind&quot;, &quot;chp&quot;, &quot;battery&quot;])</span>
 </span><span id="__span-0-290"><a id="__codelineno-0-290" name="__codelineno-0-290"></a><span class="sd">        single_components: Extra component columns to always include.</span>
 </span><span id="__span-0-291"><a id="__codelineno-0-291" name="__codelineno-0-291"></a>
 </span><span id="__span-0-292"><a id="__codelineno-0-292" name="__codelineno-0-292"></a><span class="sd">    Returns:</span>
