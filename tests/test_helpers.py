@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from typing import cast
@@ -12,7 +13,7 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 import pytest
-from frequenz.gridpool import MicrogridConfig
+from frequenz.client.common.microgrid import MicrogridId
 from pandas.testing import assert_frame_equal, assert_series_equal
 
 from frequenz.lib.notebooks.reporting.utils.helpers import (
@@ -23,7 +24,7 @@ from frequenz.lib.notebooks.reporting.utils.helpers import (
     convert_timezone,
     fill_aggregated_component_columns,
     fmt_to_de_system,
-    label_component_columns,
+    get_meter_display_names,
     long_to_wide,
     set_date_to_midnight,
 )
@@ -112,42 +113,62 @@ class _DummyMicrogridConfig:
     """Minimal config stub exposing component type helpers."""
 
     mapping: dict[str, list[str]]
+    ctype: dict[str, object] | None = None
 
     def component_types(self) -> list[str]:
+        if self.ctype:
+            return list(self.ctype.keys())
         return list(self.mapping.keys())
 
     def component_type_ids(self, component_type: str) -> list[str]:
         return self.mapping.get(component_type, [])
 
 
-def test_label_component_columns_applies_expected_prefixes() -> None:
-    """Numeric columns are renamed with component labels while others stay untouched."""
-    df = pd.DataFrame(
-        {
-            "1": [10],
-            "2": [20],
-            "3": [30],
-            "4": [40],
-            "constant": [99],
-        }
-    )
-    config = _DummyMicrogridConfig(
-        {"battery": ["1"], "pv": ["2"], "ev": ["3"], "chp": ["4"]}
-    )
+@dataclass
+class _DummyComponentConfig:
+    """Minimal component config stub with meter/inverter/component groups."""
 
-    renamed, labels = label_component_columns(
-        df,
-        cast(MicrogridConfig, config),
-    )
+    meter: list[str] | None = None
+    inverter: list[str] | None = None
+    component: list[str] | None = None
 
-    assert renamed.columns.tolist() == [
-        "Battery #1",
-        "PV #2",
-        "EV #3",
-        "CHP #4",
-        "constant",
-    ]
-    assert labels == ["Battery #1", "PV #2", "EV #3", "CHP #4"]
+
+def test_get_meter_display_names_runs_inside_active_event_loop() -> None:
+    """The sync helper should work even when an event loop is already active."""
+
+    class _Category:
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+    class _Component:
+        def __init__(self, component_id: str, name: str, category: str) -> None:
+            self.id = component_id
+            self.name = name
+            self.category = _Category(category)
+
+    class _FakeClient:
+        async def list_microgrid_electrical_components(
+            self, microgrid_id: MicrogridId
+        ) -> list[_Component]:
+            assert microgrid_id == MicrogridId(241)
+            return [
+                _Component("ElectricalComponentId(1179)", "meter_pq_0", "METER"),
+                _Component("ElectricalComponentId(1188)", "meter_GT", "METER"),
+                _Component("ElectricalComponentId(1189)", "GT_1", "CHP"),
+            ]
+
+    async def _run_test() -> None:
+        result = get_meter_display_names(
+            241, server_url="grpc://assets.example.com:443"
+        )
+        assert result == {"1179": "meter_pq_0", "1188": "meter_GT"}
+
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setattr(
+            "frequenz.lib.notebooks.reporting.utils.helpers.AssetsApiClient",
+            lambda server_url, auth_key=None, sign_secret=None: _FakeClient(),
+        )
+        asyncio.run(_run_test())
 
 
 def test_set_date_to_midnight_creates_timezone_aware_midnight() -> None:
@@ -256,6 +277,44 @@ def test_fill_aggregated_component_columns_accepts_custom_config() -> None:
     )
 
     assert result["custom_power"].tolist() == [3.0, 4.0]
+
+
+def test_fill_aggregated_component_columns_accepts_explicit_component_columns() -> None:
+    """Explicit canonical component columns can drive aggregation fill-ins."""
+    df = pd.DataFrame(
+        {
+            "battery_power_flow": [float("nan"), 4.0],
+            "1532": [1.0, 2.0],
+            "1533": [2.0, 3.0],
+        }
+    )
+
+    result = fill_aggregated_component_columns(
+        df.copy(),
+        component_types=["battery"],
+        component_columns_by_type={"battery": ["1532", "1533"]},
+    )
+
+    assert result["battery_power_flow"].tolist() == [3.0, 4.0]
+
+
+def test_fill_aggregated_component_columns_falls_back_to_legacy_prefixes() -> None:
+    """Legacy prefixed columns should still fill aggregates when explicit ids miss."""
+    df = pd.DataFrame(
+        {
+            "battery_power_flow": [float("nan"), 4.0],
+            "Battery #1532": [1.0, 2.0],
+            "Battery #1533": [2.0, 3.0],
+        }
+    )
+
+    result = fill_aggregated_component_columns(
+        df.copy(),
+        component_types=["battery"],
+        component_columns_by_type={"battery": []},
+    )
+
+    assert result["battery_power_flow"].tolist() == [3.0, 4.0]
 
 
 def test_long_to_wide_custom_sum_column_name() -> None:
