@@ -24,18 +24,167 @@ transform raw microgrid exports into localized, labeled, and analysis-ready
 tables for KPIs, dashboards, and stakeholder reporting.
 """
 
+import warnings
+
 import pandas as pd
+from frequenz.client.base.exception import ApiClientError
 from frequenz.gridpool import MicrogridConfig
 
 from frequenz.lib.notebooks.reporting.utils.column_mapper import ColumnMapper
+from frequenz.lib.notebooks.reporting.utils.component_metadata import (
+    ComponentMetadata,
+    EnergyReport,
+)
 from frequenz.lib.notebooks.reporting.utils.helpers import (
     AggregatedComponentConfig,
     add_energy_flows,
     convert_timezone,
     fill_aggregated_component_columns,
+    get_component_ids,
     get_energy_report_columns,
-    label_component_columns,
+    get_meter_display_names,
 )
+
+
+def _resolve_component_metadata(
+    energy_report_df: pd.DataFrame,
+    component_types: list[str],
+    mcfg: MicrogridConfig,
+    component_display_names: dict[str, str] | None,
+    *,
+    include_display_names: bool,
+) -> tuple[ComponentMetadata, list[str]]:
+    """Resolve component display metadata and canonical component columns."""
+    resolved_display_names = component_display_names if include_display_names else {}
+    if include_display_names and resolved_display_names is None:
+        microgrid_id = getattr(getattr(mcfg, "meta", None), "microgrid_id", None)
+        if microgrid_id is not None:
+            try:
+                resolved_display_names = get_meter_display_names(int(microgrid_id))
+            except ValueError:
+                resolved_display_names = None
+            except ApiClientError as exc:  # pragma: no cover - defensive fallback
+                warnings.warn(
+                    f"Could not fetch meter display names from the Assets API: {exc}",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+                resolved_display_names = None
+
+    component_ids_by_type = {
+        component_type: [
+            component_id
+            for component_id in get_component_ids(mcfg, component_type)
+            if component_id in energy_report_df.columns
+        ]
+        for component_type in component_types
+    }
+    single_components = [
+        component_id
+        for component_type in component_types
+        for component_id in component_ids_by_type.get(component_type, [])
+    ]
+
+    return (
+        ComponentMetadata(
+            display_names=resolved_display_names or {},
+            ids_by_type=component_ids_by_type,
+        ),
+        single_components,
+    )
+
+
+# pylint: disable=too-many-arguments
+def _build_energy_report_dataframe(
+    df: pd.DataFrame,
+    component_types: list[str],
+    mapper: ColumnMapper,
+    *,
+    tz_name: str,
+    assume_tz: str,
+    fill_missing_values: bool,
+    aggregated_component_config: AggregatedComponentConfig | None,
+    component_metadata: ComponentMetadata,
+) -> pd.DataFrame:
+    """Apply the dataframe transformation pipeline for energy reporting."""
+    energy_report_df = df.copy()
+
+    if isinstance(energy_report_df.index, (pd.DatetimeIndex, pd.PeriodIndex)):
+        if "timestamp" not in energy_report_df.columns:
+            energy_report_df = energy_report_df.reset_index(names="timestamp")
+
+    energy_report_df = add_energy_flows(
+        energy_report_df,
+        production_cols=["pv", "chp", "wind"],
+        consumption_cols=["consumption"],
+        grid_cols=["grid"],
+        battery_cols=["battery"],
+    )
+    energy_report_df = mapper.to_canonical(energy_report_df)
+    energy_report_df["timestamp"] = pd.to_datetime(
+        energy_report_df["timestamp"], errors="coerce", utc=True
+    )
+    energy_report_df["timestamp"] = convert_timezone(
+        energy_report_df["timestamp"],
+        target_tz=tz_name,
+        assume_tz=assume_tz,
+    )
+
+    energy_report_df_cols = get_energy_report_columns(
+        component_types,
+        [
+            component_id
+            for component_ids in component_metadata.ids_by_type.values()
+            for component_id in component_ids
+        ],
+    )
+    energy_report_df = energy_report_df[energy_report_df_cols]
+
+    if fill_missing_values:
+        energy_report_df = fill_aggregated_component_columns(
+            energy_report_df,
+            component_types,
+            aggregated_component_config,
+            component_columns_by_type=component_metadata.ids_by_type,
+        )
+
+    return energy_report_df
+
+
+# pylint: disable=too-many-arguments
+def build_energy_report(
+    df: pd.DataFrame,
+    component_types: list[str],
+    mcfg: MicrogridConfig,
+    mapper: ColumnMapper,
+    *,
+    tz_name: str = "Europe/Berlin",
+    assume_tz: str = "UTC",
+    fill_missing_values: bool = True,
+    aggregated_component_config: AggregatedComponentConfig | None = None,
+    component_display_names: dict[str, str] | None = None,
+    include_component_metadata: bool = True,
+) -> EnergyReport:
+    """Build the normalized energy report and optional component metadata."""
+    metadata, _ = _resolve_component_metadata(
+        df,
+        component_types,
+        mcfg,
+        component_display_names,
+        include_display_names=include_component_metadata,
+    )
+    energy_report_df = _build_energy_report_dataframe(
+        df,
+        component_types,
+        mapper,
+        tz_name=tz_name,
+        assume_tz=assume_tz,
+        fill_missing_values=fill_missing_values,
+        aggregated_component_config=aggregated_component_config,
+        component_metadata=metadata,
+    )
+
+    return EnergyReport(df=energy_report_df, metadata=metadata)
 
 
 # pylint: disable=too-many-arguments, too-many-locals
@@ -135,13 +284,11 @@ def create_energy_report_df(
     assume_tz: str = "UTC",
     fill_missing_values: bool = True,
     aggregated_component_config: AggregatedComponentConfig | None = None,
+    component_display_names: dict[str, str] | None = None,
 ) -> pd.DataFrame:
     """Create a normalized Energy Report DataFrame with selected columns.
 
-    Makes a copy of the input, converts the timestamp column to the configured
-    timezone, renames standard columns to unified names, adds the net import
-    column, renames numeric component IDs to labeled names, and returns a
-    reduced DataFrame containing only relevant columns.
+    This is a dataframe-only compatibility wrapper around ``build_energy_report()``.
 
     Args:
         df: Raw input table containing energy data.
@@ -156,70 +303,25 @@ def create_energy_report_df(
         aggregated_component_config: Optional mapping of component types to aggregated
             column metadata used when filling missing aggregates. Defaults to the shared
             `DEFAULT_AGGREGATED_COMPONENT_CONFIG`.
+        component_display_names: Optional mapping from numeric component IDs to
+            display names that are surfaced by ``build_energy_report()`` when
+            callers need metadata as well.
 
     Returns:
-        The Energy Report DataFrame with standardized and selected columns.
+        The Energy Report DataFrame.
 
     Notes:
-        Component IDs are renamed to labeled names via ``label_component_columns()``.
+        Use ``build_energy_report()`` when callers also need component metadata.
     """
-    energy_report_df = df.copy()
-
-    # Only reset index if it's a datetime or period index and 'timestamp' column is missing
-    if isinstance(energy_report_df.index, (pd.DatetimeIndex, pd.PeriodIndex)):
-        if "timestamp" not in energy_report_df.columns:
-            energy_report_df = energy_report_df.reset_index(names="timestamp")
-
-    # Add Energy flow columns
-    energy_report_df = add_energy_flows(
-        energy_report_df,
-        production_cols=["pv", "chp", "wind"],
-        consumption_cols=["consumption"],
-        grid_cols=["grid"],
-        battery_cols=["battery"],
-    )
-
-    # Standardize column names (from raw to canonical)
-    energy_report_df = mapper.to_canonical(energy_report_df)
-
-    # Convert timestamp to datetime if not already
-    energy_report_df["timestamp"] = pd.to_datetime(
-        energy_report_df["timestamp"], errors="coerce", utc=True
-    )
-
-    # Convert timezone
-    energy_report_df["timestamp"] = convert_timezone(
-        energy_report_df["timestamp"],
-        target_tz=tz_name,
-        assume_tz=assume_tz,
-    )
-
-    # Helper to rename numeric component IDs to labeled names like PV #250, Battery #219
-    # (casing matches output format)
-    energy_report_df, single_components = label_component_columns(
-        energy_report_df,
+    return build_energy_report(
+        df,
+        component_types,
         mcfg,
-        column_battery="battery",
-        column_pv="pv",
-        column_chp="chp",
-        column_ev="ev",
-        column_wind="wind",
-    )
-
-    # Determine relevant columns based on component types
-    energy_report_df_cols = get_energy_report_columns(
-        component_types, single_components
-    )
-
-    # Select only the relevant columns
-    energy_report_df = energy_report_df[energy_report_df_cols]
-
-    if fill_missing_values:
-        # Fill in missing aggregate component columns from per-component sums
-        energy_report_df = fill_aggregated_component_columns(
-            energy_report_df,
-            component_types,
-            aggregated_component_config,
-        )
-
-    return energy_report_df
+        mapper,
+        tz_name=tz_name,
+        assume_tz=assume_tz,
+        fill_missing_values=fill_missing_values,
+        aggregated_component_config=aggregated_component_config,
+        component_display_names=component_display_names,
+        include_component_metadata=False,
+    ).df

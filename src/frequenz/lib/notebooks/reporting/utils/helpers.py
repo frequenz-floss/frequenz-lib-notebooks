@@ -36,15 +36,20 @@ Notes:
 
 from __future__ import annotations
 
+import asyncio
+import os
 import warnings
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, time
-from typing import Any, Literal, Mapping, cast
+from typing import Any, Callable, Iterable, Literal, Mapping, cast
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import matplotlib.colors as mcolors
 import pandas as pd
 import plotly.express as px
 import yaml
+from frequenz.client.assets import AssetsApiClient
+from frequenz.client.common.microgrid import MicrogridId
 from frequenz.gridpool import MicrogridConfig
 
 from frequenz.lib.notebooks.reporting.metrics.reporting_metrics import (
@@ -61,6 +66,7 @@ from frequenz.lib.notebooks.reporting.metrics.reporting_metrics import (
 from frequenz.lib.notebooks.reporting.utils.colors import COLOR_DICT
 
 AggregatedComponentConfig = Mapping[str, tuple[str, str]]
+ComponentColumnsByType = Mapping[str, list[str]]
 
 DEFAULT_AGGREGATED_COMPONENT_CONFIG: AggregatedComponentConfig = {
     "battery": ("battery_power_flow", "Battery #"),
@@ -68,6 +74,185 @@ DEFAULT_AGGREGATED_COMPONENT_CONFIG: AggregatedComponentConfig = {
     "chp": ("chp_asset_production", "CHP #"),
     "wind": ("wind_asset_production", "Wind #"),
 }
+
+
+def _extract_component_id(component_id: Any) -> str | None:
+    """Extract the numeric part from a component identifier."""
+    digits = "".join(ch for ch in str(component_id) if ch.isdigit())
+    return digits or None
+
+
+def _configured_component_ids(mcfg: MicrogridConfig, component_type: str) -> set[str]:
+    """Return component IDs from the detailed component-type config when available."""
+    component_configs = getattr(mcfg, "ctype", None)
+    if not isinstance(component_configs, dict):
+        return set()
+
+    component_config = component_configs.get(component_type)
+    if component_config is None:
+        return set()
+
+    resolved_ids: set[str] = set()
+
+    for attr_name in ("meter", "inverter", "component"):
+        attr_value = getattr(component_config, attr_name, None)
+        if isinstance(attr_value, Iterable) and not isinstance(
+            attr_value, (str, bytes)
+        ):
+            resolved_ids.update(map(str, attr_value))
+
+    return resolved_ids
+
+
+def _has_component_type(mcfg: MicrogridConfig, component_type: str) -> bool:
+    """Return whether the config exposes the requested component type."""
+    component_types_method = getattr(mcfg, "component_types", None)
+    if callable(component_types_method):
+        return component_type in set(component_types_method())
+
+    component_configs = getattr(mcfg, "ctype", None)
+    return isinstance(component_configs, dict) and component_type in component_configs
+
+
+def _fallback_component_ids(mcfg: MicrogridConfig, component_type: str) -> list[str]:
+    """Return component IDs from the simpler component_type_ids interface."""
+    return sorted(
+        str(component_id) for component_id in mcfg.component_type_ids(component_type)
+    )
+
+
+def get_component_ids(mcfg: MicrogridConfig, component_type: str) -> list[str]:
+    """Return the configured component IDs for a given component type."""
+    if not _has_component_type(mcfg, component_type):
+        return []
+
+    configured_ids = _configured_component_ids(mcfg, component_type)
+    if configured_ids:
+        return sorted(configured_ids)
+
+    try:
+        return _fallback_component_ids(mcfg, component_type)
+    except ValueError as exc:
+        if str(exc) == "No IDs available":
+            print(
+                f"Component IDs are not available for component type '{component_type}'. "
+                "Skipping component-level metadata for this type."
+            )
+            return []
+        raise
+
+
+def _resolved_assets_api_config(
+    server_url: str | None,
+    auth_key: str | None,
+    sign_secret: str | None,
+) -> tuple[str, str | None, str | None]:
+    """Resolve the Assets API connection settings from args and environment."""
+    resolved_server_url = server_url or os.getenv("ASSETS_API_URL")
+    resolved_auth_key = auth_key or os.getenv("API_KEY")
+    resolved_sign_secret = sign_secret or os.getenv("API_SECRET")
+
+    if not resolved_server_url:
+        raise ValueError(
+            "Assets API URL not configured. Set ASSETS_API_URL or pass server_url."
+        )
+
+    return resolved_server_url, resolved_auth_key, resolved_sign_secret
+
+
+def _is_meter_component(component: Any) -> bool:
+    """Return whether an electrical component should be treated as a meter."""
+    category_name = getattr(getattr(component, "category", None), "name", None)
+    return category_name == "METER" or component.__class__.__name__ == "Meter"
+
+
+def _component_display_name(component: Any) -> tuple[str, str] | None:
+    """Extract a component-id/display-name pair from an asset component."""
+    component_key = _extract_component_id(getattr(component, "id", None))
+    component_name = getattr(component, "name", None)
+    if component_key and component_name:
+        return component_key, str(component_name)
+    return None
+
+
+async def _fetch_meter_display_names(
+    microgrid_id: int,
+    *,
+    server_url: str | None = None,
+    auth_key: str | None = None,
+    sign_secret: str | None = None,
+) -> dict[str, str]:
+    """Fetch meter display names asynchronously from the Assets API."""
+    (
+        resolved_server_url,
+        resolved_auth_key,
+        resolved_sign_secret,
+    ) = _resolved_assets_api_config(server_url, auth_key, sign_secret)
+
+    client = AssetsApiClient(
+        server_url=resolved_server_url,
+        auth_key=resolved_auth_key,
+        sign_secret=resolved_sign_secret,
+    )
+    components = await client.list_microgrid_electrical_components(
+        MicrogridId(microgrid_id)
+    )
+
+    meter_names: dict[str, str] = {}
+    for component in components:
+        if not _is_meter_component(component):
+            continue
+
+        component_pair = _component_display_name(component)
+        if component_pair is not None:
+            component_id, component_name = component_pair
+            meter_names[component_id] = component_name
+
+    return meter_names
+
+
+def _run_coro_in_thread(result_factory: Callable[[], dict[str, str]]) -> dict[str, str]:
+    """Run a coroutine-producing callable in a dedicated thread."""
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        return executor.submit(result_factory).result()
+
+
+def get_meter_display_names(
+    microgrid_id: int,
+    *,
+    server_url: str | None = None,
+    auth_key: str | None = None,
+    sign_secret: str | None = None,
+) -> dict[str, str]:
+    """Fetch meter display names for a microgrid from the Assets API.
+
+    Args:
+        microgrid_id: The ID of the microgrid for which to fetch meter names.
+        server_url: Optional server URL for the Assets API.
+        auth_key: Optional authentication key for the Assets API.
+        sign_secret: Optional signing secret for the Assets API.
+
+    Returns:
+        A dictionary mapping component IDs to their display names.
+    """
+
+    def run_fetch() -> dict[str, str]:
+        return asyncio.run(
+            _fetch_meter_display_names(
+                microgrid_id,
+                server_url=server_url,
+                auth_key=auth_key,
+                sign_secret=sign_secret,
+            )
+        )
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return run_fetch()
+
+    # Jupyter/IPython already runs an event loop.
+    return _run_coro_in_thread(run_fetch)
 
 
 def _get_numeric_series(df: pd.DataFrame, col: str | None) -> pd.Series:
@@ -212,6 +397,7 @@ def label_component_columns(
     column_chp: str = "chp",
     column_ev: str = "ev",
     column_wind: str = "wind",
+    component_display_names: Mapping[str, str] | None = None,
 ) -> tuple[pd.DataFrame, list[str]]:
     """Rename numeric single-component columns to labeled names.
 
@@ -228,52 +414,43 @@ def label_component_columns(
         column_chp: Key name for CHP component type.
         column_ev: Key name for EV component type.
         column_wind: Key name for wind component type.
+        component_display_names: Optional mapping from numeric component IDs to
+            human-readable display names fetched from the Assets API.
 
     Returns:
         Tuple containing the renamed DataFrame and the list of applied labels
     """
-    # Numeric component columns present in df
-    single_components = [str(c) for c in df.columns if str(c).isdigit()]
-    available_types = set(mcfg.component_types())
 
-    # From config (empty set if missing)
-    def ids_if_available(t: str) -> set[str]:
-        return (
-            {str(x) for x in mcfg.component_type_ids(t)}
-            if t in available_types
-            else set()
-        )
+    def display_label(prefix: str, component_id: str) -> str:
+        component_name = display_names.get(component_id)
+        suffix = f" {component_name}" if component_name else ""
+        return f"{prefix} #{component_id}{suffix}"
 
-    battery_ids = ids_if_available(column_battery)
-    pv_ids = ids_if_available(column_pv)
-    chp_ids = ids_if_available(column_chp)
-    ev_ids = ids_if_available(column_ev)
-    wind_ids = ids_if_available(column_wind)
+    display_names = component_display_names or {}
+
+    component_columns = {str(column) for column in df.columns if str(column).isdigit()}
+
+    component_types = {
+        column_battery: column_battery.capitalize(),
+        column_pv: column_pv.upper(),
+        column_ev: column_ev.upper(),
+        column_chp: column_chp.upper(),
+        column_wind: column_wind.capitalize(),
+    }
 
     rename: dict[str, str] = {}
-    rename.update(
-        {
-            c: f"{column_battery.capitalize()} #{c}"
-            for c in single_components
-            if c in battery_ids
-        }
-    )
-    rename.update(
-        {c: f"{column_pv.upper()} #{c}" for c in single_components if c in pv_ids}
-    )
-    rename.update(
-        {c: f"{column_ev.upper()} #{c}" for c in single_components if c in ev_ids}
-    )
-    rename.update(
-        {c: f"{column_chp.upper()} #{c}" for c in single_components if c in chp_ids}
-    )
-    rename.update(
-        {
-            c: f"{column_wind.capitalize()} #{c}"
-            for c in single_components
-            if c in wind_ids
-        }
-    )
+
+    for component_type, label_prefix in component_types.items():
+        matching_ids = sorted(
+            component_columns & set(get_component_ids(mcfg, component_type))
+        )
+
+        rename.update(
+            {
+                component_id: display_label(label_prefix, component_id)
+                for component_id in matching_ids
+            }
+        )
 
     return df.rename(columns=rename), list(rename.values())
 
@@ -704,6 +881,7 @@ def fill_aggregated_component_columns(
     df: pd.DataFrame,
     component_types: list[str],
     config: AggregatedComponentConfig | None = None,
+    component_columns_by_type: ComponentColumnsByType | None = None,
 ) -> pd.DataFrame:
     """Populate missing aggregate columns by summing labeled component columns.
 
@@ -717,6 +895,9 @@ def fill_aggregated_component_columns(
         config: Mapping of component types to tuples containing the aggregated
             column name and the prefix used to identify individual component
             columns.
+        component_columns_by_type: Optional explicit mapping from component types
+            to canonical per-component columns. When provided, these columns are
+            used instead of matching legacy display prefixes.
 
     Returns:
         DataFrame with missing aggregated component columns filled in by summing
@@ -729,7 +910,17 @@ def fill_aggregated_component_columns(
         if comp_type not in normalized_types or agg_col not in df.columns:
             continue
 
-        component_cols = [col for col in df.columns if col.startswith(prefix)]
+        explicit_component_cols = (
+            component_columns_by_type.get(comp_type, [])
+            if component_columns_by_type is not None
+            else None
+        )
+        legacy_component_cols = [col for col in df.columns if col.startswith(prefix)]
+        component_cols = (
+            explicit_component_cols
+            if explicit_component_cols
+            else legacy_component_cols
+        )
 
         # Only proceed if there are components to sum and missing values to fill
         if component_cols and df[agg_col].isna().any():
