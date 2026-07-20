@@ -16,6 +16,14 @@
 - Add day ahead prices fetching.
 - `aggregate_metrics` now exposes grid import cost and grid feed-in revenue
   totals when price data is present in the reporting dataframe.
+- Reporting notebooks can now build component-level analysis for configured
+  meters, inverters, and other component groups selected from the microgrid
+  configuration.
+- Added `build_energy_report`, `ComponentMetadata`, and `EnergyReport` to
+  expose canonical component IDs and optional meter display names from the
+  Assets API to downstream reporting workflows.
+- `create_energy_report_df` and downstream component analysis now preserve
+  canonical component IDs, making notebook selections and plots easier to read.
 - Add `plot_power` to the asset optimization plotly visualizations, stacking each component in the passive sign convention so the top of the stack meets the grid line. Unlike `plot_power_flow`, production is not clipped.
 - `init_microgrid_data` accepts several dotenv files, so shared API URLs can live apart from per-microgrid credentials.
 - `plot_time_series_battery_usecase` now supports selectable stack modes for
