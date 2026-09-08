@@ -13,9 +13,8 @@ import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
 from frequenz.client.assets import AssetsApiClient
-from frequenz.gridpool import load_configs
 
-from frequenz.data.microgrid import MicrogridData
+from frequenz.data.microgrid import MicrogridData, load_configs
 from frequenz.lib.notebooks._credentials import resolve_credentials
 from frequenz.lib.notebooks.dayahead import fetch_day_ahead_prices
 
@@ -91,11 +90,13 @@ async def init_microgrid_data(
         auth_key=assets_key,
         sign_secret=assets_secret,
     )
+    mcfg = {}
     try:
-        mcfg = await load_configs(
+        assets_config = await load_configs(
             default_files=microgrid_config_files,
             assets_client=assets_client,
         )
+        mcfg = assets_config.microgrids
     except RuntimeError:
         _logger.warning("Could not run async formula loading in current context. ")
 

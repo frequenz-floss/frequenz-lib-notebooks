@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 from frequenz.client.common.metrics import Metric
 from frequenz.client.reporting import ReportingApiClient
-from frequenz.gridpool import MicrogridConfig
+from frequenz.gridpool.config import MicrogridConfig
 
 _logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ class MicrogridData:
         server_url: str,
         auth_key: str,
         sign_secret: str,
-        microgrid_configs: dict[str, MicrogridConfig] | None = None,
+        microgrid_configs: dict[int, MicrogridConfig] | None = None,
     ) -> None:
         """Initialize microgrid data.
 
@@ -39,16 +39,18 @@ class MicrogridData:
         )
 
     @property
-    def microgrid_ids(self) -> list[str]:
+    def microgrid_ids(self) -> list[int]:
         """Get the microgrid IDs.
 
         Returns:
             List of microgrid IDs.
         """
+        if self._microgrid_configs is None:
+            return []
         return list(self._microgrid_configs.keys())
 
     @property
-    def microgrid_configs(self) -> dict[str, MicrogridConfig]:
+    def microgrid_configs(self) -> dict[int, MicrogridConfig] | None:
         """Return the microgrid configurations."""
         return self._microgrid_configs
 
@@ -81,7 +83,9 @@ class MicrogridData:
             DataFrame with power data of aggregated components
             or None if no data is available
         """
-        mcfg = self._microgrid_configs[f"{microgrid_id}"]
+        if self._microgrid_configs is None:
+            raise ValueError("Microgrid configurations are not loaded.")
+        mcfg = self._microgrid_configs[microgrid_id]
 
         formulas = {
             ctype: mcfg.formula(ctype, metric.upper()) for ctype in component_types

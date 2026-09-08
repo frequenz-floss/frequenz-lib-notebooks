@@ -13,9 +13,9 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 import pytest
 from frequenz.client.common.microgrid import MicrogridId
-from frequenz.gridpool import MicrogridConfig
 from pandas.testing import assert_frame_equal, assert_series_equal
 
+from frequenz.data.microgrid import MicrogridConfig
 from frequenz.lib.notebooks.reporting.utils.helpers import (
     _column_has_data,
     _get_numeric_series,

@@ -51,8 +51,8 @@ from datetime import datetime, timedelta
 from typing import Iterable, Literal, Union, cast
 
 import pandas as pd
-from frequenz.gridpool import MicrogridConfig
 
+from frequenz.data.microgrid import MicrogridConfig
 from .column_mapper import ColumnMapper
 
 

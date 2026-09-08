@@ -10,9 +10,9 @@ from typing import cast
 
 import pandas as pd
 import pytest
-from frequenz.gridpool import MicrogridConfig
 from pandas.testing import assert_frame_equal
 
+from frequenz.data.microgrid import MicrogridConfig
 from frequenz.lib.notebooks.reporting.utils.column_mapper import ColumnMapper
 from frequenz.lib.notebooks.reporting.utils.reporting_nb_functions import (
     aggregate_metrics,
