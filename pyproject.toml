@@ -170,11 +170,13 @@ disable = [
 [tool.pytest.ini_options]
 addopts = "-W=all -Werror -Wdefault::DeprecationWarning -Wdefault::PendingDeprecationWarning -vv"
 testpaths = ["tests", "src"]
+asyncio_debug = true
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 required_plugins = ["pytest-asyncio", "pytest-mock"]
 
 [tool.mypy]
+enable_error_code = ["exhaustive-match"]
 explicit_package_bases = true
 namespace_packages = true
 # This option disables mypy cache, and it is sometimes useful to enable it if
