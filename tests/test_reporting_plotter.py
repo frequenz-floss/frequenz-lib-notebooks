@@ -310,6 +310,38 @@ def test_plot_time_series_battery_soc_uses_secondary_axis_for_soc() -> None:
     assert not fig.layout.updatemenus
 
 
+def test_plot_time_series_battery_soc_plots_bounds_on_secondary_axis() -> None:
+    """Battery SOC bounds should be dotted traces on the SOC axis."""
+    df = pd.DataFrame(
+        {
+            "timestamp": pd.to_datetime(["2026-01-09 06:30:00", "2026-01-09 07:00:00"]),
+            "battery_power_flow": [5.0, -4.0],
+            "soc": [42.0, 53.0],
+            "battery_soc_lower_bound_pct": [20.0, 25.0],
+            "battery_soc_upper_bound_pct": [80.0, 75.0],
+        }
+    )
+
+    fig = plot_time_series_battery_soc(df, time_col="timestamp")
+    traces_by_name = {
+        trace.name: trace for trace in fig.data if getattr(trace, "name", None)
+    }
+
+    assert list(traces_by_name) == [
+        "Battery Charging",
+        "Battery Discharging",
+        "Battery SOC (%)",
+        "Battery SOC Lower Bound (%)",
+        "Battery SOC Upper Bound (%)",
+    ]
+    assert traces_by_name["Battery SOC Lower Bound (%)"].yaxis == "y2"
+    assert traces_by_name["Battery SOC Upper Bound (%)"].yaxis == "y2"
+    assert traces_by_name["Battery SOC Lower Bound (%)"].line.dash == "dot"
+    assert traces_by_name["Battery SOC Upper Bound (%)"].line.dash == "dot"
+    assert list(traces_by_name["Battery SOC Lower Bound (%)"].y) == [20.0, 25.0]
+    assert list(traces_by_name["Battery SOC Upper Bound (%)"].y) == [80.0, 75.0]
+
+
 def test_plot_time_series_battery_soc_accepts_custom_power_flow_column() -> None:
     """A caller-specific battery flow column should be split for plotting."""
     df = pd.DataFrame(

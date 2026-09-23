@@ -10,7 +10,11 @@ from typing import Literal, Protocol, TypeAlias
 
 import numpy as np
 import pandas as pd
+from frequenz.client.assets import AssetsApiClient
+from frequenz.client.assets.electrical_component import ElectricalComponentCategory
+from frequenz.client.assets.metrics import Metric as AssetsMetric
 from frequenz.client.common.metrics import Metric
+from frequenz.client.common.microgrid import MicrogridId
 from frequenz.client.reporting import ReportingApiClient
 from frequenz.gridpool.config import MicrogridConfig
 
@@ -55,6 +59,7 @@ class MicrogridData:
         microgrid_configs: (
             _MicrogridConfigMapping | _MicrogridConfigsContainer | None
         ) = None,
+        assets_client: AssetsApiClient | None = None,
     ) -> None:
         """Initialize microgrid data.
 
@@ -64,6 +69,8 @@ class MicrogridData:
             sign_secret: Secret for signing requests.
             microgrid_configs: A mapping of microgrid IDs to configurations, or a
                 gridpool configuration document containing that mapping.
+            assets_client: Optional Assets API client used to fetch static battery
+                SOC rated bounds.
         """
         self._microgrid_configs = (
             None
@@ -73,6 +80,7 @@ class MicrogridData:
         self._client = ReportingApiClient(
             server_url=server_url, auth_key=auth_key, sign_secret=sign_secret
         )
+        self._assets_client = assets_client
 
     @property
     def microgrid_ids(self) -> list[int]:
@@ -332,6 +340,16 @@ class MicrogridData:
             metric="BATTERY_SOC_PCT",
             keep_components=keep_components,
         )
+        if df is None:
+            return df
+
+        bounds = await self._battery_soc_asset_bounds(microgrid_id)
+        if bounds is not None:
+            lower_bound, upper_bound = bounds
+            if lower_bound is not None:
+                df["battery_soc_lower_bound_pct"] = lower_bound
+            if upper_bound is not None:
+                df["battery_soc_upper_bound_pct"] = upper_bound
         return df
 
     async def ac_active_energy(  # pylint: disable=too-many-arguments
@@ -392,3 +410,52 @@ class MicrogridData:
             )
             energy_delta = energy_delta.mask(negative_deltas)
         return energy_delta * (timedelta(hours=1) / resampling_period)
+    async def _battery_soc_asset_bounds(
+        self,
+        microgrid_id: int | str,
+        component_ids: list[int],
+    ) -> tuple[float | None, float | None] | None:
+        """Fetch the tight static SOC interval from battery asset metadata."""
+        if self._assets_client is None:
+            _logger.warning(
+                "Cannot fetch battery SOC bounds for microgrid %s: no Assets API client.",
+                microgrid_id,
+            )
+            return None
+
+        batteries = await self._assets_client.list_microgrid_electrical_components(
+            MicrogridId(int(microgrid_id)),
+            categories=[ElectricalComponentCategory.BATTERY],
+        )
+        configured_ids = set(component_ids)
+        asset_bounds = [
+            battery.rated_bounds.get(AssetsMetric.BATTERY_SOC_PCT)
+            for battery in batteries
+            if int(battery.id) in configured_ids
+        ]
+        lower_bounds = [
+            bound.lower
+            for bound in asset_bounds
+            if bound is not None and bound.lower is not None
+        ]
+        upper_bounds = [
+            bound.upper
+            for bound in asset_bounds
+            if bound is not None and bound.upper is not None
+        ]
+        if not lower_bounds and not upper_bounds:
+            _logger.warning(
+                "Assets API returned no battery SOC rated bounds for microgrid %s.",
+                microgrid_id,
+            )
+            return None
+
+        lower = max(lower_bounds) if lower_bounds else None
+        upper = min(upper_bounds) if upper_bounds else None
+        if lower is not None and upper is not None and lower > upper:
+            _logger.warning(
+                "Battery SOC rated bounds do not overlap for microgrid %s.",
+                microgrid_id,
+            )
+            return None
+        return lower, upper

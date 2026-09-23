@@ -686,6 +686,8 @@ def plot_time_series_battery_soc(
     color_dict: dict[str, str] | None = None,
     battery_power_flow: str = "battery_power_flow",
     soc_pct: str = "soc",
+    soc_lower_bound_pct: str = "battery_soc_lower_bound_pct",
+    soc_upper_bound_pct: str = "battery_soc_upper_bound_pct",
     secondary_y_title: str = "SOC [%]",
     date_range_selector_position: dict[str, object] | None = None,
     legend_position: dict[str, object] | None = None,
@@ -712,6 +714,8 @@ def plot_time_series_battery_soc(
             derive charging and discharging. Positive values are charging and
             negative values are discharging.
         soc_pct: Column containing SOC percentage values.
+        soc_lower_bound_pct: Optional column containing lower SOC bound values.
+        soc_upper_bound_pct: Optional column containing upper SOC bound values.
         secondary_y_title: Secondary y-axis label for SOC.
         date_range_selector_position: Optional Plotly range selector positioning
             options forwarded to :func:`plot_time_series`.
@@ -744,10 +748,24 @@ def plot_time_series_battery_soc(
     plot_df["Battery SOC (%)"] = plot_df[soc_pct]
 
     cols = ["Battery Charging", "Battery Discharging", "Battery SOC (%)"]
+    secondary_y_cols = ["Battery SOC (%)"]
+    dotted_cols = []
     colors = dict(color_dict or {})
     colors.setdefault("Battery Charging", COLOR_DICT["Batterie Beladung"])
     colors.setdefault("Battery Discharging", COLOR_DICT["Batterie Entladung"])
     colors.setdefault("Battery SOC (%)", COLOR_DICT["day_ahead_price"])
+    if soc_lower_bound_pct in plot_df.columns:
+        plot_df["Battery SOC Lower Bound (%)"] = plot_df[soc_lower_bound_pct]
+        cols.append("Battery SOC Lower Bound (%)")
+        secondary_y_cols.append("Battery SOC Lower Bound (%)")
+        dotted_cols.append("Battery SOC Lower Bound (%)")
+        colors.setdefault("Battery SOC Lower Bound (%)", "#d62728")
+    if soc_upper_bound_pct in plot_df.columns:
+        plot_df["Battery SOC Upper Bound (%)"] = plot_df[soc_upper_bound_pct]
+        cols.append("Battery SOC Upper Bound (%)")
+        secondary_y_cols.append("Battery SOC Upper Bound (%)")
+        dotted_cols.append("Battery SOC Upper Bound (%)")
+        colors.setdefault("Battery SOC Upper Bound (%)", "#2ca02c")
 
     return plot_time_series(
         plot_df,
@@ -759,7 +777,8 @@ def plot_time_series_battery_soc(
         legend_title=legend_title,
         color_dict=colors,
         fill_cols=["Battery Charging", "Battery Discharging"],
-        secondary_y_cols=["Battery SOC (%)"],
+        dotted_cols=dotted_cols,
+        secondary_y_cols=secondary_y_cols,
         secondary_y_title=secondary_y_title,
         date_range_selector_position=date_range_selector_position,
         legend_position=legend_position,
@@ -793,6 +812,8 @@ def plot_time_series_battery_soc_and_usecase(
     grid_consumption: str = "grid_consumption",
     stack_mode: BatteryUsecaseStackMode = "psc",
     soc_pct: str = "soc",
+    soc_lower_bound_pct: str = "battery_soc_lower_bound_pct",
+    soc_upper_bound_pct: str = "battery_soc_upper_bound_pct",
     soc_secondary_y_title: str = "SOC [%]",
     secondary_y_cols: Sequence[str] | None = None,
     secondary_y_title: str | None = None,
@@ -858,6 +879,8 @@ def plot_time_series_battery_soc_and_usecase(
         color_dict=color_dict,
         battery_power_flow=battery_power_flow,
         soc_pct=soc_pct,
+        soc_lower_bound_pct=soc_lower_bound_pct,
+        soc_upper_bound_pct=soc_upper_bound_pct,
         secondary_y_title=soc_secondary_y_title,
         date_range_selector_position=date_range_selector_position,
         legend_position=legend_position,

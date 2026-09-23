@@ -91,8 +91,18 @@ def create_energy_report_df(
             energy_report_df = energy_report_df.reset_index(names="timestamp")
 
     include_battery_soc = _has_battery_soc_formula(component_types, mcfg)
+    battery_soc_columns = [
+        canonical
+        for canonical in mapper.canonicals
+        if canonical == "battery_soc_pct" or canonical.startswith("battery_soc_")
+    ]
     if include_battery_soc:
-        energy_report_df = _add_battery_soc_column(energy_report_df, battery_soc_df)
+        energy_report_df = _add_battery_soc_column(
+            energy_report_df,
+            battery_soc_df,
+            mapper,
+            battery_soc_columns,
+        )
 
     # Add Energy flow columns
     energy_report_df = add_energy_flows(
@@ -135,8 +145,12 @@ def create_energy_report_df(
     energy_report_df_cols = get_energy_report_columns(
         component_types, single_components
     )
-    if include_battery_soc and "battery_soc_pct" in energy_report_df.columns:
-        energy_report_df_cols.append("battery_soc_pct")
+    if include_battery_soc:
+        energy_report_df_cols.extend(
+            col
+            for col in battery_soc_columns
+            if col in energy_report_df.columns and col not in energy_report_df_cols
+        )
 
     # Select only the relevant columns
     energy_report_df = energy_report_df[energy_report_df_cols]
@@ -166,8 +180,10 @@ def _has_battery_soc_formula(component_types: list[str], mcfg: MicrogridConfig) 
 def _add_battery_soc_column(
     energy_report_df: pd.DataFrame,
     battery_soc_df: pd.DataFrame | None,
+    mapper: ColumnMapper,
+    battery_soc_columns: list[str],
 ) -> pd.DataFrame:
-    """Add a canonical battery SOC column from fetched or pre-merged SOC data."""
+    """Add schema-defined battery SOC fields from fetched SOC data."""
     if battery_soc_df is None:
         return energy_report_df
 
@@ -183,7 +199,8 @@ def _add_battery_soc_column(
 
     result["timestamp"] = pd.to_datetime(result["timestamp"], errors="coerce", utc=True)
     soc_df["timestamp"] = pd.to_datetime(soc_df["timestamp"], errors="coerce", utc=True)
-    soc_df = soc_df[["timestamp", "battery"]].rename(
-        columns={"battery": "battery_soc_pct"}
-    )
+    soc_raw_column = mapper.canonical_to_raw["battery_soc_pct"]
+    soc_df = mapper.to_canonical(soc_df.rename(columns={"battery": soc_raw_column}))
+    available_soc_cols = [col for col in battery_soc_columns if col in soc_df.columns]
+    soc_df = soc_df[["timestamp", *available_soc_cols]]
     return result.merge(soc_df, on="timestamp", how="left")

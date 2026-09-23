@@ -104,6 +104,7 @@ async def init_microgrid_data(
         auth_key=reporting_key,
         sign_secret=reporting_secret,
         microgrid_configs=mcfg,
+        assets_client=assets_client,
     )
 
 

@@ -134,6 +134,49 @@ def test_create_energy_report_df_adds_battery_soc_when_formula_exists() -> None:
     assert list(result["battery_soc_pct"]) == [42.0, 53.0]
 
 
+def test_create_energy_report_df_adds_battery_soc_bounds_when_available() -> None:
+    """Fetched SOC bounds are included for battery reports with SOC formulas."""
+    raw_df = pd.DataFrame(
+        {
+            "timestamp": pd.to_datetime(
+                ["2026-01-09 06:30:00", "2026-01-09 06:45:00"],
+                utc=True,
+            ),
+            "grid": [30.0, 25.0],
+            "consumption": [35.0, 21.0],
+            "battery": [5.0, -4.0],
+        }
+    )
+    soc_df = pd.DataFrame(
+        {
+            "battery": [42.0, 53.0],
+            "battery_soc_lower_bound_pct": [20.0, 25.0],
+            "battery_soc_upper_bound_pct": [80.0, 75.0],
+        },
+        index=pd.to_datetime(
+            ["2026-01-09 06:30:00", "2026-01-09 06:45:00"],
+            utc=True,
+        ),
+    )
+
+    result = create_energy_report_df(
+        raw_df,
+        component_types=["battery"],
+        mcfg=cast(
+            MicrogridConfig,
+            _DummyMicrogridConfig(
+                {"battery": []},
+                formulas={("battery", "BATTERY_SOC_PCT"): "(#1337 + #1339)/2"},
+            ),
+        ),
+        mapper=ColumnMapper.from_default(locale="en"),
+        battery_soc_df=soc_df,
+    )
+
+    assert list(result["battery_soc_lower_bound_pct"]) == [20.0, 25.0]
+    assert list(result["battery_soc_upper_bound_pct"]) == [80.0, 75.0]
+
+
 def test_create_energy_report_df_keeps_battery_flow_columns() -> None:
     """Derived battery flow columns should survive final report column selection."""
     raw_df = pd.DataFrame(
