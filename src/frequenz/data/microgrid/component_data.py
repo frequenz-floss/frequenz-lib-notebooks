@@ -6,7 +6,7 @@
 import logging
 from collections.abc import Mapping
 from datetime import datetime, timedelta
-from typing import Literal, Protocol, TypeAlias
+from typing import Literal, Protocol, TypeAlias, cast
 
 import numpy as np
 import pandas as pd
@@ -330,20 +330,75 @@ class MicrogridData:
         resampling_period: timedelta = timedelta(seconds=10),
         keep_components: bool = False,
     ) -> pd.DataFrame | None:
-        """Soc data for component types of a microgrid."""
-        df = await self.metric_data(
-            microgrid_id=microgrid_id,
+        """Fetch and aggregate SOC for the configured battery components.
+
+        Battery component IDs are read from the microgrid configuration.  Their
+        SOC and capacity values are fetched directly from Reporting, rather
+        than through formulas in the configuration. The aggregate SOC is a
+        capacity-weighted average, using each component's own capacity reading
+        at each timestamp so that capacity changes are reflected over time.
+
+        Args:
+            microgrid_id: The ID of the microgrid.
+            start: The start time for the data fetch.
+            end: The end time for the data fetch.
+            resampling_period: The period for resampling the data.
+            keep_components: Whether to keep individual component data.
+
+        Returns:
+            A DataFrame containing the aggregated SOC data, or None if no data is available.
+
+        Raises:
+            ValueError: If microgrid configurations are not loaded.
+        """
+        if self._microgrid_configs is None:
+            raise ValueError("Microgrid configurations are not loaded.")
+
+        mg_id = int(microgrid_id)
+        config = self._microgrid_configs[mg_id]
+        component_ids = config.component_type_ids(
+            "battery", component_category="component"
+        )
+        if not component_ids:
+            _logger.warning(
+                "No battery components are configured for microgrid %s.", mg_id
+            )
+            return None
+
+        df = await self._battery_metric_component_data(
+            microgrid_id=mg_id,
+            component_ids=component_ids,
+            metric=Metric.BATTERY_SOC_PCT,
+            metric_name="battery SOC",
             start=start,
             end=end,
-            component_types=("battery",),
             resampling_period=resampling_period,
-            metric="BATTERY_SOC_PCT",
-            keep_components=keep_components,
         )
         if df is None:
-            return df
+            return None
 
-        bounds = await self._battery_soc_asset_bounds(microgrid_id)
+        capacity_df = await self._battery_metric_component_data(
+            microgrid_id=mg_id,
+            component_ids=component_ids,
+            metric=Metric.BATTERY_CAPACITY,
+            metric_name="battery capacity",
+            start=start,
+            end=end,
+            resampling_period=resampling_period,
+        )
+        weighted_soc = None
+        if capacity_df is not None:
+            capacity_aligned = self._align_forward_filled(capacity_df, df.index)
+            weighted_soc = self._capacity_weighted_soc(df, capacity_aligned)
+        if weighted_soc is None:
+            return df if keep_components else None
+        df["battery"] = weighted_soc
+
+        if not keep_components:
+            component_cols = [col for col in df.columns if col.isdigit()]
+            df = df.drop(columns=component_cols)
+
+        bounds = await self._battery_soc_asset_bounds(mg_id, component_ids)
         if bounds is not None:
             lower_bound, upper_bound = bounds
             if lower_bound is not None:
@@ -410,6 +465,77 @@ class MicrogridData:
             )
             energy_delta = energy_delta.mask(negative_deltas)
         return energy_delta * (timedelta(hours=1) / resampling_period)
+    async def _battery_metric_component_data(  # pylint: disable=too-many-arguments
+        self,
+        *,
+        microgrid_id: int,
+        component_ids: list[int],
+        metric: Metric,
+        metric_name: str,
+        start: datetime,
+        end: datetime,
+        resampling_period: timedelta,
+    ) -> pd.DataFrame | None:
+        """Fetch a metric's values for battery components, indexed by timestamp."""
+        data = [
+            sample
+            async for sample in self._client.receive_microgrid_components_data(
+                microgrid_components=[(microgrid_id, component_ids)],
+                metrics=metric,
+                start_time=start,
+                end_time=end,
+                resampling_period=resampling_period,
+            )
+        ]
+        if not data:
+            _logger.warning(
+                "No %s data found for microgrid %s.", metric_name, microgrid_id
+            )
+            return None
+
+        df = pd.DataFrame(data)
+        df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+        df = df.drop_duplicates(keep="first").pivot_table(
+            index="timestamp", columns="component_id", values="value"
+        )
+        for component_id in component_ids:
+            if component_id not in df.columns:
+                df.loc[:, component_id] = np.nan
+        df = df.rename(columns=str)
+        return df.reindex(columns=sorted(df.columns))
+
+    @staticmethod
+    def _capacity_weighted_soc(
+        soc_df: pd.DataFrame, capacity_df: pd.DataFrame
+    ) -> pd.Series | None:
+        """Calculate aggregate battery SOC weighted by per-timestamp capacities."""
+        component_cols = [col for col in capacity_df.columns if col in soc_df.columns]
+        if not component_cols:
+            _logger.warning(
+                "Cannot calculate capacity-weighted battery SOC: no component "
+                "SOC columns match battery capacity columns."
+            )
+            return None
+
+        soc = soc_df[component_cols].apply(pd.to_numeric, errors="coerce")
+        capacity = capacity_df[component_cols].apply(pd.to_numeric, errors="coerce")
+        valid = soc.notna() & capacity.notna() & (capacity > 0)
+
+        weighted_capacity = capacity.where(valid)
+        available_capacity = weighted_capacity.sum(axis=1)
+        weighted_sum = (soc.where(valid) * weighted_capacity).sum(axis=1, min_count=1)
+
+        return cast(
+            pd.Series,
+            weighted_sum.div(available_capacity).where(available_capacity > 0),
+        )
+
+    @staticmethod
+    def _align_forward_filled(df: pd.DataFrame, index: pd.Index) -> pd.DataFrame:
+        """Reindex a DataFrame to `index`, forward-filling from its own history."""
+        combined_index = df.index.union(index)
+        return df.reindex(combined_index).ffill().reindex(index)
+
     async def _battery_soc_asset_bounds(
         self,
         microgrid_id: int | str,

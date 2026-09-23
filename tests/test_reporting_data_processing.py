@@ -95,8 +95,8 @@ def test_create_energy_report_df_uses_explicit_component_display_names() -> None
     assert "PV #1179 - Explicit PV Meter" in result.columns
 
 
-def test_create_energy_report_df_adds_battery_soc_when_formula_exists() -> None:
-    """Fetched SOC is included for battery reports with SOC formulas."""
+def test_create_energy_report_df_adds_battery_soc_when_battery_present() -> None:
+    """Fetched SOC is included whenever battery is among the component types."""
     raw_df = pd.DataFrame(
         {
             "timestamp": pd.to_datetime(
@@ -119,13 +119,7 @@ def test_create_energy_report_df_adds_battery_soc_when_formula_exists() -> None:
     result = create_energy_report_df(
         raw_df,
         component_types=["battery"],
-        mcfg=cast(
-            MicrogridConfig,
-            _DummyMicrogridConfig(
-                {"battery": []},
-                formulas={("battery", "BATTERY_SOC_PCT"): "(#1337 + #1339)/2"},
-            ),
-        ),
+        mcfg=cast(MicrogridConfig, _DummyMicrogridConfig({"battery": []})),
         mapper=ColumnMapper.from_default(locale="en"),
         battery_soc_df=soc_df,
     )
@@ -135,7 +129,7 @@ def test_create_energy_report_df_adds_battery_soc_when_formula_exists() -> None:
 
 
 def test_create_energy_report_df_adds_battery_soc_bounds_when_available() -> None:
-    """Fetched SOC bounds are included for battery reports with SOC formulas."""
+    """Fetched SOC bounds are included whenever battery is among the component types."""
     raw_df = pd.DataFrame(
         {
             "timestamp": pd.to_datetime(
@@ -162,13 +156,7 @@ def test_create_energy_report_df_adds_battery_soc_bounds_when_available() -> Non
     result = create_energy_report_df(
         raw_df,
         component_types=["battery"],
-        mcfg=cast(
-            MicrogridConfig,
-            _DummyMicrogridConfig(
-                {"battery": []},
-                formulas={("battery", "BATTERY_SOC_PCT"): "(#1337 + #1339)/2"},
-            ),
-        ),
+        mcfg=cast(MicrogridConfig, _DummyMicrogridConfig({"battery": []})),
         mapper=ColumnMapper.from_default(locale="en"),
         battery_soc_df=soc_df,
     )
@@ -210,14 +198,15 @@ def test_create_energy_report_df_keeps_battery_flow_columns() -> None:
     assert result["battery_to_consumption"].tolist() == [0.0, 0.0, 2.0, 0.0]
 
 
-def test_create_energy_report_df_excludes_battery_soc_without_formula() -> None:
-    """SOC data is ignored when the config has no battery SOC formula."""
+def test_create_energy_report_df_excludes_battery_soc_when_battery_not_requested() -> (
+    None
+):
+    """SOC data is ignored when battery is not among the requested component types."""
     raw_df = pd.DataFrame(
         {
             "timestamp": pd.to_datetime(["2026-01-09 06:30:00"], utc=True),
             "grid": [30.0],
-            "consumption": [35.0],
-            "battery": [5.0],
+            "pv": [-12.0],
         }
     )
     soc_df = pd.DataFrame(
@@ -227,8 +216,8 @@ def test_create_energy_report_df_excludes_battery_soc_without_formula() -> None:
 
     result = create_energy_report_df(
         raw_df,
-        component_types=["battery"],
-        mcfg=cast(MicrogridConfig, _DummyMicrogridConfig({"battery": []})),
+        component_types=["pv"],
+        mcfg=cast(MicrogridConfig, _DummyMicrogridConfig({"pv": []})),
         mapper=ColumnMapper.from_default(locale="en"),
         battery_soc_df=soc_df,
     )
@@ -236,37 +225,8 @@ def test_create_energy_report_df_excludes_battery_soc_without_formula() -> None:
     assert "battery_soc_pct" not in result.columns
 
 
-def test_create_energy_report_df_keeps_premerged_soc_column() -> None:
-    """A pre-merged raw ``soc`` column is kept as canonical battery SOC."""
-    raw_df = pd.DataFrame(
-        {
-            "timestamp": pd.to_datetime(["2026-01-09 06:30:00"], utc=True),
-            "grid": [30.0],
-            "consumption": [35.0],
-            "battery": [5.0],
-            "soc": [42.0],
-        }
-    )
-
-    result = create_energy_report_df(
-        raw_df,
-        component_types=["battery"],
-        mcfg=cast(
-            MicrogridConfig,
-            _DummyMicrogridConfig(
-                {"battery": []},
-                formulas={("battery", "BATTERY_SOC_PCT"): "(#1337 + #1339)/2"},
-            ),
-        ),
-        mapper=ColumnMapper.from_default(locale="en"),
-    )
-
-    assert "battery_soc_pct" in result.columns
-    assert result.iloc[0]["battery_soc_pct"] == 42.0
-
-
-def test_create_energy_report_df_drops_premerged_soc_without_formula() -> None:
-    """A raw ``soc`` column is ignored without a battery SOC formula."""
+def test_create_energy_report_df_drops_premerged_soc_column() -> None:
+    """A raw ``soc`` column is ignored without explicit SOC input data."""
     raw_df = pd.DataFrame(
         {
             "timestamp": pd.to_datetime(["2026-01-09 06:30:00"], utc=True),
@@ -281,6 +241,29 @@ def test_create_energy_report_df_drops_premerged_soc_without_formula() -> None:
         raw_df,
         component_types=["battery"],
         mcfg=cast(MicrogridConfig, _DummyMicrogridConfig({"battery": []})),
+        mapper=ColumnMapper.from_default(locale="en"),
+    )
+
+    assert "battery_soc_pct" not in result.columns
+
+
+def test_create_energy_report_df_drops_premerged_soc_when_battery_not_requested() -> (
+    None
+):
+    """A raw ``soc`` column is ignored when battery is not requested."""
+    raw_df = pd.DataFrame(
+        {
+            "timestamp": pd.to_datetime(["2026-01-09 06:30:00"], utc=True),
+            "grid": [30.0],
+            "pv": [-12.0],
+            "soc": [42.0],
+        }
+    )
+
+    result = create_energy_report_df(
+        raw_df,
+        component_types=["pv"],
+        mcfg=cast(MicrogridConfig, _DummyMicrogridConfig({"pv": []})),
         mapper=ColumnMapper.from_default(locale="en"),
     )
 

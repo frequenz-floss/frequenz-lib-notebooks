@@ -74,8 +74,8 @@ def create_energy_report_df(
             display names fetched from the Assets API, typically passed in from
             notebook code after awaiting ``get_meter_display_names()``.
         battery_soc_df: Optional SOC data returned by ``MicrogridData.soc()``.
-            When battery is present and ``mcfg`` has a ``BATTERY_SOC_PCT``
-            formula, its ``battery`` column is added as ``battery_soc_pct``.
+            When ``battery`` is among ``component_types``, its ``battery``
+            column is added as ``battery_soc_pct``.
 
     Returns:
         The Energy Report DataFrame with standardized and selected columns.
@@ -90,13 +90,12 @@ def create_energy_report_df(
         if "timestamp" not in energy_report_df.columns:
             energy_report_df = energy_report_df.reset_index(names="timestamp")
 
-    include_battery_soc = _has_battery_soc_formula(component_types, mcfg)
     battery_soc_columns = [
         canonical
         for canonical in mapper.canonicals
         if canonical == "battery_soc_pct" or canonical.startswith("battery_soc_")
     ]
-    if include_battery_soc:
+    if "battery" in component_types and battery_soc_df is not None:
         energy_report_df = _add_battery_soc_column(
             energy_report_df,
             battery_soc_df,
@@ -145,7 +144,7 @@ def create_energy_report_df(
     energy_report_df_cols = get_energy_report_columns(
         component_types, single_components
     )
-    if include_battery_soc:
+    if "battery" in component_types and battery_soc_df is not None:
         energy_report_df_cols.extend(
             col
             for col in battery_soc_columns
@@ -164,17 +163,6 @@ def create_energy_report_df(
         )
 
     return energy_report_df
-
-
-def _has_battery_soc_formula(component_types: list[str], mcfg: MicrogridConfig) -> bool:
-    """Return whether the report should include battery SOC."""
-    if "battery" not in component_types:
-        return False
-    try:
-        mcfg.formula("battery", "BATTERY_SOC_PCT")
-    except (AttributeError, ValueError):
-        return False
-    return True
 
 
 def _add_battery_soc_column(

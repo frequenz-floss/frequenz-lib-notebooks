@@ -887,8 +887,12 @@ def plot_time_series_battery_soc_and_usecase(
         legend_max_height=legend_max_height,
         top_margin=top_margin,
     )
+    soc_columns = [soc_pct, soc_lower_bound_pct, soc_upper_bound_pct]
+    usecase_df = df.drop(
+        columns=[column for column in soc_columns if column in df.columns]
+    )
     usecase_fig = plot_time_series_battery_usecase(
-        df,
+        usecase_df,
         time_col=time_col,
         title=title,
         xaxis_title=xaxis_title,
