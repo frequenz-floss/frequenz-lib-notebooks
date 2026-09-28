@@ -120,7 +120,7 @@ class MicrogridData:
         df[neg_cols] = df[cols].clip(upper=0)
         return df
 
-    # pylint: disable=too-many-locals
+    # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     async def metric_data(  # pylint: disable=too-many-arguments
         self,
         *,
@@ -188,6 +188,7 @@ class MicrogridData:
             )
         ]
 
+        component_df = None
         all_cids = []
         if keep_components:
             all_cids = [
@@ -196,37 +197,35 @@ class MicrogridData:
                 for cid in mcfg.component_type_ids(ctype, metric=metric)
             ]
             _logger.debug("CIDs: %s", all_cids)
-            microgrid_components = [
-                (microgrid_id, all_cids),
-            ]
-            data_comp = [
-                sample
-                async for sample in self._client.receive_microgrid_components_data(
-                    microgrid_components=microgrid_components,
-                    metrics=metric_enum,
-                    start_time=start,
-                    end_time=end,
-                    resampling_period=resampling_period,
-                )
-            ]
-            data.extend(data_comp)
+            component_df = await self._component_metric_data(
+                microgrid_id=microgrid_id,
+                component_ids=all_cids,
+                metric=metric_enum,
+                start=start,
+                end=end,
+                resampling_period=resampling_period,
+            )
 
-        if len(data) == 0:
+        if len(data) == 0 and component_df is None:
             _logger.warning("No data found")
             return None
 
-        df = pd.DataFrame(data)
-        df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
-        assert df["timestamp"].dt.tz is not None, "Timestamps are not tz-aware"
+        df = None
+        if data:
+            df = pd.DataFrame(data)
+            df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+            assert df["timestamp"].dt.tz is not None, "Timestamps are not tz-aware"
 
-        # Remove duplicates
-        dup_mask = df.duplicated(keep="first")
-        if not dup_mask.empty:
-            _logger.info("Found %s rows that have duplicates", dup_mask.sum())
-        df = df[~dup_mask]
+            # Remove duplicates
+            dup_mask = df.duplicated(keep="first")
+            if not dup_mask.empty:
+                _logger.info("Found %s rows that have duplicates", dup_mask.sum())
+            df = df[~dup_mask]
 
-        # Pivot table
-        df = df.pivot_table(index="timestamp", columns="component_id", values="value")
+            # Pivot table
+            df = df.pivot_table(
+                index="timestamp", columns="component_id", values="value"
+            )
         # Rename formula columns
         rename_cols: dict[str, str] = {}
         for ctype, formula in formulas.items():
@@ -240,18 +239,22 @@ class MicrogridData:
                 continue
             rename_cols[formula] = ctype
 
-        df = df.rename(columns=rename_cols)
-        if keep_components:
-            # Set missing columns to NaN
-            for cid in all_cids:
-                if cid not in df.columns:
+        if df is not None:
+            df = df.rename(columns=rename_cols)
+        if component_df is not None:
+            df = component_df if df is None else df.join(component_df, how="outer")
+        elif df is not None and keep_components:
+            for component_id in all_cids:
+                if component_id not in df.columns:
                     _logger.warning(
-                        "Component ID %s not found in data, setting zero", cid
+                        "Component ID %s not found in data, setting zero", component_id
                     )
-                    df.loc[:, cid] = np.nan
+                    df.loc[:, component_id] = np.nan
+
+        assert df is not None
 
         # Make string columns
-        df.columns = [str(e) for e in df.columns]  # type: ignore
+        df.columns = [str(e) for e in df.columns]
 
         if splits:
             df = self._add_split_pos_neg_cols(df)
@@ -333,10 +336,12 @@ class MicrogridData:
         """Fetch and aggregate SOC for the configured battery components.
 
         Battery component IDs are read from the microgrid configuration.  Their
-        SOC and capacity values are fetched directly from Reporting, rather
-        than through formulas in the configuration. The aggregate SOC is a
-        capacity-weighted average, using each component's own capacity reading
-        at each timestamp so that capacity changes are reflected over time.
+        SOC and capacity values are fetched directly per component, without
+        requiring aggregation formulas in the microgrid configuration. The
+        aggregate SOC is a capacity-weighted average, using each component's
+        own capacity reading at each timestamp so that capacity changes are
+        reflected over time. SOC bounds are aggregated using those same
+        capacity weights.
 
         Args:
             microgrid_id: The ID of the microgrid.
@@ -365,31 +370,37 @@ class MicrogridData:
             )
             return None
 
-        df = await self._battery_metric_component_data(
+        df = await self._component_metric_data(
             microgrid_id=mg_id,
             component_ids=component_ids,
             metric=Metric.BATTERY_SOC_PCT,
-            metric_name="battery SOC",
             start=start,
             end=end,
             resampling_period=resampling_period,
         )
         if df is None:
+            _logger.warning("No battery SOC data found for microgrid %s.", mg_id)
             return None
 
-        capacity_df = await self._battery_metric_component_data(
+        capacity_df = await self._component_metric_data(
             microgrid_id=mg_id,
             component_ids=component_ids,
             metric=Metric.BATTERY_CAPACITY,
-            metric_name="battery capacity",
             start=start,
             end=end,
             resampling_period=resampling_period,
         )
+        if capacity_df is None:
+            _logger.warning("No battery capacity data found for microgrid %s.", mg_id)
+        component_columns = [str(component_id) for component_id in component_ids]
         weighted_soc = None
         if capacity_df is not None:
-            capacity_aligned = self._align_forward_filled(capacity_df, df.index)
-            weighted_soc = self._capacity_weighted_soc(df, capacity_aligned)
+            capacity_aligned = self._align_forward_filled(
+                capacity_df.reindex(columns=component_columns), df.index
+            )
+            weighted_soc = self._capacity_weighted_soc(
+                df.reindex(columns=component_columns), capacity_aligned
+            )
         if weighted_soc is None:
             return df if keep_components else None
         df["battery"] = weighted_soc
@@ -399,12 +410,13 @@ class MicrogridData:
             df = df.drop(columns=component_cols)
 
         bounds = await self._battery_soc_asset_bounds(mg_id, component_ids)
-        if bounds is not None:
-            lower_bound, upper_bound = bounds
-            if lower_bound is not None:
-                df["battery_soc_lower_bound_pct"] = lower_bound
-            if upper_bound is not None:
-                df["battery_soc_upper_bound_pct"] = upper_bound
+        if bounds is not None and capacity_df is not None:
+            capacity_aligned = self._align_forward_filled(capacity_df, df.index)
+            weighted_bounds = self._capacity_weighted_bounds(bounds, capacity_aligned)
+            if weighted_bounds["lower"] is not None:
+                df["battery_soc_lower_bound_pct"] = weighted_bounds["lower"]
+            if weighted_bounds["upper"] is not None:
+                df["battery_soc_upper_bound_pct"] = weighted_bounds["upper"]
         return df
 
     async def ac_active_energy(  # pylint: disable=too-many-arguments
@@ -465,18 +477,18 @@ class MicrogridData:
             )
             energy_delta = energy_delta.mask(negative_deltas)
         return energy_delta * (timedelta(hours=1) / resampling_period)
-    async def _battery_metric_component_data(  # pylint: disable=too-many-arguments
+
+    async def _component_metric_data(  # pylint: disable=too-many-arguments
         self,
         *,
         microgrid_id: int,
         component_ids: list[int],
         metric: Metric,
-        metric_name: str,
         start: datetime,
         end: datetime,
         resampling_period: timedelta,
     ) -> pd.DataFrame | None:
-        """Fetch a metric's values for battery components, indexed by timestamp."""
+        """Fetch per-component metric data as a timestamp-indexed table."""
         data = [
             sample
             async for sample in self._client.receive_microgrid_components_data(
@@ -488,9 +500,6 @@ class MicrogridData:
             )
         ]
         if not data:
-            _logger.warning(
-                "No %s data found for microgrid %s.", metric_name, microgrid_id
-            )
             return None
 
         df = pd.DataFrame(data)
@@ -530,6 +539,39 @@ class MicrogridData:
             weighted_sum.div(available_capacity).where(available_capacity > 0),
         )
 
+    @classmethod
+    def _capacity_weighted_bounds(
+        cls, bounds: pd.DataFrame, capacity_df: pd.DataFrame
+    ) -> dict[str, pd.Series | None]:
+        """Calculate capacity-weighted static SOC bounds for a battery pool."""
+        weighted_bounds: dict[str, pd.Series | None] = {}
+        for bound_name in ("lower", "upper"):
+            bound_values = bounds[bound_name].dropna()
+            if bound_values.empty:
+                weighted_bounds[bound_name] = None
+                continue
+
+            component_ids = [
+                component_id
+                for component_id in bound_values.index
+                if component_id in capacity_df.columns
+            ]
+            if not component_ids:
+                weighted_bounds[bound_name] = None
+                continue
+
+            bound_df = pd.DataFrame(
+                {
+                    component_id: bound_values[component_id]
+                    for component_id in component_ids
+                },
+                index=capacity_df.index,
+            )
+            weighted_bounds[bound_name] = cls._capacity_weighted_soc(
+                bound_df, capacity_df[component_ids]
+            )
+        return weighted_bounds
+
     @staticmethod
     def _align_forward_filled(df: pd.DataFrame, index: pd.Index) -> pd.DataFrame:
         """Reindex a DataFrame to `index`, forward-filling from its own history."""
@@ -540,8 +582,8 @@ class MicrogridData:
         self,
         microgrid_id: int | str,
         component_ids: list[int],
-    ) -> tuple[float | None, float | None] | None:
-        """Fetch the tight static SOC interval from battery asset metadata."""
+    ) -> pd.DataFrame | None:
+        """Fetch static per-component SOC bounds from battery asset metadata."""
         if self._assets_client is None:
             _logger.warning(
                 "Cannot fetch battery SOC bounds for microgrid %s: no Assets API client.",
@@ -554,34 +596,25 @@ class MicrogridData:
             categories=[ElectricalComponentCategory.BATTERY],
         )
         configured_ids = set(component_ids)
-        asset_bounds = [
-            battery.rated_bounds.get(AssetsMetric.BATTERY_SOC_PCT)
+        bounds = {
+            str(int(battery.id)): battery.rated_bounds.get(AssetsMetric.BATTERY_SOC_PCT)
             for battery in batteries
             if int(battery.id) in configured_ids
-        ]
-        lower_bounds = [
-            bound.lower
-            for bound in asset_bounds
-            if bound is not None and bound.lower is not None
-        ]
-        upper_bounds = [
-            bound.upper
-            for bound in asset_bounds
-            if bound is not None and bound.upper is not None
-        ]
-        if not lower_bounds and not upper_bounds:
+        }
+        bounds_df = pd.DataFrame.from_dict(
+            {
+                component_id: {
+                    "lower": bound.lower if bound is not None else None,
+                    "upper": bound.upper if bound is not None else None,
+                }
+                for component_id, bound in bounds.items()
+            },
+            orient="index",
+        )
+        if bounds_df.empty or bounds_df.isna().all().all():
             _logger.warning(
                 "Assets API returned no battery SOC rated bounds for microgrid %s.",
                 microgrid_id,
             )
             return None
-
-        lower = max(lower_bounds) if lower_bounds else None
-        upper = min(upper_bounds) if upper_bounds else None
-        if lower is not None and upper is not None and lower > upper:
-            _logger.warning(
-                "Battery SOC rated bounds do not overlap for microgrid %s.",
-                microgrid_id,
-            )
-            return None
-        return lower, upper
+        return bounds_df
