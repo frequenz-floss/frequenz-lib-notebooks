@@ -349,7 +349,7 @@ def build_overview_df(
     aggregate columns for the requested component types:
     ``pv_asset_production``, ``chp_asset_production``,
     ``wind_asset_production``, ``battery_power_flow``, and
-    ``battery_soc_pct`` when present.
+    ``battery_soc_pct`` plus SOC lower/upper bounds when present.
 
     If ``battery`` is present, the output is extended with battery plotting
     helpers derived from the selected columns: ``peak_before_optimization``,
@@ -378,14 +378,21 @@ def build_overview_df(
         "chp": ["chp_asset_production"],
         # "ev": ["ev_charging_load"],
         "wind": ["wind_asset_production"],
-        "battery": ["battery_power_flow", "battery_soc_pct"],
+        "battery": ["battery_power_flow"],
     }
+    battery_soc_columns = [
+        column
+        for column in energy_report_df.columns
+        if column == "battery_soc_pct" or column.startswith("battery_soc_")
+    ]
 
     # Collect columns in order
     cols = base_cols[:]
     for comp, comp_cols in optional_cols.items():
         if comp in component_types:
             cols.extend(comp_cols)
+            if comp == "battery":
+                cols.extend(battery_soc_columns)
 
     # Safe selection: avoid KeyError if a column is missing
     cols = list(pd.Index(cols).intersection(energy_report_df.columns, sort=False))

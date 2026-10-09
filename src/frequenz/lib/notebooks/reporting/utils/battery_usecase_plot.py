@@ -31,7 +31,12 @@ _DISPLAY_LABELS: dict[str, str] = {
 }
 
 _PEAK_COLUMNS = ["peak_before_optimization", "peak_after_optimization"]
-_EXCLUDED_USECASE_COLUMNS = {"battery_soc_pct", "soc"}
+_EXCLUDED_USECASE_COLUMNS = {
+    "battery_soc_pct",
+    "battery_soc_lower_bound_pct",
+    "battery_soc_upper_bound_pct",
+    "soc",
+}
 
 _REQUIRED_PRODUCTION_OVERLAY_COLUMNS = ["grid_consumption"]
 _REQUIRED_BATTERY_OVERLAY_COLUMNS = [

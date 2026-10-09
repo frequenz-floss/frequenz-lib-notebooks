@@ -6,11 +6,15 @@
 import logging
 from collections.abc import Mapping
 from datetime import datetime, timedelta
-from typing import Literal, Protocol, TypeAlias
+from typing import Literal, Protocol, TypeAlias, cast
 
 import numpy as np
 import pandas as pd
+from frequenz.client.assets import AssetsApiClient
+from frequenz.client.assets.electrical_component import ElectricalComponentCategory
+from frequenz.client.assets.metrics import Metric as AssetsMetric
 from frequenz.client.common.metrics import Metric
+from frequenz.client.common.microgrid import MicrogridId
 from frequenz.client.reporting import ReportingApiClient
 from frequenz.gridpool.config import MicrogridConfig
 
@@ -55,6 +59,7 @@ class MicrogridData:
         microgrid_configs: (
             _MicrogridConfigMapping | _MicrogridConfigsContainer | None
         ) = None,
+        assets_client: AssetsApiClient | None = None,
     ) -> None:
         """Initialize microgrid data.
 
@@ -64,6 +69,8 @@ class MicrogridData:
             sign_secret: Secret for signing requests.
             microgrid_configs: A mapping of microgrid IDs to configurations, or a
                 gridpool configuration document containing that mapping.
+            assets_client: Optional Assets API client used to fetch static battery
+                SOC rated bounds.
         """
         self._microgrid_configs = (
             None
@@ -73,6 +80,7 @@ class MicrogridData:
         self._client = ReportingApiClient(
             server_url=server_url, auth_key=auth_key, sign_secret=sign_secret
         )
+        self._assets_client = assets_client
 
     @property
     def microgrid_ids(self) -> list[int]:
@@ -112,7 +120,7 @@ class MicrogridData:
         df[neg_cols] = df[cols].clip(upper=0)
         return df
 
-    # pylint: disable=too-many-locals
+    # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     async def metric_data(  # pylint: disable=too-many-arguments
         self,
         *,
@@ -180,6 +188,7 @@ class MicrogridData:
             )
         ]
 
+        component_df = None
         all_cids = []
         if keep_components:
             all_cids = [
@@ -188,37 +197,35 @@ class MicrogridData:
                 for cid in mcfg.component_type_ids(ctype, metric=metric)
             ]
             _logger.debug("CIDs: %s", all_cids)
-            microgrid_components = [
-                (microgrid_id, all_cids),
-            ]
-            data_comp = [
-                sample
-                async for sample in self._client.receive_microgrid_components_data(
-                    microgrid_components=microgrid_components,
-                    metrics=metric_enum,
-                    start_time=start,
-                    end_time=end,
-                    resampling_period=resampling_period,
-                )
-            ]
-            data.extend(data_comp)
+            component_df = await self._component_metric_data(
+                microgrid_id=microgrid_id,
+                component_ids=all_cids,
+                metric=metric_enum,
+                start=start,
+                end=end,
+                resampling_period=resampling_period,
+            )
 
-        if len(data) == 0:
+        if len(data) == 0 and component_df is None:
             _logger.warning("No data found")
             return None
 
-        df = pd.DataFrame(data)
-        df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
-        assert df["timestamp"].dt.tz is not None, "Timestamps are not tz-aware"
+        df = None
+        if data:
+            df = pd.DataFrame(data)
+            df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+            assert df["timestamp"].dt.tz is not None, "Timestamps are not tz-aware"
 
-        # Remove duplicates
-        dup_mask = df.duplicated(keep="first")
-        if not dup_mask.empty:
-            _logger.info("Found %s rows that have duplicates", dup_mask.sum())
-        df = df[~dup_mask]
+            # Remove duplicates
+            dup_mask = df.duplicated(keep="first")
+            if not dup_mask.empty:
+                _logger.info("Found %s rows that have duplicates", dup_mask.sum())
+            df = df[~dup_mask]
 
-        # Pivot table
-        df = df.pivot_table(index="timestamp", columns="component_id", values="value")
+            # Pivot table
+            df = df.pivot_table(
+                index="timestamp", columns="component_id", values="value"
+            )
         # Rename formula columns
         rename_cols: dict[str, str] = {}
         for ctype, formula in formulas.items():
@@ -232,18 +239,22 @@ class MicrogridData:
                 continue
             rename_cols[formula] = ctype
 
-        df = df.rename(columns=rename_cols)
-        if keep_components:
-            # Set missing columns to NaN
-            for cid in all_cids:
-                if cid not in df.columns:
+        if df is not None:
+            df = df.rename(columns=rename_cols)
+        if component_df is not None:
+            df = component_df if df is None else df.join(component_df, how="outer")
+        elif df is not None and keep_components:
+            for component_id in all_cids:
+                if component_id not in df.columns:
                     _logger.warning(
-                        "Component ID %s not found in data, setting zero", cid
+                        "Component ID %s not found in data, setting zero", component_id
                     )
-                    df.loc[:, cid] = np.nan
+                    df.loc[:, component_id] = np.nan
+
+        assert df is not None
 
         # Make string columns
-        df.columns = [str(e) for e in df.columns]  # type: ignore
+        df.columns = [str(e) for e in df.columns]
 
         if splits:
             df = self._add_split_pos_neg_cols(df)
@@ -322,16 +333,90 @@ class MicrogridData:
         resampling_period: timedelta = timedelta(seconds=10),
         keep_components: bool = False,
     ) -> pd.DataFrame | None:
-        """Soc data for component types of a microgrid."""
-        df = await self.metric_data(
-            microgrid_id=microgrid_id,
+        """Fetch and aggregate SOC for the configured battery components.
+
+        Battery component IDs are read from the microgrid configuration.  Their
+        SOC and capacity values are fetched directly per component, without
+        requiring aggregation formulas in the microgrid configuration. The
+        aggregate SOC is a capacity-weighted average, using each component's
+        own capacity reading at each timestamp so that capacity changes are
+        reflected over time. SOC bounds are aggregated using those same
+        capacity weights.
+
+        Args:
+            microgrid_id: The ID of the microgrid.
+            start: The start time for the data fetch.
+            end: The end time for the data fetch.
+            resampling_period: The period for resampling the data.
+            keep_components: Whether to keep individual component data.
+
+        Returns:
+            A DataFrame containing the aggregated SOC data, or None if no data is available.
+
+        Raises:
+            ValueError: If microgrid configurations are not loaded.
+        """
+        if self._microgrid_configs is None:
+            raise ValueError("Microgrid configurations are not loaded.")
+
+        mg_id = int(microgrid_id)
+        config = self._microgrid_configs[mg_id]
+        component_ids = config.component_type_ids(
+            "battery", component_category="component"
+        )
+        if not component_ids:
+            _logger.warning(
+                "No battery components are configured for microgrid %s.", mg_id
+            )
+            return None
+
+        df = await self._component_metric_data(
+            microgrid_id=mg_id,
+            component_ids=component_ids,
+            metric=Metric.BATTERY_SOC_PCT,
             start=start,
             end=end,
-            component_types=("battery",),
             resampling_period=resampling_period,
-            metric="BATTERY_SOC_PCT",
-            keep_components=keep_components,
         )
+        if df is None:
+            _logger.warning("No battery SOC data found for microgrid %s.", mg_id)
+            return None
+
+        capacity_df = await self._component_metric_data(
+            microgrid_id=mg_id,
+            component_ids=component_ids,
+            metric=Metric.BATTERY_CAPACITY,
+            start=start,
+            end=end,
+            resampling_period=resampling_period,
+        )
+        if capacity_df is None:
+            _logger.warning("No battery capacity data found for microgrid %s.", mg_id)
+        component_columns = [str(component_id) for component_id in component_ids]
+        weighted_soc = None
+        if capacity_df is not None:
+            capacity_aligned = self._align_forward_filled(
+                capacity_df.reindex(columns=component_columns), df.index
+            )
+            weighted_soc = self._capacity_weighted_soc(
+                df.reindex(columns=component_columns), capacity_aligned
+            )
+        if weighted_soc is None:
+            return df if keep_components else None
+        df["battery"] = weighted_soc
+
+        if not keep_components:
+            component_cols = [col for col in df.columns if col.isdigit()]
+            df = df.drop(columns=component_cols)
+
+        bounds = await self._battery_soc_asset_bounds(mg_id, component_ids)
+        if bounds is not None and capacity_df is not None:
+            capacity_aligned = self._align_forward_filled(capacity_df, df.index)
+            weighted_bounds = self._capacity_weighted_bounds(bounds, capacity_aligned)
+            if weighted_bounds["lower"] is not None:
+                df["battery_soc_lower_bound_pct"] = weighted_bounds["lower"]
+            if weighted_bounds["upper"] is not None:
+                df["battery_soc_upper_bound_pct"] = weighted_bounds["upper"]
         return df
 
     async def ac_active_energy(  # pylint: disable=too-many-arguments
@@ -392,3 +477,144 @@ class MicrogridData:
             )
             energy_delta = energy_delta.mask(negative_deltas)
         return energy_delta * (timedelta(hours=1) / resampling_period)
+
+    async def _component_metric_data(  # pylint: disable=too-many-arguments
+        self,
+        *,
+        microgrid_id: int,
+        component_ids: list[int],
+        metric: Metric,
+        start: datetime,
+        end: datetime,
+        resampling_period: timedelta,
+    ) -> pd.DataFrame | None:
+        """Fetch per-component metric data as a timestamp-indexed table."""
+        data = [
+            sample
+            async for sample in self._client.receive_microgrid_components_data(
+                microgrid_components=[(microgrid_id, component_ids)],
+                metrics=metric,
+                start_time=start,
+                end_time=end,
+                resampling_period=resampling_period,
+            )
+        ]
+        if not data:
+            return None
+
+        df = pd.DataFrame(data)
+        df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+        df = df.drop_duplicates(keep="first").pivot_table(
+            index="timestamp", columns="component_id", values="value"
+        )
+        for component_id in component_ids:
+            if component_id not in df.columns:
+                df.loc[:, component_id] = np.nan
+        df = df.rename(columns=str)
+        return df.reindex(columns=sorted(df.columns))
+
+    @staticmethod
+    def _capacity_weighted_soc(
+        soc_df: pd.DataFrame, capacity_df: pd.DataFrame
+    ) -> pd.Series | None:
+        """Calculate aggregate battery SOC weighted by per-timestamp capacities."""
+        component_cols = [col for col in capacity_df.columns if col in soc_df.columns]
+        if not component_cols:
+            _logger.warning(
+                "Cannot calculate capacity-weighted battery SOC: no component "
+                "SOC columns match battery capacity columns."
+            )
+            return None
+
+        soc = soc_df[component_cols].apply(pd.to_numeric, errors="coerce")
+        capacity = capacity_df[component_cols].apply(pd.to_numeric, errors="coerce")
+        valid = soc.notna() & capacity.notna() & (capacity > 0)
+
+        weighted_capacity = capacity.where(valid)
+        available_capacity = weighted_capacity.sum(axis=1)
+        weighted_sum = (soc.where(valid) * weighted_capacity).sum(axis=1, min_count=1)
+
+        return cast(
+            pd.Series,
+            weighted_sum.div(available_capacity).where(available_capacity > 0),
+        )
+
+    @classmethod
+    def _capacity_weighted_bounds(
+        cls, bounds: pd.DataFrame, capacity_df: pd.DataFrame
+    ) -> dict[str, pd.Series | None]:
+        """Calculate capacity-weighted static SOC bounds for a battery pool."""
+        weighted_bounds: dict[str, pd.Series | None] = {}
+        for bound_name in ("lower", "upper"):
+            bound_values = bounds[bound_name].dropna()
+            if bound_values.empty:
+                weighted_bounds[bound_name] = None
+                continue
+
+            component_ids = [
+                component_id
+                for component_id in bound_values.index
+                if component_id in capacity_df.columns
+            ]
+            if not component_ids:
+                weighted_bounds[bound_name] = None
+                continue
+
+            bound_df = pd.DataFrame(
+                {
+                    component_id: bound_values[component_id]
+                    for component_id in component_ids
+                },
+                index=capacity_df.index,
+            )
+            weighted_bounds[bound_name] = cls._capacity_weighted_soc(
+                bound_df, capacity_df[component_ids]
+            )
+        return weighted_bounds
+
+    @staticmethod
+    def _align_forward_filled(df: pd.DataFrame, index: pd.Index) -> pd.DataFrame:
+        """Reindex a DataFrame to `index`, forward-filling from its own history."""
+        combined_index = df.index.union(index)
+        return df.reindex(combined_index).ffill().reindex(index)
+
+    async def _battery_soc_asset_bounds(
+        self,
+        microgrid_id: int | str,
+        component_ids: list[int],
+    ) -> pd.DataFrame | None:
+        """Fetch static per-component SOC bounds from battery asset metadata."""
+        if self._assets_client is None:
+            _logger.warning(
+                "Cannot fetch battery SOC bounds for microgrid %s: no Assets API client.",
+                microgrid_id,
+            )
+            return None
+
+        batteries = await self._assets_client.list_microgrid_electrical_components(
+            MicrogridId(int(microgrid_id)),
+            categories=[ElectricalComponentCategory.BATTERY],
+        )
+        configured_ids = set(component_ids)
+        bounds = {
+            str(int(battery.id)): battery.rated_bounds.get(AssetsMetric.BATTERY_SOC_PCT)
+            for battery in batteries
+            if int(battery.id) in configured_ids
+        }
+        bounds_df = pd.DataFrame.from_dict(
+            {
+                component_id: {
+                    "lower": bound.lower if bound is not None else None,
+                    "upper": bound.upper if bound is not None else None,
+                }
+                for component_id, bound in bounds.items()
+            },
+            orient="index",
+        )
+        if bounds_df.empty or bounds_df.isna().all().all():
+            _logger.warning(
+                "Assets API returned no battery SOC rated bounds for microgrid %s.",
+                microgrid_id,
+            )
+            return None
+        return bounds_df

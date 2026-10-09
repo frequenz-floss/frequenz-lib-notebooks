@@ -52,6 +52,24 @@ columns:
       en: "Battery state of charge in percent."
       de: "Ladezustand der Batterie in Prozent."
 
+  battery_soc_lower_bound_pct:
+    raw: "battery_soc_lower_bound_pct"
+    display:
+      en: "Battery SOC Lower Bound (%)"
+      de: "Batterie SOC Untergrenze %"
+    description:
+      en: "Lower battery state-of-charge bound in percent."
+      de: "Untere Ladezustandsgrenze der Batterie in Prozent."
+
+  battery_soc_upper_bound_pct:
+    raw: "battery_soc_upper_bound_pct"
+    display:
+      en: "Battery SOC Upper Bound (%)"
+      de: "Batterie SOC Obergrenze %"
+    description:
+      en: "Upper battery state-of-charge bound in percent."
+      de: "Obere Ladezustandsgrenze der Batterie in Prozent."
+
 # Computed metrics
   pv_asset_production:
     raw: "pv_asset_production"
