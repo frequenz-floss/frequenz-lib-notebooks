@@ -39,7 +39,7 @@ from __future__ import annotations
 import os
 import warnings
 from dataclasses import dataclass
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from typing import Any, Literal, Mapping, cast
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -53,10 +53,12 @@ from frequenz.client.common.microgrid import MicrogridId
 from frequenz.data.microgrid import MicrogridConfig
 from frequenz.lib.notebooks._credentials import resolve_credentials
 from frequenz.lib.notebooks.reporting.metrics.reporting_metrics import (
+    GridDataSource,
     asset_production,
     battery_power_flows,
     consumption,
     grid_consumption,
+    grid_directions,
     grid_feed_in,
     production_excess,
     production_self_consumption,
@@ -273,20 +275,20 @@ def convert_timezone(
     """Convert a datetime Series to a target timezone.
 
     If the Series contains timezone-naive datetimes, they are first localized to
-    ``assume_tz`` before converting to ``target_tz``.
+    assume_tz before converting to target_tz.
 
     Args:
         ts: Input Series containing the datetime values.
         target_tz: Timezone name to convert the Series to.
-            Defaults to ``"Europe/Berlin"``.
+            Defaults to "Europe/Berlin".
         assume_tz: Timezone to assume for naive datetimes.
-            Defaults to ``"UTC"``.
+            Defaults to "UTC".
 
     Returns:
         pd.Series: The timestamp Series converted to the requested timezone.
 
     Raises:
-        ValueError: If ``ts`` is not a pandas Series.
+        ValueError: If ts is not a pandas Series.
     """
     if not isinstance(ts, pd.Series):
         raise ValueError("Input must be a pandas Series")
@@ -312,14 +314,14 @@ def label_component_columns(
 ) -> tuple[pd.DataFrame, list[str]]:
     """Rename numeric single-component columns to labeled names.
 
-    Numeric string column names like ``"14"`` are converted to
-    ``"Battery #14"``, ``"PV #14"``, ``"CHP #14"`` or ``"EV #14"`` based on
-    the component IDs provided by ``mcfg.component_type_ids(...)``
+    Numeric string column names like "14" are converted to
+    "Battery #14", "PV #14", "CHP #14" or "EV #14" based on
+    the component IDs provided by mcfg.component_type_ids(...)
 
     Args:
         df: Input DataFrame with numeric string column names.
-        mcfg: Configuration with ``_component_types_cfg`` mapping component types to a
-            ``meter`` iterable of numeric IDs.
+        mcfg: Configuration with _component_types_cfg mapping component types to a
+            meter iterable of numeric IDs.
         column_battery: Key name for battery component type.
         column_pv: Key name for PV component type.
         column_chp: Key name for CHP component type.
@@ -472,24 +474,30 @@ def add_energy_flows(
     df: pd.DataFrame,
     production_cols: list[str] | None = None,
     consumption_cols: list[str] | None = None,
-    grid_cols: list[str] | None = None,
+    grid_energy_consumed_cols: list[str] | None = None,
+    grid_energy_delivered_cols: list[str] | None = None,
     battery_cols: list[str] | None = None,
+    grid_data_source: GridDataSource = "power",
+    resolution: timedelta | None = None,
 ) -> pd.DataFrame:
     """Compute and add derived energy flow metrics to the DataFrame.
 
     This function aggregates production and consumption data, derives energy flow
     relationships such as grid feed-in, battery charging, and self-consumption,
-    and appends these computed columns to the given DataFrame. Columns that are
-    specified but missing or contain only null/zero values are ignored.
+    and appends these computed columns to the given DataFrame. Directional grid
+    columns are used whenever present, including when all their values are zero.
 
     Args:
         df: Input DataFrame containing production, consumption, and optionally
             battery power data.
         production_cols: list of column names representing production sources.
         consumption_cols: list of column names representing consumption sources.
-        grid_cols: list of column names representing grid import/export.
+        grid_energy_consumed_cols: AC active energy consumed from the grid.
+        grid_energy_delivered_cols: AC active energy delivered to the grid.
         battery_cols: optional list of column names for battery charging power. If None,
             battery-related flows are set to zero.
+        grid_data_source: Select signed grid power or directional energy deltas.
+        resolution: Reporting period duration, required for "energy" mode.
 
     Returns:
         A DataFrame including additional columns:
@@ -504,6 +512,10 @@ def add_energy_flows(
               (self-consumed / total production).
             - "production_self_usage": Share of consumption covered by
               self-production (self-consumed / total consumption).
+
+    Raises:
+        ValueError: If grid_data_source is unknown, if energy mode is missing
+            either directional energy column, or if its resolution is invalid.
     """
     df_flows = df.copy()
 
@@ -514,15 +526,43 @@ def add_energy_flows(
     resolved_consumption_cols = [
         col for col in (consumption_cols or []) if _column_has_data(df_flows, col)
     ]
-    resolved_grid_cols = [
-        col for col in (grid_cols or []) if _column_has_data(df_flows, col)
+    resolved_grid_energy_consumed_cols = [
+        col for col in (grid_energy_consumed_cols or []) if col in df_flows.columns
+    ]
+    resolved_grid_energy_delivered_cols = [
+        col for col in (grid_energy_delivered_cols or []) if col in df_flows.columns
     ]
     resolved_battery_cols = [
         col for col in (battery_cols or []) if _column_has_data(df_flows, col)
     ]
 
     battery_power_series = _sum_cols(df_flows, resolved_battery_cols)
-    grid_power_series = _sum_cols(df_flows, resolved_grid_cols)
+    if grid_data_source not in ("power", "energy"):
+        raise ValueError(f"Unknown grid data source: {grid_data_source}")
+    if grid_data_source == "energy" and not (
+        resolved_grid_energy_consumed_cols and resolved_grid_energy_delivered_cols
+    ):
+        raise ValueError(
+            "Energy grid data requires both consumed and delivered columns."
+        )
+
+    has_grid_measurement = "grid" in df_flows.columns
+    if grid_data_source == "energy":
+        has_grid_measurement = bool(
+            resolved_grid_energy_consumed_cols and resolved_grid_energy_delivered_cols
+        )
+
+    if has_grid_measurement:
+        grid_consumption_series, grid_feed_in_series = grid_directions(
+            data_source=grid_data_source,
+            grid=_get_numeric_series(df_flows, "grid"),
+            energy_consumed=_sum_cols(df_flows, resolved_grid_energy_consumed_cols),
+            energy_delivered=_sum_cols(df_flows, resolved_grid_energy_delivered_cols),
+            resolution=resolution,
+        )
+    else:
+        grid_consumption_series = pd.Series(0.0, index=df_flows.index)
+        grid_feed_in_series = pd.Series(0.0, index=df_flows.index)
 
     # Compute total asset production
     asset_production_cols: list[str] = []
@@ -551,7 +591,8 @@ def add_energy_flows(
     else:
         # When no explicit consumption columns exist, infer it from grid info.
         df_flows["consumption_total"] = consumption(
-            grid_power_series,
+            grid_consumption_series,
+            grid_feed_in_series,
             production=_sum_cols(
                 df_flows, resolved_production_cols
             ),  # raw production to have the negative production values
@@ -569,11 +610,11 @@ def add_energy_flows(
 
     # Split excess into battery vs. grid
     df_flows["grid_feed_in"] = grid_feed_in(
+        grid_feed_in_series if has_grid_measurement else None,
         # To convert positive production back to PSC format (where production is negative)
         df_flows["production_total"] * -1,
         df_flows["consumption_total"],
         battery=battery_power_series,
-        grid=grid_power_series if resolved_grid_cols else None,
     )
 
     # If no production columns exist, set self-consumption metrics to zero
@@ -597,15 +638,13 @@ def add_energy_flows(
         df_flows["production_self_share"] = 0.0
         df_flows["production_self_usage"] = 0.0
 
-    # Add grid consumption column - grid is later renamed as grid_consumption
-    if "grid" not in df_flows.columns:
-        df_flows["grid"] = grid_consumption(
-            grid_power_series,
-            # To convert positive production back to PSC format (where production is negative)
-            df_flows["production_total"] * -1,
-            df_flows["consumption_total"],
-            battery_power_series,
-        )
+    df_flows["grid_consumption"] = grid_consumption(
+        grid_consumption_series if has_grid_measurement else None,
+        # To convert positive production back to PSC format (where production is negative)
+        df_flows["production_total"] * -1,
+        df_flows["consumption_total"],
+        battery_power_series,
+    )
 
     (
         df_flows["production_to_battery"],
@@ -613,7 +652,8 @@ def add_energy_flows(
         df_flows["battery_to_grid"],
         df_flows["battery_to_consumption"],
     ) = battery_power_flows(
-        grid=grid_power_series,
+        grid_energy_consumed=df_flows["grid_consumption"],
+        grid_energy_delivered=df_flows["grid_feed_in"],
         production=df_flows["production_total"],
         consumption=df_flows["consumption_total"],
         battery=battery_power_series,
@@ -667,7 +707,7 @@ def normalize_date_for_reporting(
     If the input date is today (in the target timezone), this returns the
     current time in that timezone. If the date is in the future, a ValueError
     is raised to prevent selecting future dates. For past dates, midnight is
-    returned via ``set_date_to_midnight``.
+    returned via set_date_to_midnight.
 
     Args:
         input_date: Date or datetime object to evaluate.
@@ -841,17 +881,15 @@ def prepare_summary_data(
     """Aggregate power data into MWh totals for summary plotting.
 
     Args:
-        df: Input time-series DataFrame with a ``DatetimeIndex`` or a
-            ``timestamp`` column.
-        period: Aggregation period: ``daily``, ``weekly``, ``monthly``, or
-            ``yearly``.
+        df: Input time-series DataFrame with a DatetimeIndex or a timestamp column.
+        period: Aggregation period: daily, weekly, monthly, or yearly.
 
     Returns:
         The aggregated summary data split into positive and negative values.
 
     Raises:
-        TypeError: If ``df`` does not have a timestamp index or column.
-        ValueError: If fewer than two rows are provided or ``period`` is unknown.
+        TypeError: If df does not have a timestamp index or column.
+        ValueError: If fewer than two rows are provided or period is unknown.
     """
     source_input = df.copy()
     if not isinstance(source_input.index, pd.DatetimeIndex):

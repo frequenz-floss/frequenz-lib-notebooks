@@ -287,7 +287,7 @@ class MicrogridData:
     ) -> pd.DataFrame | None:
         """Power data for component types of a microgrid.
 
-        Set ``from_energy`` to derive power from net AC active energy instead of
+        Set from_energy to derive power from net AC active energy instead of
         fetching the instantaneous power metric.
         """
         if from_energy:
@@ -301,7 +301,7 @@ class MicrogridData:
                 unit="Wh",
             )
             if df is not None:
-                df = self._convert_cumulative_energy_to_power(
+                df = self._convert_energy_deltas_to_power(
                     df, resampling_period=resampling_period
                 )
                 if splits:
@@ -422,7 +422,7 @@ class MicrogridData:
     async def ac_active_energy(  # pylint: disable=too-many-arguments
         self,
         *,
-        microgrid_id: int,
+        microgrid_id: int | str,
         start: datetime,
         end: datetime,
         component_types: tuple[str, ...] = (
@@ -438,10 +438,14 @@ class MicrogridData:
         unit: str = "Wh",
         direction: Literal["net", "consumed", "delivered"] = "net",
     ) -> pd.DataFrame | None:
-        """Fetch AC active energy, optionally for one direction only.
+        """Fetch energy used during each reporting period.
 
-        direction="net" fetches the net cumulative-energy metric.  The raw
-        readings are cumulative meter values.
+        The reporting API returns cumulative meter readings.  This method
+        returns the forward difference for each reporting period, aligned with
+        the period's starting timestamp. The final row is therefore NaN.
+
+        direction="net" fetches the net energy metric. Use "consumed"
+        or "delivered" for the corresponding directional meter.
         """
         if direction not in ("net", "consumed", "delivered"):
             raise ValueError(f"Unknown energy direction: {direction}")
@@ -457,26 +461,42 @@ class MicrogridData:
         )
         if energy is None:
             return None
+        energy = self._convert_cumulative_energy_to_deltas(energy)
         energy = self._convert_units(
             energy, unit=unit, scale_by_unit={"Wh": 1, "kWh": 1000, "MWh": 1e6}
         )
         return energy
 
     @staticmethod
-    def _convert_cumulative_energy_to_power(
-        df: pd.DataFrame, *, resampling_period: timedelta
-    ) -> pd.DataFrame:
-        """Convert cumulative energy meter readings into power values."""
+    def _convert_cumulative_energy_to_deltas(df: pd.DataFrame) -> pd.DataFrame:
+        """Calculate forward energy deltas from cumulative meter readings."""
         energy_delta = df.diff().shift(-1)
         negative_deltas = energy_delta < 0
         if negative_deltas.to_numpy().any():
             _logger.warning(
                 "Ignoring %s negative cumulative-energy deltas while converting "
-                "to power, likely due to meter resets.",
+                "meter readings, likely due to meter resets.",
                 int(negative_deltas.sum().sum()),
             )
             energy_delta = energy_delta.mask(negative_deltas)
-        return energy_delta * (timedelta(hours=1) / resampling_period)
+        return energy_delta
+
+    @staticmethod
+    def _convert_energy_deltas_to_power(
+        df: pd.DataFrame, *, resampling_period: timedelta
+    ) -> pd.DataFrame:
+        """Convert energy deltas into average power for each reporting period."""
+        return df * (timedelta(hours=1) / resampling_period)
+
+    @classmethod
+    def _convert_cumulative_energy_to_power(
+        cls, df: pd.DataFrame, *, resampling_period: timedelta
+    ) -> pd.DataFrame:
+        """Convert cumulative energy meter readings into power values."""
+        energy_delta = cls._convert_cumulative_energy_to_deltas(df)
+        return cls._convert_energy_deltas_to_power(
+            energy_delta, resampling_period=resampling_period
+        )
 
     async def _component_metric_data(  # pylint: disable=too-many-arguments
         self,

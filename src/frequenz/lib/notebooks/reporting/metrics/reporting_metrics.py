@@ -22,8 +22,62 @@ Usage:
 """
 
 import warnings
+from datetime import timedelta
+from typing import Literal
 
 import pandas as pd
+
+GridDataSource = Literal["power", "energy"]
+
+
+def grid_directions(
+    *,
+    data_source: GridDataSource,
+    grid: pd.Series | None = None,
+    energy_consumed: pd.Series | None = None,
+    energy_delivered: pd.Series | None = None,
+    resolution: timedelta | None = None,
+) -> tuple[pd.Series, pd.Series]:
+    """Normalize grid power or energy deltas into directional power series.
+
+    Args:
+        data_source: "power" for one signed PSC grid series or "energy"
+            for separate consumed and delivered energy-delta series.
+        grid: Signed grid power (positive import, negative export).
+        energy_consumed: Energy imported during each reporting period.
+        energy_delivered: Energy exported during each reporting period.
+        resolution: Reporting period duration. Required for energy input so the
+            energy delta can be converted to average power.
+
+    Returns:
+        Grid consumption and grid feed-in as non-negative power series.
+
+    Raises:
+        ValueError: If the selected source's inputs are missing or invalid.
+    """
+    if data_source == "power":
+        if grid is None:
+            raise ValueError("grid must be provided when data_source='power'.")
+        grid_power = grid.astype("float64")
+        return grid_power.clip(lower=0), grid_power.clip(upper=0).abs()
+
+    if data_source != "energy":
+        raise ValueError(f"Unknown grid data source: {data_source}")
+    if energy_consumed is None or energy_delivered is None:
+        raise ValueError(
+            "energy_consumed and energy_delivered must be provided when "
+            "data_source='energy'."
+        )
+    if resolution is None or resolution <= timedelta(0):
+        raise ValueError(
+            "A positive resolution must be provided when data_source='energy'."
+        )
+
+    power_factor = timedelta(hours=1) / resolution
+    return (
+        energy_consumed.astype("float64").clip(lower=0) * power_factor,
+        energy_delivered.astype("float64").clip(lower=0) * power_factor,
+    )
 
 
 def asset_production(production: pd.Series) -> pd.Series:
@@ -60,21 +114,21 @@ def production_excess(production: pd.Series, consumption: pd.Series) -> pd.Serie
 
 
 def grid_feed_in(
+    grid_energy_delivered: pd.Series | None,
     production: pd.Series | None,
     consumption: pd.Series | None,
     battery: pd.Series | None,
-    grid: pd.Series | None,
 ) -> pd.Series:
     """Determine grid feed-in using measured or derived series.
 
-    Prefers the measured grid series (negative export). When unavailable,
+    Prefers measured AC active energy delivered. When unavailable,
     derives grid feed-in from the remaining energy balance.
 
     Args:
-        production: Production power series (PSC-convention), or ``None``.
-        consumption: Consumption power series (PSC-convention), or ``None``.
-        battery: Battery power (PSC-convention: charging positive), or ``None``.
-        grid: Grid power series (negative export), or ``None``.
+        grid_energy_delivered: Measured grid delivery series (positive), or None.
+        production: Production power series (PSC-convention), or None.
+        consumption: Consumption power series (PSC-convention), or None.
+        battery: Battery power (PSC-convention: charging positive), or None.
 
     Returns:
         A Series representing power or energy fed into the grid (≥ 0).
@@ -82,14 +136,12 @@ def grid_feed_in(
     Raises:
         ValueError: If no valid series are provided.
     """
-    if grid is not None:
-        # If grid is provided, use it to determine feed-in.
-        # Grid feed-in is the negative values recorded in grid.
-        return grid.astype("float64").clip(upper=0).abs()
+    if grid_energy_delivered is not None:
+        return grid_energy_delivered.astype("float64").clip(lower=0)
 
     if all(s is None for s in (production, consumption, battery)):
         raise ValueError(
-            "Cannot compute grid_feed_in because no grid, production, "
+            "Cannot compute grid_feed_in because no delivered grid energy, production, "
             "consumption, or battery series were provided. "
             "This function follows PSC conventions, so production and battery "
             "must also follow those conventions."
@@ -164,16 +216,16 @@ def production_self_share(production: pd.Series, consumption: pd.Series) -> pd.S
 
     Calculates the fraction of total production that is directly self-consumed.
     The denominator is the positive production portion, and values are masked
-    to ``NaN`` where production is zero or negative to avoid invalid divisions.
+    to NaN where production is zero or negative to avoid invalid divisions.
 
     Args:
         production:
             Series of production power values (e.g., kW).
         consumption:
-            Series of consumption power values (same unit as ``production``).
+            Series of consumption power values (same unit as production).
     Returns:
         Series of self-consumption share values (typically between 0 and 1).
-        Returns ``NaN`` for timestamps where total production is zero or negative.
+        Returns NaN for timestamps where total production is zero or negative.
     """
     production_self_use = production_self_consumption(production, consumption)
     denom = asset_production(production).astype("float64")
@@ -182,17 +234,18 @@ def production_self_share(production: pd.Series, consumption: pd.Series) -> pd.S
 
 
 def consumption(
-    grid: pd.Series,
+    grid_energy_consumed: pd.Series,
+    grid_energy_delivered: pd.Series,
     production: pd.Series | None = None,
     battery: pd.Series | None = None,
 ) -> pd.Series:
-    """Infer total consumption from grid power, on-site production, and battery power.
+    """Infer consumption from directional grid, production, and battery series.
 
-    Computes: consumption = grid_power - production (raw production-neg values)
-                            - battery (raw - with positive and negative values).
+    Computes: consumption = consumed - delivered - production - battery.
 
     Args:
-        grid: Series of grid power values (e.g., kW or MW).
+        grid_energy_consumed: Positive grid-import series.
+        grid_energy_delivered: Positive grid-export series.
         production: Optional Series of on-site production values.
             If None, production is treated as zero.
         battery: Optional Series representing battery discharge/charge power.
@@ -204,13 +257,15 @@ def consumption(
         A Series representing inferred total consumption, named `"consumption"`.
 
     Raises:
-        ValueError: If `grid` is None.
+        ValueError: If either directional grid series is None.
 
     """
-    if grid is None:
-        raise ValueError("`grid` must be provided as a pandas Series.")
+    if grid_energy_consumed is None or grid_energy_delivered is None:
+        raise ValueError("Both directional grid series must be provided.")
 
-    grid_s = grid.astype("float64")
+    grid_s = grid_energy_consumed.astype("float64") - grid_energy_delivered.astype(
+        "float64"
+    )
 
     # Ensure raw production values are used (usually negative for production)
     if production is None:
@@ -230,7 +285,7 @@ def consumption(
 
 
 def grid_consumption(
-    grid: pd.Series | None,
+    grid_energy_consumed: pd.Series | None,
     production: pd.Series | None,
     consumption: pd.Series | None,
     battery: pd.Series | None,
@@ -242,14 +297,14 @@ def grid_consumption(
     - Battery is positive when charging (consuming energy).
     - Consumption is positive when consuming energy.
 
-    Prefers the measured grid series (positive import, negative export). When
+    Prefers measured AC active energy consumed. When
     unavailable, derives grid import from the remaining energy balance.
 
     Args:
-        grid: Grid power series (positive import), or ``None``.
-        production: Production power series (PSC-convention), or ``None``.
-        consumption: Consumption power series (PSC-convention), or ``None``.
-        battery: Battery power (PSC-convention: charging positive), or ``None``.
+        grid_energy_consumed: Measured grid-consumption series (positive), or None.
+        production: Production power series (PSC-convention), or None.
+        consumption: Consumption power series (PSC-convention), or None.
+        battery: Battery power (PSC-convention: charging positive), or None.
 
     Returns:
         Series with non-negative grid import values.
@@ -258,13 +313,13 @@ def grid_consumption(
         ValueError: If neither a grid series nor any of production,
             consumption, or battery series are provided.
     """
-    if grid is not None:
-        return grid.astype("float64").clip(lower=0)
+    if grid_energy_consumed is not None:
+        return grid_energy_consumed.astype("float64").clip(lower=0)
 
     # Ensure at least one other input is provided
     if all(s is None for s in (production, consumption, battery)):
         raise ValueError(
-            "Cannot compute grid_consumption because no grid, production, "
+            "Cannot compute grid_consumption because no consumed grid energy, production, "
             "consumption, or battery series were provided. "
             "This function follows PSC conventions, so production and battery "
             "must also follow those conventions."
@@ -282,7 +337,8 @@ def grid_consumption(
 
 # pylint: disable=too-many-locals
 def battery_power_flows(
-    grid: pd.Series,
+    grid_energy_consumed: pd.Series,
+    grid_energy_delivered: pd.Series,
     production: pd.Series,
     consumption: pd.Series,
     battery: pd.Series,
@@ -290,30 +346,25 @@ def battery_power_flows(
     """Compute battery charge/discharge flow splits from power series.
 
     Args:
-        grid: Grid power series. Positive values are grid import; negative
-            values are grid export.
+        grid_energy_consumed: Non-negative grid-import series.
+        grid_energy_delivered: Non-negative grid-export series.
         production: Non-negative total on-site production power series.
         consumption: Non-negative gross site consumption power series.
         battery: Battery power series. Positive values charge the battery;
             negative values discharge the battery.
 
     Returns:
-        A tuple containing ``production_to_battery``, ``grid_to_battery``,
-        ``battery_to_grid``, and ``battery_to_consumption`` series.
+        A tuple containing production_to_battery, grid_to_battery,
+        battery_to_grid, and battery_to_consumption series.
     """
-    grid_series = grid.fillna(0.0).astype("float64")
+    grid_consumption_series = grid_energy_consumed.fillna(0.0).astype("float64")
+    grid_feed_in_series = grid_energy_delivered.fillna(0.0).astype("float64")
     production_series = production.fillna(0.0).astype("float64").clip(lower=0)
     consumption_series = consumption.fillna(0.0).astype("float64").clip(lower=0)
     battery_series = battery.fillna(0.0).astype("float64")
 
     battery_charge_series = battery_series.clip(lower=0)
     battery_discharge_series = (-battery_series.clip(upper=0)).fillna(0.0)
-    grid_consumption_series = grid_consumption(
-        grid=grid_series,
-        production=production_series * -1,
-        consumption=consumption_series,
-        battery=battery_series,
-    )
 
     production_to_battery_series = pd.concat(
         [
@@ -323,22 +374,22 @@ def battery_power_flows(
         axis=1,
     ).min(axis=1)
     grid_to_battery_series = (
-        battery_charge_series - production_to_battery_series
-    ).clip(lower=0)
-
-    production_self_use_series = production_self_consumption(
-        production=production_series * -1,
-        consumption=consumption_series,
+        pd.concat(
+            [
+                battery_charge_series - production_to_battery_series,
+                grid_consumption_series,
+            ],
+            axis=1,
+        )
+        .min(axis=1)
+        .clip(lower=0)
     )
-    battery_to_consumption_series = (
-        consumption_series - production_self_use_series - grid_consumption_series
-    ).clip(lower=0)
-    battery_to_consumption_series = pd.concat(
-        [battery_to_consumption_series, battery_discharge_series],
-        axis=1,
+
+    battery_to_grid_series = pd.concat(
+        [battery_discharge_series, grid_feed_in_series], axis=1
     ).min(axis=1)
-    battery_to_grid_series = (
-        battery_discharge_series - battery_to_consumption_series
+    battery_to_consumption_series = (
+        battery_discharge_series - battery_to_grid_series
     ).clip(lower=0)
 
     production_to_battery_series.name = "production_to_battery"

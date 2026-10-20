@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import cast
 
 import pandas as pd
@@ -192,10 +193,39 @@ def test_create_energy_report_df_keeps_battery_flow_columns() -> None:
         mapper=ColumnMapper.from_default(locale="en"),
     )
 
+    assert result["grid_consumption"].tolist() == [0.0, 7.0, 1.0, 0.0]
+    assert result["grid_feed_in"].tolist() == [3.0, 0.0, 0.0, 7.0]
     assert result["production_to_battery"].tolist() == [3.0, 0.0, 0.0, 0.0]
     assert result["grid_to_battery"].tolist() == [0.0, 4.0, 0.0, 0.0]
     assert result["battery_to_grid"].tolist() == [0.0, 0.0, 0.0, 2.0]
     assert result["battery_to_consumption"].tolist() == [0.0, 0.0, 2.0, 0.0]
+
+
+def test_create_energy_report_df_switches_to_directional_energy() -> None:
+    """Energy mode converts directional energy deltas to report power."""
+    raw_df = pd.DataFrame(
+        {
+            "timestamp": pd.to_datetime(
+                ["2026-01-09 06:30:00", "2026-01-09 06:45:00"], utc=True
+            ),
+            "grid_energy_consumed": [2.0, 0.0],
+            "grid_energy_delivered": [0.0, 1.0],
+            "pv": [-4.0, -4.0],
+            "consumption": [10.0, 2.0],
+        }
+    )
+
+    result = create_energy_report_df(
+        raw_df,
+        component_types=["pv"],
+        mcfg=cast(MicrogridConfig, _DummyMicrogridConfig({"pv": []})),
+        mapper=ColumnMapper.from_default(locale="en"),
+        grid_data_source="energy",
+        resolution=timedelta(minutes=15),
+    )
+
+    assert result["grid_consumption"].tolist() == [8.0, 0.0]
+    assert result["grid_feed_in"].tolist() == [0.0, 4.0]
 
 
 def test_create_energy_report_df_excludes_battery_soc_when_battery_not_requested() -> (
@@ -226,7 +256,7 @@ def test_create_energy_report_df_excludes_battery_soc_when_battery_not_requested
 
 
 def test_create_energy_report_df_drops_premerged_soc_column() -> None:
-    """A raw ``soc`` column is ignored without explicit SOC input data."""
+    """A raw soc column is ignored without explicit SOC input data."""
     raw_df = pd.DataFrame(
         {
             "timestamp": pd.to_datetime(["2026-01-09 06:30:00"], utc=True),
@@ -250,7 +280,7 @@ def test_create_energy_report_df_drops_premerged_soc_column() -> None:
 def test_create_energy_report_df_drops_premerged_soc_when_battery_not_requested() -> (
     None
 ):
-    """A raw ``soc`` column is ignored when battery is not requested."""
+    """A raw soc column is ignored when battery is not requested."""
     raw_df = pd.DataFrame(
         {
             "timestamp": pd.to_datetime(["2026-01-09 06:30:00"], utc=True),
