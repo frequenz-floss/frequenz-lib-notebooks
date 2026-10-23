@@ -273,7 +273,7 @@ def assemble_component_analysis(
         ``"timestamp"`` column, an empty result is returned.
     """
     analyse_df = pd.DataFrame()
-    component_sum = 0
+    component_sum = 0.0
 
     # Normalize filters
     if "Alle" in component_filter or "All" in component_filter:
@@ -698,7 +698,7 @@ def aggregate_metrics(
         "battery_to_consumption": "battery_to_consumption_sum",
     }
 
-    results = {}
+    results: dict[str, float] = {}
     zeros = pd.Series(0, index=energy_report_df.index)
 
     # Energy Sums Calculation (kWh)
@@ -751,10 +751,12 @@ def aggregate_metrics(
     peak_date = None
     if peak > 0 and not grid_consumption_series.empty:
         # idxmax returns the index label of the max; often a pd.Timestamp already
-        peak_idx = grid_consumption_series.idxmax()
+        peak_idx = cast(
+            str | int | float | pd.Timestamp, grid_consumption_series.idxmax()
+        )
 
         if "timestamp" in energy_report_df.columns:
-            raw_ts = energy_report_df.loc[peak_idx, "timestamp"]
+            raw_ts = energy_report_df["timestamp"].loc[peak_idx]
 
             # Cast it to a type that pd.to_datetime accepts (str, float, or datetime)
             ts_input = cast(Union[str, float, datetime], raw_ts)
@@ -767,11 +769,10 @@ def aggregate_metrics(
                     ts = ts.tz_localize("UTC")
                 peak_date = ts.tz_convert(tz_name).strftime("%d.%m.%Y")
 
-    results["peak_date"] = peak_date
     if price_column is None or price_column not in energy_report_df.columns:
         results["grid_import_cost_sum"] = 0.0
         results["grid_feed_in_revenue_sum"] = 0.0
-        return results
+        return {**results, "peak_date": peak_date}
 
     prices_eur_mwh = energy_report_df[price_column].fillna(0.0).astype(float)
     # Assuming the grid consumption and grid_feed_in is in kW and not kWh
@@ -790,4 +791,4 @@ def aggregate_metrics(
         (grid_feed_in_energy_kwh * (prices_eur_mwh / 1000.0)).sum()
     )
 
-    return results
+    return {**results, "peak_date": peak_date}

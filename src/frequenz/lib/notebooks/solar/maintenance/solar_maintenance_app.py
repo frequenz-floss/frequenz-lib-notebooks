@@ -683,7 +683,7 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
                 predictions = (
                     model_items["predictions"]
                     .shift(model_specs[mdl_name]["model_params"]["sampling_interval"])
-                    .reindex(rolling_view_short_term.index, copy=False)
+                    .reindex(rolling_view_short_term.index)
                     .to_frame()
                 )
                 column_name = cast(str, base_view_config_params["x_axis_label"])
@@ -697,7 +697,7 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
                 predictions = (
                     model_items["predictions"]
                     .shift(1)
-                    .reindex(rolling_view_long_term.index, copy=False)
+                    .reindex(rolling_view_long_term.index)
                     .to_frame()
                 )
                 column_name = cast(str, base_view_config_params["x_axis_label"])
@@ -723,7 +723,7 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
                             / config.large_resample_period_seconds
                         )
                     )
-                    .reindex(rolling_view_short_term.index, copy=False)
+                    .reindex(rolling_view_short_term.index)
                     .to_frame()
                 )
                 column_name = cast(str, base_view_config_params["x_axis_label"])
@@ -741,7 +741,7 @@ async def run_workflow(user_config_changes: dict[str, Any]) -> SolarAnalysisData
                     .resample("D")
                     .sum()
                     .shift(1)
-                    .reindex(rolling_view_long_term.index, copy=False)
+                    .reindex(rolling_view_long_term.index)
                     .to_frame()
                 )
                 column_name = cast(str, base_view_config_params["x_axis_label"])
