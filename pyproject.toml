@@ -55,7 +55,7 @@ email = "floss@frequenz.com"
 
 [project.optional-dependencies]
 dev-flake8 = [
-  "flake8 == 7.4.1",
+  "flake8 == 7.5.0",
   "flake8-datetimez == 26.8.1",
   "flake8-docstrings == 1.7.0",
   "flake8-pyproject == 1.2.4",  # For reading the flake8 config from pyproject.toml
@@ -70,7 +70,7 @@ dev-mkdocs = [
   "mkdocs-gen-files == 0.6.1",
   "mkdocs-literate-nav == 0.6.3",
   "mkdocs-macros-plugin == 1.5.0",
-  "mkdocs-material == 9.7.7",
+  "mkdocs-material == 9.8.0",
   "mkdocstrings[python] == 1.0.8",
   "mkdocstrings-python == 2.0.10",
   "frequenz-repo-config[lib] == 0.18.0",
@@ -79,12 +79,12 @@ dev-mypy = [
   "mypy == 2.4.1",
   "pandas-stubs == 2.3.3.260113",
   "types-toml==0.10.8.20260518",
-  "types-Markdown == 3.10.2.20260712",
+  "types-Markdown == 3.11.2.20261029",
   # For checking the noxfile, docs/ script, and tests
   "frequenz-lib-notebooks[dev-mkdocs,dev-noxfile,dev-pytest]",
 ]
 dev-noxfile = [
-  "nox == 2026.8.17",
+  "nox == 2026.10.20",
   "frequenz-repo-config[lib] == 0.18.0",
 ]
 dev-pylint = [
@@ -93,7 +93,7 @@ dev-pylint = [
   "frequenz-lib-notebooks[dev-mkdocs,dev-noxfile,dev-pytest]",
 ]
 dev-pytest = [
-  "pytest == 9.1.1",
+  "pytest == 9.2.0",
   "pylint == 4.1.3",       # We need this to check for the examples
   "frequenz-repo-config[extra-lint-examples] == 0.18.0",
   "pytest-mock == 3.17.0",
