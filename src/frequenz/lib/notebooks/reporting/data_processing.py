@@ -10,6 +10,10 @@ metrics used downstream for dashboards.
 
 Functions:
 ------------
+- Energy Report Data Fetching
+  - `fetch_energy_report_data`: Fetches component power data and, by default,
+    replaces the net grid power column with consumed and delivered energy
+    columns.
 - Energy Report DataFrame Construction
   - `create_energy_report_df`: Builds a normalized energy report table with
     unified naming, timezone conversion, grid import calculation, and
@@ -22,9 +26,16 @@ transform raw microgrid exports into localized, labeled, and analysis-ready
 tables for KPIs, dashboards, and stakeholder reporting.
 """
 
+import asyncio
+from datetime import datetime, timedelta
+
 import pandas as pd
 
-from frequenz.data.microgrid import MicrogridConfig
+from frequenz.data.microgrid import MicrogridConfig, MicrogridData
+from frequenz.lib.notebooks.reporting.metrics.reporting_metrics import (
+    DEFAULT_RESOLUTION,
+    GridDataSource,
+)
 from frequenz.lib.notebooks.reporting.utils.column_mapper import ColumnMapper
 from frequenz.lib.notebooks.reporting.utils.helpers import (
     AggregatedComponentConfig,
@@ -34,6 +45,96 @@ from frequenz.lib.notebooks.reporting.utils.helpers import (
     get_energy_report_columns,
     label_component_columns,
 )
+
+
+async def fetch_energy_report_data(  # pylint: disable=too-many-arguments
+    mdata: MicrogridData,
+    *,
+    microgrid_id: int | str,
+    component_types: tuple[str, ...],
+    start: datetime,
+    end: datetime,
+    resampling_period: timedelta = DEFAULT_RESOLUTION,
+    keep_components: bool = False,
+    grid_data_source: GridDataSource = "energy",
+) -> pd.DataFrame | None:
+    """Fetch the source data used to construct an energy report.
+
+    Component data is always fetched as active power.  By default, grid import
+    and export are fetched as separate active-energy measurements, replacing
+    the signed ``grid`` power column with ``grid_energy_consumed`` and
+    ``grid_energy_delivered`` columns.  Set ``grid_data_source="power"`` to
+    retain the signed grid-power column.
+
+    Args:
+        mdata: Microgrid data client used for the reporting queries.
+        microgrid_id: ID of the microgrid to query.
+        component_types: Component types to include in the report data.
+        start: Start of the reporting interval.
+        end: End of the reporting interval.
+        resampling_period: Resolution of the returned data.
+        keep_components: Whether to include individual component columns.
+        grid_data_source: Source for grid data: directional active-energy
+            deltas by default, or signed active power.
+
+    Returns:
+        The fetched report data, or ``None`` when the main query has no data.
+
+    Raises:
+        ValueError: If ``grid_data_source`` is unknown, or a directional energy
+            query does not return a ``grid`` column.
+    """
+    if grid_data_source not in ("power", "energy"):
+        raise ValueError(f"Unknown grid data source: {grid_data_source}")
+
+    power_df = await mdata.ac_active_power(
+        microgrid_id=microgrid_id,
+        component_types=component_types,
+        start=start,
+        end=end,
+        resampling_period=resampling_period,
+        keep_components=keep_components,
+        unit="kW",
+    )
+    if grid_data_source == "power":
+        return power_df
+    if power_df is None:
+        return None
+
+    # Only the grid column is needed, so skip per-meter columns and run both
+    # directional queries concurrently.
+    consumed_grid_df, delivered_grid_df = await asyncio.gather(
+        *(
+            mdata.ac_active_energy(
+                microgrid_id=microgrid_id,
+                component_types=("grid",),
+                start=start,
+                end=end,
+                resampling_period=resampling_period,
+                keep_components=False,
+                unit="kWh",
+                direction=direction,
+            )
+            for direction in ("consumed", "delivered")
+        )
+    )
+
+    if consumed_grid_df is None or "grid" not in consumed_grid_df.columns:
+        raise ValueError(
+            "The consumed active-energy query did not return a grid column."
+        )
+    if delivered_grid_df is None or "grid" not in delivered_grid_df.columns:
+        raise ValueError(
+            "The delivered active-energy query did not return a grid column."
+        )
+
+    result = power_df.drop(
+        columns=["grid"],
+        errors="ignore",
+    )
+    result["grid_energy_consumed"] = consumed_grid_df["grid"]
+    result["grid_energy_delivered"] = delivered_grid_df["grid"]
+    return result
 
 
 # pylint: disable=too-many-arguments, too-many-locals
@@ -49,6 +150,8 @@ def create_energy_report_df(
     aggregated_component_config: AggregatedComponentConfig | None = None,
     component_display_names: dict[str, str] | None = None,
     battery_soc_df: pd.DataFrame | None = None,
+    grid_data_source: GridDataSource = "energy",
+    resolution: timedelta = DEFAULT_RESOLUTION,
 ) -> pd.DataFrame:
     """Create a normalized Energy Report DataFrame with selected columns.
 
@@ -58,9 +161,11 @@ def create_energy_report_df(
     reduced DataFrame containing only relevant columns.
 
     Args:
-        df: Raw input table containing energy data.
+        df: Raw input table containing energy data. Power mode expects a signed
+            grid column. Energy mode expects separate grid_energy_consumed and
+            grid_energy_delivered columns.
         component_types: Component types to include in the Energy Report DataFrame
-                (e.g., ``battery``, ``pv``).
+                (e.g., battery, pv).
         mcfg: Configuration object used to resolve component IDs.
         mapper: Column Mapper object to standardize the column names.
         tz_name: Target timezone name for timestamp conversion (default: "Europe/Berlin").
@@ -72,16 +177,21 @@ def create_energy_report_df(
             `DEFAULT_AGGREGATED_COMPONENT_CONFIG`.
         component_display_names: Optional mapping from numeric component IDs to
             display names fetched from the Assets API, typically passed in from
-            notebook code after awaiting ``get_meter_display_names()``.
-        battery_soc_df: Optional SOC data returned by ``MicrogridData.soc()``.
-            When ``battery`` is among ``component_types``, its ``battery``
-            column is added as ``battery_soc_pct``.
+            notebook code after awaiting get_meter_display_names().
+        battery_soc_df: Optional SOC data returned by MicrogridData.soc().
+            When battery is among component_types, its battery column is added
+            as battery_soc_pct.
+        grid_data_source: "energy" (the default) to use directional grid
+            energy deltas, or "power" to use signed grid power.
+        resolution: Reporting period duration required when grid_data_source is
+            "energy". Energy deltas are converted to average power so
+            the canonical report columns retain their existing units.
 
     Returns:
         The Energy Report DataFrame with standardized and selected columns.
 
     Notes:
-        Component IDs are renamed to labeled names via ``label_component_columns()``.
+        Component IDs are renamed to labeled names via label_component_columns().
     """
     energy_report_df = df.copy()
 
@@ -108,9 +218,17 @@ def create_energy_report_df(
         energy_report_df,
         production_cols=["pv", "chp", "wind"],
         consumption_cols=["consumption"],
-        grid_cols=["grid"],
+        grid_energy_consumed_cols=["grid_energy_consumed"],
+        grid_energy_delivered_cols=["grid_energy_delivered"],
         battery_cols=["battery"],
+        grid_data_source=grid_data_source,
+        resolution=resolution,
     )
+    raw_grid_column = mapper.canonical_to_raw["grid_consumption"]
+    if grid_data_source == "power" and raw_grid_column != "grid_consumption":
+        energy_report_df = energy_report_df.drop(
+            columns=[raw_grid_column], errors="ignore"
+        )
 
     # Standardize column names (from raw to canonical)
     energy_report_df = mapper.to_canonical(energy_report_df)
