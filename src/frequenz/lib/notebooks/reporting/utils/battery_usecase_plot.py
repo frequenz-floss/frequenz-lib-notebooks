@@ -18,6 +18,7 @@ from frequenz.lib.notebooks.reporting.utils.colors import COLOR_DICT
 _DISPLAY_LABELS: dict[str, str] = {
     "grid_consumption": "Netzbezug",
     "grid_consumption_without_battery": "Netzbezug ohne Batterie",
+    "grid_feed_in": "Netz Einspeisung",
     "day_ahead_price": "Day Ahead Preis",
     "consumption": "MID Gesamtverbrauch",
     "battery_power_flow": "Batterie Leistungsfluss",
@@ -93,7 +94,7 @@ def _resolve_battery_usecase_color(color_dict: dict[str, str], name: str) -> str
     return color_dict.get(name) or COLOR_DICT.get(name) or COLOR_DICT["PV"]
 
 
-# pylint: disable=too-many-arguments, too-many-locals, too-many-statements
+# pylint: disable=too-many-arguments, too-many-locals, too-many-statements, too-many-branches
 def prepare_battery_usecase_plot(
     df: pd.DataFrame,
     *,
@@ -150,6 +151,9 @@ def prepare_battery_usecase_plot(
         return [c for c in seq if c not in _EXCLUDED_USECASE_COLUMNS]
 
     df = df.rename(columns=normalize_map)
+    if "grid_feed_in" in df.columns:
+        feed_in = df["grid_feed_in"]
+        df["grid_feed_in"] = (feed_in * -1).where(feed_in > 0)
     cols = _rename(cols, normalize_map)
     fill_cols = _rename(fill_cols, normalize_map)
     dotted_cols = _rename(dotted_cols, normalize_map)
@@ -177,6 +181,10 @@ def prepare_battery_usecase_plot(
     if "consumption" in df.columns:
         # Plain reference line, not a fill — just make sure it's plotted.
         plot_order = _ensure(plot_order, ["consumption"])
+
+    if "grid_feed_in" in df.columns:
+        cols = _ensure(cols, ["grid_feed_in"])
+        plot_order = _ensure(plot_order, ["grid_feed_in"])
 
     peak_columns = [c for c in _PEAK_COLUMNS if c in df.columns]
     cols = _ensure(cols, peak_columns)
@@ -208,6 +216,10 @@ def prepare_battery_usecase_plot(
     )
     for peak_col in peak_columns:
         colors.setdefault(_DISPLAY_LABELS[peak_col], COLOR_DICT["peak"])
+    if _DISPLAY_LABELS["grid_feed_in"] in COLOR_DICT:
+        colors.setdefault(
+            _DISPLAY_LABELS["grid_feed_in"], COLOR_DICT[_DISPLAY_LABELS["grid_feed_in"]]
+        )
 
     for display_name, default_color in _PRODUCTION_DEFAULT_COLORS.items():
         if display_name in df.columns:

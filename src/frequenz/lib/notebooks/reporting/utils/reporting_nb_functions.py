@@ -706,7 +706,7 @@ def aggregate_metrics(
         # Safely get column (or Series of zeros if missing)
         series = energy_report_df.get(col_name, zeros)
 
-        # Clip grid consumption to non-negative values to avoid negative grid feed-in values
+        # Defensive: the energy report already clips grid, but direct callers may not.
         if col_name == "grid_consumption":
             series = series.clip(lower=0)
 
