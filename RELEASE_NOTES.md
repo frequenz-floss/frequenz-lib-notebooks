@@ -10,4 +10,4 @@
 
 
 ## Bug Fixes
-- Separate out positive values as grid consumption from the common grid column.
+- Show grid feed-in as a separate negative "Netz Einspeisung" trace in battery-usecase plots.
