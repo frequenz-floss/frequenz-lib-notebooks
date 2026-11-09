@@ -692,8 +692,8 @@ def test_plot_time_series_battery_usecase_aligns_secondary_zero() -> None:
     assert isclose(primary_zero_position, secondary_zero_position)
 
 
-def test_plot_time_series_battery_usecase_colors_negative_grid_feed_in() -> None:
-    """Negative Netzbezug values should be overlaid as Netz Einspeisung."""
+def test_plot_time_series_battery_usecase_plots_grid_feed_in_negative() -> None:
+    """grid_feed_in should always be plotted as a negative Netz Einspeisung line."""
     feed_in_color = "rgba(46,125,50,1)"
     df = pd.DataFrame(
         {
@@ -705,25 +705,28 @@ def test_plot_time_series_battery_usecase_colors_negative_grid_feed_in() -> None
                 ]
             ),
             "mid_consumption": [10.0, 8.0, 11.0],
-            "grid_consumption": [4.0, -3.0, -2.0],
+            "grid_consumption": [4.0, 0.0, 0.0],
+            "grid_feed_in": [0.0, 3.0, 2.0],
             "battery_power_flow": [0.0, 0.0, 0.0],
             "battery_discharge": [0.0, 0.0, 0.0],
             "battery_charge": [0.0, 0.0, 0.0],
         }
     )
 
+    # grid_feed_in is not requested in ``cols`` but must still be plotted.
     fig = plot_time_series_battery_usecase(
         df,
         time_col="timestamp",
         cols=["grid_consumption", "mid_consumption"],
         color_dict={"Netz Einspeisung": feed_in_color},
     )
-    traces_by_name = {
-        trace.name: trace for trace in fig.data if getattr(trace, "name", None)
-    }
+    feed_in_traces = [
+        t for t in fig.data if getattr(t, "name", None) == "Netz Einspeisung"
+    ]
 
-    assert traces_by_name["Netz Einspeisung"].line.color == feed_in_color
-    feed_in_y = list(traces_by_name["Netz Einspeisung"].y)
+    assert len(feed_in_traces) == 1
+    assert feed_in_traces[0].line.color == feed_in_color
+    feed_in_y = list(feed_in_traces[0].y)
     assert pd.isna(feed_in_y[0])
     assert feed_in_y[1:] == [-3.0, -2.0]
 
