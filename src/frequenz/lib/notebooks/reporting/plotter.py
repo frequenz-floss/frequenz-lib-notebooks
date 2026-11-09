@@ -577,38 +577,6 @@ def plot_time_series(
                 showlegend=True,
             )
         )
-        if col in {"grid_consumption", "Netzbezug"}:
-            grid_feed_in = y_values.where(y_values < 0)
-            if grid_feed_in.notna().any():
-                feed_in_name = "Netz Einspeisung"
-                feed_in_color = (
-                    (color_dict or {}).get(feed_in_name)
-                    or COLOR_DICT.get(feed_in_name)
-                    or line_color
-                )
-                fig.add_trace(
-                    go.Scatter(
-                        x=pdf.index,
-                        y=grid_feed_in,
-                        mode="lines",
-                        name=feed_in_name,
-                        customdata=pd.DataFrame({"raw": hover_values}).to_numpy(),
-                        hovertemplate=(
-                            f"<b>{feed_in_name}</b>: %{{customdata[0]}} "
-                            f"{trace_unit}<extra></extra>"
-                        ),
-                        yaxis="y2" if col in secondary_col_set else "y",
-                        line=dict(
-                            color=feed_in_color,
-                            shape="hv",
-                            dash=LINE_DASH_MAP.get(feed_in_name, "solid"),
-                            width=1,
-                        ),
-                        fill="none",
-                        legendrank=rank_map.get(col, 10_000 + i) + 1,
-                        showlegend=True,
-                    )
-                )
 
     # Update the figure layout: titles, legend, axes, and interactive controls
     fig.update_layout(

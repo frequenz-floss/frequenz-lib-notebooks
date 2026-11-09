@@ -419,6 +419,7 @@ def get_energy_report_columns(
         "timestamp",
         "grid_consumption",
         "mid_consumption",
+        "grid_feed_in",
     ] + single_components
 
     # Map component types to the columns they enable
@@ -434,7 +435,6 @@ def get_energy_report_columns(
     # Columns that should be included if ANY production component exists
     universal_production_cols = [
         "production_self_use",
-        "grid_feed_in",
         "production_self_share",
         "production_self_usage",
     ]
