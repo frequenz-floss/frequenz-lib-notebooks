@@ -46,7 +46,6 @@ class MicrogridData:
     """Fetch metric data for component types of a microgrid."""
 
     _AC_ACTIVE_ENERGY_METRICS = {
-        "energy_net": "AC_ENERGY_ACTIVE",
         "energy_consumed": "AC_ENERGY_ACTIVE_CONSUMED",
         "energy_delivered": "AC_ENERGY_ACTIVE_DELIVERED",
     }
@@ -124,7 +123,7 @@ class MicrogridData:
     async def metric_data(  # pylint: disable=too-many-arguments
         self,
         *,
-        microgrid_id: int | str,
+        microgrid_id: int,
         start: datetime,
         end: datetime,
         component_types: tuple[str, ...] = (
@@ -143,8 +142,7 @@ class MicrogridData:
         """Fetch aggregated data for an arbitrary metric across component types.
 
         Args:
-            microgrid_id: Microgrid ID. Numeric strings are accepted for notebook
-                compatibility.
+            microgrid_id: Microgrid ID.
             start: Start timestamp.
             end: End timestamp.
             component_types: Component types whose aggregation formulas should be
@@ -164,7 +162,6 @@ class MicrogridData:
         """
         if self._microgrid_configs is None:
             raise ValueError("Microgrid configurations are not loaded.")
-        microgrid_id = int(microgrid_id)
         mcfg = self._microgrid_configs[microgrid_id]
         metric = metric.upper()
 
@@ -268,7 +265,7 @@ class MicrogridData:
     async def ac_active_power(  # pylint: disable=too-many-arguments
         self,
         *,
-        microgrid_id: int | str,
+        microgrid_id: int,
         start: datetime,
         end: datetime,
         component_types: tuple[str, ...] = (
@@ -283,40 +280,18 @@ class MicrogridData:
         keep_components: bool = False,
         splits: bool = False,
         unit: str = "kW",
-        from_energy: bool = False,
     ) -> pd.DataFrame | None:
-        """Power data for component types of a microgrid.
-
-        Set ``from_energy`` to derive power from net AC active energy instead of
-        fetching the instantaneous power metric.
-        """
-        if from_energy:
-            df = await self.ac_active_energy(
-                microgrid_id=microgrid_id,
-                start=start,
-                end=end,
-                component_types=component_types,
-                resampling_period=resampling_period,
-                keep_components=keep_components,
-                unit="Wh",
-            )
-            if df is not None:
-                df = self._convert_cumulative_energy_to_power(
-                    df, resampling_period=resampling_period
-                )
-                if splits:
-                    df = self._add_split_pos_neg_cols(df)
-        else:
-            df = await self.metric_data(
-                microgrid_id=microgrid_id,
-                start=start,
-                end=end,
-                component_types=component_types,
-                resampling_period=resampling_period,
-                metric="AC_POWER_ACTIVE",
-                keep_components=keep_components,
-                splits=splits,
-            )
+        """Power data for component types of a microgrid."""
+        df = await self.metric_data(
+            microgrid_id=microgrid_id,
+            start=start,
+            end=end,
+            component_types=component_types,
+            resampling_period=resampling_period,
+            metric="AC_POWER_ACTIVE",
+            keep_components=keep_components,
+            splits=splits,
+        )
         if df is None:
             return df
 
@@ -327,7 +302,7 @@ class MicrogridData:
     async def soc(  # pylint: disable=too-many-arguments
         self,
         *,
-        microgrid_id: int | str,
+        microgrid_id: int,
         start: datetime,
         end: datetime,
         resampling_period: timedelta = timedelta(seconds=10),
@@ -359,7 +334,7 @@ class MicrogridData:
         if self._microgrid_configs is None:
             raise ValueError("Microgrid configurations are not loaded.")
 
-        mg_id = int(microgrid_id)
+        mg_id = microgrid_id
         config = self._microgrid_configs[mg_id]
         component_ids = config.component_type_ids(
             "battery", component_category="component"
@@ -425,6 +400,7 @@ class MicrogridData:
         microgrid_id: int,
         start: datetime,
         end: datetime,
+        direction: Literal["consumed", "delivered"],
         component_types: tuple[str, ...] = (
             "grid",
             "pv",
@@ -436,17 +412,86 @@ class MicrogridData:
         resampling_period: timedelta = timedelta(seconds=10),
         keep_components: bool = False,
         unit: str = "Wh",
-        direction: Literal["net", "consumed", "delivered"] = "net",
     ) -> pd.DataFrame | None:
-        """Fetch AC active energy, optionally for one direction only.
+        """Fetch energy used during each reporting period.
 
-        direction="net" fetches the net cumulative-energy metric.  The raw
-        readings are cumulative meter values.
+        The reporting API returns cumulative meter readings.  This method
+        returns the forward difference for each reporting period, aligned with
+        the period's starting timestamp. The final row is therefore NaN.
+
+        Only the directional meters are supported: "consumed" or "delivered".
+        Negative deltas (e.g. meter resets or dropouts to zero) are kept as-is,
+        so they show up as a spike in a single timestamp.  Use
+        `ac_active_energy_interpolated` to repair zero-valued readings first.
         """
-        if direction not in ("net", "consumed", "delivered"):
-            raise ValueError(f"Unknown energy direction: {direction}")
+        energy = await self._cumulative_energy(
+            microgrid_id=microgrid_id,
+            start=start,
+            end=end,
+            direction=direction,
+            component_types=component_types,
+            resampling_period=resampling_period,
+            keep_components=keep_components,
+        )
+        if energy is None:
+            return None
+        return self._finalize_energy_deltas(energy.diff().shift(-1), unit=unit)
 
-        energy = await self.metric_data(
+    async def ac_active_energy_interpolated(  # pylint: disable=too-many-arguments
+        self,
+        *,
+        microgrid_id: int,
+        start: datetime,
+        end: datetime,
+        direction: Literal["consumed", "delivered"],
+        component_types: tuple[str, ...] = (
+            "grid",
+            "pv",
+            "wind",
+            "battery",
+            "chp",
+            "consumption",
+        ),
+        resampling_period: timedelta = timedelta(seconds=10),
+        keep_components: bool = False,
+        unit: str = "Wh",
+    ) -> pd.DataFrame | None:
+        """Fetch energy per reporting period with zero readings interpolated.
+
+        Same as `ac_active_energy`, but zero-valued runs in the cumulative
+        counter that recover to at least the value before the run are treated
+        as missing readings and linearly interpolated before taking deltas.
+        Other negative deltas (e.g. real counter resets) are kept as-is.
+        """
+        energy = await self._cumulative_energy(
+            microgrid_id=microgrid_id,
+            start=start,
+            end=end,
+            direction=direction,
+            component_types=component_types,
+            resampling_period=resampling_period,
+            keep_components=keep_components,
+        )
+        if energy is None:
+            return None
+        energy = self._interpolate_zero_energy_readings(energy)
+        return self._finalize_energy_deltas(energy.diff().shift(-1), unit=unit)
+
+    async def _cumulative_energy(  # pylint: disable=too-many-arguments
+        self,
+        *,
+        microgrid_id: int,
+        start: datetime,
+        end: datetime,
+        direction: Literal["consumed", "delivered"],
+        component_types: tuple[str, ...],
+        resampling_period: timedelta,
+        keep_components: bool,
+    ) -> pd.DataFrame | None:
+        """Fetch cumulative directional energy readings."""
+        if direction not in ("consumed", "delivered"):
+            raise ValueError(f"Unknown energy direction: {direction}")
+        return await self.metric_data(
             microgrid_id=microgrid_id,
             start=start,
             end=end,
@@ -455,28 +500,52 @@ class MicrogridData:
             metric=self._AC_ACTIVE_ENERGY_METRICS[f"energy_{direction}"],
             keep_components=keep_components,
         )
-        if energy is None:
-            return None
-        energy = self._convert_units(
-            energy, unit=unit, scale_by_unit={"Wh": 1, "kWh": 1000, "MWh": 1e6}
+
+    def _finalize_energy_deltas(
+        self, deltas: pd.DataFrame, *, unit: str
+    ) -> pd.DataFrame:
+        """Convert energy deltas to the requested unit."""
+        return self._convert_units(
+            deltas, unit=unit, scale_by_unit={"Wh": 1, "kWh": 1000, "MWh": 1e6}
         )
-        return energy
 
     @staticmethod
-    def _convert_cumulative_energy_to_power(
-        df: pd.DataFrame, *, resampling_period: timedelta
-    ) -> pd.DataFrame:
-        """Convert cumulative energy meter readings into power values."""
-        energy_delta = df.diff().shift(-1)
-        negative_deltas = energy_delta < 0
-        if negative_deltas.to_numpy().any():
+    def _interpolate_zero_energy_readings(df: pd.DataFrame) -> pd.DataFrame:
+        """Interpolate zero runs in cumulative readings that later recover."""
+        repaired = df.copy()
+        repaired_readings = 0
+        for column_pos, column in enumerate(repaired.columns):
+            values = repaired[column]
+            zero_runs = values.eq(0) & values.notna()
+            start_pos: int | None = None
+            for position, is_zero in enumerate(zero_runs):
+                if is_zero and start_pos is None:
+                    start_pos = position
+                if start_pos is None or (is_zero and position + 1 < len(values)):
+                    continue
+
+                end_pos = position if is_zero else position - 1
+                if start_pos == 0 or end_pos + 1 == len(values):
+                    start_pos = None
+                    continue
+                before = values.iloc[start_pos - 1]
+                after = values.iloc[end_pos + 1]
+                if pd.notna(before) and pd.notna(after) and 0 < before <= after:
+                    repaired.iloc[start_pos : end_pos + 1, column_pos] = np.nan
+                    repaired_readings += end_pos - start_pos + 1
+                start_pos = None
+
+        if repaired_readings:
             _logger.warning(
-                "Ignoring %s negative cumulative-energy deltas while converting "
-                "to power, likely due to meter resets.",
-                int(negative_deltas.sum().sum()),
+                "Interpolating %s zero cumulative-energy readings that later "
+                "recover.",
+                repaired_readings,
             )
-            energy_delta = energy_delta.mask(negative_deltas)
-        return energy_delta * (timedelta(hours=1) / resampling_period)
+            if isinstance(repaired.index, pd.DatetimeIndex):
+                repaired = repaired.interpolate(method="time", limit_area="inside")
+            else:
+                repaired = repaired.interpolate(method="linear", limit_area="inside")
+        return repaired
 
     async def _component_metric_data(  # pylint: disable=too-many-arguments
         self,
@@ -580,7 +649,7 @@ class MicrogridData:
 
     async def _battery_soc_asset_bounds(
         self,
-        microgrid_id: int | str,
+        microgrid_id: int,
         component_ids: list[int],
     ) -> pd.DataFrame | None:
         """Fetch static per-component SOC bounds from battery asset metadata."""
@@ -592,7 +661,7 @@ class MicrogridData:
             return None
 
         batteries = await self._assets_client.list_microgrid_electrical_components(
-            MicrogridId(int(microgrid_id)),
+            MicrogridId(microgrid_id),
             categories=[ElectricalComponentCategory.BATTERY],
         )
         configured_ids = set(component_ids)

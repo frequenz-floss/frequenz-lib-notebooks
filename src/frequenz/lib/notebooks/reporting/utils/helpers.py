@@ -1,5 +1,6 @@
 # License: MIT
 # Copyright © 2025 Frequenz Energy-as-a-Service GmbH
+# pylint: disable=too-many-lines
 
 """Energy flow and configuration utilities for microgrid analysis and reporting.
 
@@ -39,7 +40,7 @@ from __future__ import annotations
 import os
 import warnings
 from dataclasses import dataclass
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from typing import Any, Literal, Mapping, cast
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -53,10 +54,13 @@ from frequenz.client.common.microgrid import MicrogridId
 from frequenz.data.microgrid import MicrogridConfig
 from frequenz.lib.notebooks._credentials import resolve_credentials
 from frequenz.lib.notebooks.reporting.metrics.reporting_metrics import (
+    DEFAULT_RESOLUTION,
+    GridDataSource,
     asset_production,
     battery_power_flows,
     consumption,
     grid_consumption,
+    grid_directions,
     grid_feed_in,
     production_excess,
     production_self_consumption,
@@ -472,24 +476,33 @@ def add_energy_flows(
     df: pd.DataFrame,
     production_cols: list[str] | None = None,
     consumption_cols: list[str] | None = None,
-    grid_cols: list[str] | None = None,
+    grid_energy_consumed_cols: list[str] | None = None,
+    grid_energy_delivered_cols: list[str] | None = None,
     battery_cols: list[str] | None = None,
+    grid_data_source: GridDataSource = "energy",
+    resolution: timedelta = DEFAULT_RESOLUTION,
 ) -> pd.DataFrame:
     """Compute and add derived energy flow metrics to the DataFrame.
 
     This function aggregates production and consumption data, derives energy flow
     relationships such as grid feed-in, battery charging, and self-consumption,
-    and appends these computed columns to the given DataFrame. Columns that are
-    specified but missing or contain only null/zero values are ignored.
+    and appends these computed columns to the given DataFrame. Directional grid
+    columns are used whenever present, including when all their values are zero.
+    Grid energy deltas are converted to average power before any flow metrics
+    are calculated, so they remain compatible with the other power inputs.
 
     Args:
         df: Input DataFrame containing production, consumption, and optionally
             battery power data.
         production_cols: list of column names representing production sources.
         consumption_cols: list of column names representing consumption sources.
-        grid_cols: list of column names representing grid import/export.
+        grid_energy_consumed_cols: AC active energy consumed from the grid.
+        grid_energy_delivered_cols: AC active energy delivered to the grid.
         battery_cols: optional list of column names for battery charging power. If None,
             battery-related flows are set to zero.
+        grid_data_source: Select directional energy deltas (the default) or
+            signed grid power.
+        resolution: Reporting period duration, required for "energy" mode.
 
     Returns:
         A DataFrame including additional columns:
@@ -506,6 +519,10 @@ def add_energy_flows(
               (self-consumed / total production).
             - "production_self_usage": Share of consumption covered by
               self-production (self-consumed / total consumption).
+
+    Raises:
+        ValueError: If grid_data_source is unknown, if energy mode is missing
+            either directional energy column, or if its resolution is invalid.
     """
     df_flows = df.copy()
 
@@ -516,15 +533,43 @@ def add_energy_flows(
     resolved_consumption_cols = [
         col for col in (consumption_cols or []) if _column_has_data(df_flows, col)
     ]
-    resolved_grid_cols = [
-        col for col in (grid_cols or []) if _column_has_data(df_flows, col)
+    resolved_grid_energy_consumed_cols = [
+        col for col in (grid_energy_consumed_cols or []) if col in df_flows.columns
+    ]
+    resolved_grid_energy_delivered_cols = [
+        col for col in (grid_energy_delivered_cols or []) if col in df_flows.columns
     ]
     resolved_battery_cols = [
         col for col in (battery_cols or []) if _column_has_data(df_flows, col)
     ]
 
     battery_power_series = _sum_cols(df_flows, resolved_battery_cols)
-    grid_power_series = _sum_cols(df_flows, resolved_grid_cols)
+    if grid_data_source not in ("power", "energy"):
+        raise ValueError(f"Unknown grid data source: {grid_data_source}")
+    if grid_data_source == "energy" and not (
+        resolved_grid_energy_consumed_cols and resolved_grid_energy_delivered_cols
+    ):
+        raise ValueError(
+            "Energy grid data requires both consumed and delivered columns."
+        )
+
+    has_grid_measurement = "grid" in df_flows.columns
+    if grid_data_source == "energy":
+        has_grid_measurement = bool(
+            resolved_grid_energy_consumed_cols and resolved_grid_energy_delivered_cols
+        )
+
+    if has_grid_measurement:
+        grid_consumption_series, grid_feed_in_series = grid_directions(
+            data_source=grid_data_source,
+            grid=_get_numeric_series(df_flows, "grid"),
+            grid_import=_sum_cols(df_flows, resolved_grid_energy_consumed_cols),
+            grid_export=_sum_cols(df_flows, resolved_grid_energy_delivered_cols),
+            resolution=resolution,
+        )
+    else:
+        grid_consumption_series = pd.Series(0.0, index=df_flows.index)
+        grid_feed_in_series = pd.Series(0.0, index=df_flows.index)
 
     # Compute total asset production
     asset_production_cols: list[str] = []
@@ -553,7 +598,8 @@ def add_energy_flows(
     else:
         # When no explicit consumption columns exist, infer it from grid info.
         df_flows["consumption_total"] = consumption(
-            grid_power_series,
+            grid_consumption_series,
+            grid_feed_in_series,
             production=_sum_cols(
                 df_flows, resolved_production_cols
             ),  # raw production to have the negative production values
@@ -571,19 +617,18 @@ def add_energy_flows(
 
     # Split excess into battery vs. grid
     df_flows["grid_feed_in"] = grid_feed_in(
+        grid_feed_in_series if has_grid_measurement else None,
         # To convert positive production back to PSC format (where production is negative)
         df_flows["production_total"] * -1,
         df_flows["consumption_total"],
         battery=battery_power_series,
-        grid=grid_power_series if resolved_grid_cols else None,
     )
 
-    # The measured grid series carries both directions: imports are positive and
-    # feed-in is negative.  Now that feed-in has been split into its own column,
-    # retain only imports in the grid column (renamed to ``grid_consumption`` by
-    # the reporting pipeline later on).
-    if resolved_grid_cols:
-        df_flows["grid"] = grid_power_series.clip(lower=0)
+    # The power-mode grid series carries both directions: imports are positive
+    # and feed-in is negative. Retain only imports in the raw grid column now
+    # that feed-in has been split into its own column.
+    if grid_data_source == "power" and "grid" in df_flows.columns:
+        df_flows["grid"] = grid_consumption_series
 
     # If no production columns exist, set self-consumption metrics to zero
     if asset_production_cols:
@@ -606,15 +651,13 @@ def add_energy_flows(
         df_flows["production_self_share"] = 0.0
         df_flows["production_self_usage"] = 0.0
 
-    # Add grid consumption column - grid is later renamed as grid_consumption
-    if "grid" not in df_flows.columns:
-        df_flows["grid"] = grid_consumption(
-            grid_power_series,
-            # To convert positive production back to PSC format (where production is negative)
-            df_flows["production_total"] * -1,
-            df_flows["consumption_total"],
-            battery_power_series,
-        )
+    df_flows["grid_consumption"] = grid_consumption(
+        grid_consumption_series if has_grid_measurement else None,
+        # To convert positive production back to PSC format (where production is negative)
+        df_flows["production_total"] * -1,
+        df_flows["consumption_total"],
+        battery_power_series,
+    )
 
     (
         df_flows["production_to_battery"],
@@ -622,7 +665,8 @@ def add_energy_flows(
         df_flows["battery_to_grid"],
         df_flows["battery_to_consumption"],
     ) = battery_power_flows(
-        grid=grid_power_series,
+        grid_import=df_flows["grid_consumption"],
+        grid_export=df_flows["grid_feed_in"],
         production=df_flows["production_total"],
         consumption=df_flows["consumption_total"],
         battery=battery_power_series,
