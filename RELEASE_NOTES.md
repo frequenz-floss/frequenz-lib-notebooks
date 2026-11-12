@@ -7,7 +7,7 @@
 
 
 ## New Features
-
+- Fetch reporting and microgrid data concurrently to reduce data-loading time.
+- Add an optional timeout for per-component metric queries.
 
 ## Bug Fixes
-- Show grid feed-in as a separate negative "Netz Einspeisung" trace in battery-usecase plots.

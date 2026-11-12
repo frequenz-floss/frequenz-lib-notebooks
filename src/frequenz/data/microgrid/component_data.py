@@ -3,6 +3,7 @@
 
 """Fetch component-type metric data from the reporting service."""
 
+import asyncio
 import logging
 from collections.abc import Mapping
 from datetime import datetime, timedelta
@@ -139,6 +140,7 @@ class MicrogridData:
         metric: str = "AC_POWER_ACTIVE",
         keep_components: bool = False,
         splits: bool = False,
+        component_timeout: float | None = None,
     ) -> pd.DataFrame | None:
         """Fetch aggregated data for an arbitrary metric across component types.
 
@@ -155,6 +157,10 @@ class MicrogridData:
                 the aggregated component-type columns.
             splits: Whether to append positive and negative split columns for each
                 returned column.
+            component_timeout: Seconds to wait for the per-component query when
+                ``keep_components`` is set. On timeout the component columns are
+                filled with NaN. ``None`` disables the timeout.
+
         Returns:
             DataFrame with power data of aggregated components
             or None if no data is available
@@ -175,36 +181,59 @@ class MicrogridData:
         logging.debug("Formulas: %s", formulas)
 
         metric_enum = Metric[metric.upper()]
-        data = [
-            sample
-            for ctype, formula in formulas.items()
-            async for sample in self._client.receive_aggregated_data(
-                microgrid_id=microgrid_id,
-                metric=metric_enum,
-                aggregation_formula=formula,
-                start_time=start,
-                end_time=end,
-                resampling_period=resampling_period,
-            )
-        ]
 
-        component_df = None
-        all_cids = []
+        async def _collect(formula: str) -> list:
+            return [
+                sample
+                async for sample in self._client.receive_aggregated_data(
+                    microgrid_id=microgrid_id,
+                    metric=metric_enum,
+                    aggregation_formula=formula,
+                    start_time=start,
+                    end_time=end,
+                    resampling_period=resampling_period,
+                )
+            ]
+
+        all_cids: list[int] = []
         if keep_components:
+            # Query every configured component, even for types whose aggregated
+            # stream is empty, so that each ID keeps a (possibly NaN) column.
             all_cids = [
                 cid
                 for ctype in component_types
                 for cid in mcfg.component_type_ids(ctype, metric=metric)
             ]
             _logger.debug("CIDs: %s", all_cids)
-            component_df = await self._component_metric_data(
-                microgrid_id=microgrid_id,
-                component_ids=all_cids,
-                metric=metric_enum,
-                start=start,
-                end=end,
-                resampling_period=resampling_period,
-            )
+
+        async def _components() -> pd.DataFrame | None:
+            if not all_cids:
+                return None
+            try:
+                return await asyncio.wait_for(
+                    self._component_metric_data(
+                        microgrid_id=microgrid_id,
+                        component_ids=all_cids,
+                        metric=metric_enum,
+                        start=start,
+                        end=end,
+                        resampling_period=resampling_period,
+                    ),
+                    timeout=component_timeout,
+                )
+            except asyncio.TimeoutError:
+                _logger.warning(
+                    "Per-component query timed out after %ss, "
+                    "continuing without component data",
+                    component_timeout,
+                )
+                return None
+
+        # The formula streams and the per-component query are independent.
+        *formula_results, component_df = await asyncio.gather(
+            *(_collect(formula) for formula in formulas.values()), _components()
+        )
+        data = [sample for samples in formula_results for sample in samples]
 
         if len(data) == 0 and component_df is None:
             _logger.warning("No data found")
@@ -284,11 +313,13 @@ class MicrogridData:
         splits: bool = False,
         unit: str = "kW",
         from_energy: bool = False,
+        component_timeout: float | None = None,
     ) -> pd.DataFrame | None:
         """Power data for component types of a microgrid.
 
         Set ``from_energy`` to derive power from net AC active energy instead of
-        fetching the instantaneous power metric.
+        fetching the instantaneous power metric. ``component_timeout`` bounds the
+        per-component query used by ``keep_components`` (see ``metric_data``).
         """
         if from_energy:
             df = await self.ac_active_energy(
@@ -316,6 +347,7 @@ class MicrogridData:
                 metric="AC_POWER_ACTIVE",
                 keep_components=keep_components,
                 splits=splits,
+                component_timeout=component_timeout,
             )
         if df is None:
             return df
@@ -370,26 +402,30 @@ class MicrogridData:
             )
             return None
 
-        df = await self._component_metric_data(
-            microgrid_id=mg_id,
-            component_ids=component_ids,
-            metric=Metric.BATTERY_SOC_PCT,
-            start=start,
-            end=end,
-            resampling_period=resampling_period,
+        # SOC, capacity and static bounds are independent requests.
+        df, capacity_df, bounds = await asyncio.gather(
+            self._component_metric_data(
+                microgrid_id=mg_id,
+                component_ids=component_ids,
+                metric=Metric.BATTERY_SOC_PCT,
+                start=start,
+                end=end,
+                resampling_period=resampling_period,
+            ),
+            self._component_metric_data(
+                microgrid_id=mg_id,
+                component_ids=component_ids,
+                metric=Metric.BATTERY_CAPACITY,
+                start=start,
+                end=end,
+                resampling_period=resampling_period,
+            ),
+            self._battery_soc_asset_bounds(mg_id, component_ids),
         )
         if df is None:
             _logger.warning("No battery SOC data found for microgrid %s.", mg_id)
             return None
 
-        capacity_df = await self._component_metric_data(
-            microgrid_id=mg_id,
-            component_ids=component_ids,
-            metric=Metric.BATTERY_CAPACITY,
-            start=start,
-            end=end,
-            resampling_period=resampling_period,
-        )
         if capacity_df is None:
             _logger.warning("No battery capacity data found for microgrid %s.", mg_id)
         component_columns = [str(component_id) for component_id in component_ids]
@@ -409,7 +445,6 @@ class MicrogridData:
             component_cols = [col for col in df.columns if col.isdigit()]
             df = df.drop(columns=component_cols)
 
-        bounds = await self._battery_soc_asset_bounds(mg_id, component_ids)
         if bounds is not None and capacity_df is not None:
             capacity_aligned = self._align_forward_filled(capacity_df, df.index)
             weighted_bounds = self._capacity_weighted_bounds(bounds, capacity_aligned)

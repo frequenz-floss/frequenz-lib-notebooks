@@ -3,6 +3,7 @@
 
 """Data fetching for asset optimization reporting."""
 
+import asyncio
 import logging
 import os
 from collections.abc import Sequence
@@ -194,7 +195,7 @@ async def fetch_data(
         end_time,
         resampling_period,
     )
-    df = await mdata.ac_active_power(
+    power_task = mdata.ac_active_power(
         microgrid_id=mid,
         component_types=component_types,
         start=start_time,
@@ -204,6 +205,23 @@ async def fetch_data(
         splits=splits,
         unit="kW",
     )
+    soc_task = (
+        mdata.soc(
+            microgrid_id=mid,
+            start=start_time,
+            end=end_time,
+            resampling_period=resampling_period,
+            keep_components=False,
+        )
+        if fetch_soc
+        else None
+    )
+    # Power and SOC are independent queries; fetch them concurrently.
+    if soc_task is None:
+        df, soc_df = await power_task, None
+    else:
+        df, soc_df = await asyncio.gather(power_task, soc_task)
+
     if df is None or df.empty:
         raise ValueError(
             f"No data found for microgrid {mid} between {start_time} and {end_time}"
@@ -212,13 +230,6 @@ async def fetch_data(
     _logger.debug("Received %s rows and %s columns", df.shape[0], df.shape[1])
 
     if fetch_soc:
-        soc_df = await mdata.soc(
-            microgrid_id=mid,
-            start=start_time,
-            end=end_time,
-            resampling_period=resampling_period,
-            keep_components=False,
-        )
         if soc_df is None or soc_df.empty:
             raise ValueError(
                 f"No SOC data found for microgrid {mid} between {start_time} and {end_time}"
