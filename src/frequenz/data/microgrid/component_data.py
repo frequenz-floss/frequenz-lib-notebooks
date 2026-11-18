@@ -192,13 +192,16 @@ class MicrogridData:
 
         all_cids: list[int] = []
         if keep_components:
-            # Query every configured component, even for types whose aggregated
-            # stream is empty, so that each ID keeps a (possibly NaN) column.
-            all_cids = [
-                cid
-                for ctype in component_types
-                for cid in mcfg.component_type_ids(ctype, metric=metric)
-            ]
+            # IDs are read from the formulas: derived types (e.g. consumption)
+            # mention the IDs of other types and a formula can repeat an ID.
+            # Request each ID once to avoid streaming identical samples.
+            all_cids = list(
+                dict.fromkeys(
+                    cid
+                    for ctype in component_types
+                    for cid in mcfg.component_type_ids(ctype, metric=metric)
+                )
+            )
             _logger.debug("CIDs: %s", all_cids)
 
         async def _components() -> pd.DataFrame | None:
