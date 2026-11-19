@@ -125,7 +125,7 @@ class MicrogridData:
     async def metric_data(  # pylint: disable=too-many-arguments
         self,
         *,
-        microgrid_id: int | str,
+        microgrid_id: int,
         start: datetime,
         end: datetime,
         component_types: tuple[str, ...] = (
@@ -144,8 +144,7 @@ class MicrogridData:
         """Fetch aggregated data for an arbitrary metric across component types.
 
         Args:
-            microgrid_id: Microgrid ID. Numeric strings are accepted for notebook
-                compatibility.
+            microgrid_id: Microgrid ID.
             start: Start timestamp.
             end: End timestamp.
             component_types: Component types whose aggregation formulas should be
@@ -165,7 +164,6 @@ class MicrogridData:
         """
         if self._microgrid_configs is None:
             raise ValueError("Microgrid configurations are not loaded.")
-        microgrid_id = int(microgrid_id)
         mcfg = self._microgrid_configs[microgrid_id]
         metric = metric.upper()
 
@@ -284,7 +282,7 @@ class MicrogridData:
     async def ac_active_power(  # pylint: disable=too-many-arguments
         self,
         *,
-        microgrid_id: int | str,
+        microgrid_id: int,
         start: datetime,
         end: datetime,
         component_types: tuple[str, ...] = (
@@ -343,7 +341,7 @@ class MicrogridData:
     async def soc(  # pylint: disable=too-many-arguments
         self,
         *,
-        microgrid_id: int | str,
+        microgrid_id: int,
         start: datetime,
         end: datetime,
         resampling_period: timedelta = timedelta(seconds=10),
@@ -375,21 +373,20 @@ class MicrogridData:
         if self._microgrid_configs is None:
             raise ValueError("Microgrid configurations are not loaded.")
 
-        mg_id = int(microgrid_id)
-        config = self._microgrid_configs[mg_id]
+        config = self._microgrid_configs[microgrid_id]
         component_ids = config.component_type_ids(
             "battery", component_category="component"
         )
         if not component_ids:
             _logger.warning(
-                "No battery components are configured for microgrid %s.", mg_id
+                "No battery components are configured for microgrid %s.", microgrid_id
             )
             return None
 
         # SOC, capacity and static bounds are independent requests.
         df, capacity_df, bounds = await asyncio.gather(
             self._component_metric_data(
-                microgrid_id=mg_id,
+                microgrid_id=microgrid_id,
                 component_ids=component_ids,
                 metric=Metric.BATTERY_SOC_PCT,
                 start=start,
@@ -397,21 +394,21 @@ class MicrogridData:
                 resampling_period=resampling_period,
             ),
             self._component_metric_data(
-                microgrid_id=mg_id,
+                microgrid_id=microgrid_id,
                 component_ids=component_ids,
                 metric=Metric.BATTERY_CAPACITY,
                 start=start,
                 end=end,
                 resampling_period=resampling_period,
             ),
-            self._battery_soc_asset_bounds(mg_id, component_ids),
+            self._battery_soc_asset_bounds(microgrid_id, component_ids),
         )
         if df is None:
-            _logger.warning("No battery SOC data found for microgrid %s.", mg_id)
+            _logger.warning("No battery SOC data found for microgrid %s.", microgrid_id)
             return None
 
         if capacity_df is None:
-            _logger.warning("No battery capacity data found for microgrid %s.", mg_id)
+            _logger.warning("No battery capacity data found for microgrid %s.", microgrid_id)
         component_columns = [str(component_id) for component_id in component_ids]
         weighted_soc = None
         if capacity_df is not None:
@@ -599,7 +596,7 @@ class MicrogridData:
 
     async def _battery_soc_asset_bounds(
         self,
-        microgrid_id: int | str,
+        microgrid_id: int,
         component_ids: list[int],
     ) -> pd.DataFrame | None:
         """Fetch static per-component SOC bounds from battery asset metadata."""
@@ -611,7 +608,7 @@ class MicrogridData:
             return None
 
         batteries = await self._assets_client.list_microgrid_electrical_components(
-            MicrogridId(int(microgrid_id)),
+            MicrogridId(microgrid_id),
             categories=[ElectricalComponentCategory.BATTERY],
         )
         configured_ids = set(component_ids)
