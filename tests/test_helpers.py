@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import cast
 from zoneinfo import ZoneInfo
 
@@ -79,8 +79,8 @@ def test_add_energy_flows_adds_battery_flow_columns() -> None:
         df,
         production_cols=["pv"],
         consumption_cols=["consumption"],
-        grid_cols=["grid"],
         battery_cols=["battery"],
+        grid_data_source="power",
     )
 
     assert_series_equal(
@@ -108,6 +108,33 @@ def test_add_energy_flows_adds_battery_flow_columns() -> None:
         result["battery_to_consumption"],
         pd.Series([0.0, 0.0, 2.0, 0.0], name="battery_to_consumption"),
     )
+
+
+def test_add_energy_flows_can_switch_to_directional_energy() -> None:
+    """The source switch normalizes energy deltas to the same power flows."""
+    df = pd.DataFrame(
+        {
+            "grid_energy_consumed": [0.0, 1.75, 0.25, 0.0],
+            "grid_energy_delivered": [0.75, 0.0, 0.0, 1.75],
+            "pv": [-10.0, -2.0, -1.0, -8.0],
+            "consumption": [4.0, 5.0, 4.0, 3.0],
+            "battery": [3.0, 4.0, -2.0, -2.0],
+        }
+    )
+
+    result = add_energy_flows(
+        df,
+        production_cols=["pv"],
+        consumption_cols=["consumption"],
+        grid_energy_consumed_cols=["grid_energy_consumed"],
+        grid_energy_delivered_cols=["grid_energy_delivered"],
+        battery_cols=["battery"],
+        grid_data_source="energy",
+        resolution=timedelta(minutes=15),
+    )
+
+    assert result["grid_consumption"].tolist() == [0.0, 7.0, 1.0, 0.0]
+    assert result["grid_feed_in"].tolist() == [3.0, 0.0, 0.0, 7.0]
 
 
 def test_column_has_data_checks_numeric_content() -> None:

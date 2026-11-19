@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import cast
 
 import pandas as pd
@@ -68,6 +69,7 @@ def test_create_energy_report_df_appends_meter_display_names() -> None:
         mcfg=cast(MicrogridConfig, _DummyMicrogridConfig({"pv": ["1179"]})),
         mapper=ColumnMapper.from_default(locale="en"),
         component_display_names={"1179": "PV Roof Meter"},
+        grid_data_source="power",
     )
 
     assert "PV #1179 - PV Roof Meter" in result.columns
@@ -90,6 +92,7 @@ def test_create_energy_report_df_uses_explicit_component_display_names() -> None
         mcfg=cast(MicrogridConfig, _DummyMicrogridConfig({"pv": ["1179"]})),
         mapper=ColumnMapper.from_default(locale="en"),
         component_display_names={"1179": "Explicit PV Meter"},
+        grid_data_source="power",
     )
 
     assert "PV #1179 - Explicit PV Meter" in result.columns
@@ -122,6 +125,7 @@ def test_create_energy_report_df_adds_battery_soc_when_battery_present() -> None
         mcfg=cast(MicrogridConfig, _DummyMicrogridConfig({"battery": []})),
         mapper=ColumnMapper.from_default(locale="en"),
         battery_soc_df=soc_df,
+        grid_data_source="power",
     )
 
     assert "battery_soc_pct" in result.columns
@@ -159,6 +163,7 @@ def test_create_energy_report_df_adds_battery_soc_bounds_when_available() -> Non
         mcfg=cast(MicrogridConfig, _DummyMicrogridConfig({"battery": []})),
         mapper=ColumnMapper.from_default(locale="en"),
         battery_soc_df=soc_df,
+        grid_data_source="power",
     )
 
     assert list(result["battery_soc_lower_bound_pct"]) == [20.0, 25.0]
@@ -190,12 +195,42 @@ def test_create_energy_report_df_keeps_battery_flow_columns() -> None:
         component_types=["battery", "pv"],
         mcfg=cast(MicrogridConfig, _DummyMicrogridConfig({"battery": [], "pv": []})),
         mapper=ColumnMapper.from_default(locale="en"),
+        grid_data_source="power",
     )
 
+    assert result["grid_consumption"].tolist() == [0.0, 7.0, 1.0, 0.0]
+    assert result["grid_feed_in"].tolist() == [3.0, 0.0, 0.0, 7.0]
     assert result["production_to_battery"].tolist() == [3.0, 0.0, 0.0, 0.0]
     assert result["grid_to_battery"].tolist() == [0.0, 4.0, 0.0, 0.0]
     assert result["battery_to_grid"].tolist() == [0.0, 0.0, 0.0, 2.0]
     assert result["battery_to_consumption"].tolist() == [0.0, 0.0, 2.0, 0.0]
+
+
+def test_create_energy_report_df_converts_directional_energy_to_power() -> None:
+    """Energy grid data converts to report power using the given resolution."""
+    raw_df = pd.DataFrame(
+        {
+            "timestamp": pd.to_datetime(
+                ["2026-01-09 06:30:00", "2026-01-09 06:45:00"], utc=True
+            ),
+            "grid_energy_consumed": [2.0, 0.0],
+            "grid_energy_delivered": [0.0, 1.0],
+            "pv": [-4.0, -4.0],
+            "consumption": [10.0, 2.0],
+        }
+    )
+
+    result = create_energy_report_df(
+        raw_df,
+        component_types=["pv"],
+        mcfg=cast(MicrogridConfig, _DummyMicrogridConfig({"pv": []})),
+        mapper=ColumnMapper.from_default(locale="en"),
+        grid_data_source="energy",
+        resolution=timedelta(minutes=15),
+    )
+
+    assert result["grid_consumption"].tolist() == [8.0, 0.0]
+    assert result["grid_feed_in"].tolist() == [0.0, 4.0]
 
 
 def test_create_energy_report_df_excludes_battery_soc_when_battery_not_requested() -> (
@@ -220,6 +255,7 @@ def test_create_energy_report_df_excludes_battery_soc_when_battery_not_requested
         mcfg=cast(MicrogridConfig, _DummyMicrogridConfig({"pv": []})),
         mapper=ColumnMapper.from_default(locale="en"),
         battery_soc_df=soc_df,
+        grid_data_source="power",
     )
 
     assert "battery_soc_pct" not in result.columns
@@ -242,6 +278,7 @@ def test_create_energy_report_df_drops_premerged_soc_column() -> None:
         component_types=["battery"],
         mcfg=cast(MicrogridConfig, _DummyMicrogridConfig({"battery": []})),
         mapper=ColumnMapper.from_default(locale="en"),
+        grid_data_source="power",
     )
 
     assert "battery_soc_pct" not in result.columns
@@ -265,6 +302,7 @@ def test_create_energy_report_df_drops_premerged_soc_when_battery_not_requested(
         component_types=["pv"],
         mcfg=cast(MicrogridConfig, _DummyMicrogridConfig({"pv": []})),
         mapper=ColumnMapper.from_default(locale="en"),
+        grid_data_source="power",
     )
 
     assert "battery_soc_pct" not in result.columns
