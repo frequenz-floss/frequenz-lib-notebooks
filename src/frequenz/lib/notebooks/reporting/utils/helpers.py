@@ -525,6 +525,8 @@ def add_energy_flows(
 
     battery_power_series = _sum_cols(df_flows, resolved_battery_cols)
     grid_power_series = _sum_cols(df_flows, resolved_grid_cols)
+    grid_consumption_series = grid_power_series.clip(lower=0)
+    grid_feed_in_series = grid_power_series.clip(upper=0).abs()
 
     # Compute total asset production
     asset_production_cols: list[str] = []
@@ -553,7 +555,8 @@ def add_energy_flows(
     else:
         # When no explicit consumption columns exist, infer it from grid info.
         df_flows["consumption_total"] = consumption(
-            grid_power_series,
+            grid_consumption_series,
+            grid_feed_in_series,
             production=_sum_cols(
                 df_flows, resolved_production_cols
             ),  # raw production to have the negative production values
@@ -571,11 +574,11 @@ def add_energy_flows(
 
     # Split excess into battery vs. grid
     df_flows["grid_feed_in"] = grid_feed_in(
+        grid_feed_in_series if resolved_grid_cols else None,
         # To convert positive production back to PSC format (where production is negative)
         df_flows["production_total"] * -1,
         df_flows["consumption_total"],
         battery=battery_power_series,
-        grid=grid_power_series if resolved_grid_cols else None,
     )
 
     # The measured grid series carries both directions: imports are positive and
@@ -583,7 +586,7 @@ def add_energy_flows(
     # retain only imports in the grid column (renamed to ``grid_consumption`` by
     # the reporting pipeline later on).
     if resolved_grid_cols:
-        df_flows["grid"] = grid_power_series.clip(lower=0)
+        df_flows["grid"] = grid_consumption_series
 
     # If no production columns exist, set self-consumption metrics to zero
     if asset_production_cols:
@@ -609,7 +612,7 @@ def add_energy_flows(
     # Add grid consumption column - grid is later renamed as grid_consumption
     if "grid" not in df_flows.columns:
         df_flows["grid"] = grid_consumption(
-            grid_power_series,
+            grid_consumption_series,
             # To convert positive production back to PSC format (where production is negative)
             df_flows["production_total"] * -1,
             df_flows["consumption_total"],
@@ -622,7 +625,8 @@ def add_energy_flows(
         df_flows["battery_to_grid"],
         df_flows["battery_to_consumption"],
     ) = battery_power_flows(
-        grid=grid_power_series,
+        grid_import=df_flows["grid"],
+        grid_export=df_flows["grid_feed_in"],
         production=df_flows["production_total"],
         consumption=df_flows["consumption_total"],
         battery=battery_power_series,
