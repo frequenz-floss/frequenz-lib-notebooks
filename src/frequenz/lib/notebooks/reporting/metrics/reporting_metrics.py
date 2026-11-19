@@ -22,8 +22,61 @@ Usage:
 """
 
 import warnings
+from datetime import timedelta
+from typing import Literal
 
 import pandas as pd
+
+GridDataSource = Literal["power", "energy"]
+
+
+def grid_directions(
+    *,
+    data_source: GridDataSource,
+    grid: pd.Series | None = None,
+    grid_import: pd.Series | None = None,
+    grid_export: pd.Series | None = None,
+    resolution: timedelta | None = None,
+) -> tuple[pd.Series, pd.Series]:
+    """Normalize grid power or energy deltas into directional power series.
+
+    Args:
+        data_source: "power" for one signed PSC grid series or "energy"
+            for separate consumed and delivered energy-delta series.
+        grid: Signed grid power (positive import, negative export).
+        grid_import: Directional grid-import values.
+        grid_export: Directional grid-export values.
+        resolution: Reporting period duration. Required for energy input so the
+            energy delta can be converted to average power.
+
+    Returns:
+        Grid consumption and grid feed-in as non-negative power series.
+
+    Raises:
+        ValueError: If the selected source's inputs are missing or invalid.
+    """
+    if data_source == "power":
+        if grid is None:
+            raise ValueError("grid must be provided when data_source='power'.")
+        grid_power = grid.astype("float64")
+        return grid_power.clip(lower=0), grid_power.clip(upper=0).abs()
+
+    if data_source != "energy":
+        raise ValueError(f"Unknown grid data source: {data_source}")
+    if grid_import is None or grid_export is None:
+        raise ValueError(
+            "grid_import and grid_export must be provided when data_source='energy'."
+        )
+    if resolution is None or resolution <= timedelta(0):
+        raise ValueError(
+            "A positive resolution must be provided when data_source='energy'."
+        )
+
+    power_factor = timedelta(hours=1) / resolution
+    return (
+        grid_import.astype("float64").clip(lower=0) * power_factor,
+        grid_export.astype("float64").clip(lower=0) * power_factor,
+    )
 
 
 def asset_production(production: pd.Series) -> pd.Series:

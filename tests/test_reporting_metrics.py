@@ -14,6 +14,32 @@ from pandas.testing import assert_series_equal
 from frequenz.lib.notebooks.reporting.metrics import reporting_metrics as metrics
 
 
+def test_grid_directions_normalizes_power_and_energy_sources() -> None:
+    """Power and energy-delta inputs produce identical directional power."""
+    power_import, power_export = metrics.grid_directions(
+        data_source="power", grid=pd.Series([-4.0, 8.0])
+    )
+    energy_import, energy_export = metrics.grid_directions(
+        data_source="energy",
+        grid_import=pd.Series([0.0, 2.0]),
+        grid_export=pd.Series([1.0, 0.0]),
+        resolution=timedelta(minutes=15),
+    )
+
+    assert_series_equal(power_import, energy_import)
+    assert_series_equal(power_export, energy_export)
+
+
+def test_grid_directions_requires_resolution_for_energy() -> None:
+    """Energy mode requires a duration for conversion to average power."""
+    with pytest.raises(ValueError, match="resolution"):
+        metrics.grid_directions(
+            data_source="energy",
+            grid_import=pd.Series([1.0]),
+            grid_export=pd.Series([0.0]),
+        )
+
+
 def test_asset_production_respects_sign_and_missing_values() -> None:
     """Production is negated and NaNs stay missing."""
     production = pd.Series([-10, 5, None], index=pd.RangeIndex(3))

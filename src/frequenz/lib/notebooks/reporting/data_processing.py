@@ -22,9 +22,14 @@ transform raw microgrid exports into localized, labeled, and analysis-ready
 tables for KPIs, dashboards, and stakeholder reporting.
 """
 
+from datetime import timedelta
+
 import pandas as pd
 
 from frequenz.data.microgrid import MicrogridConfig
+from frequenz.lib.notebooks.reporting.metrics.reporting_metrics import (
+    GridDataSource,
+)
 from frequenz.lib.notebooks.reporting.utils.column_mapper import ColumnMapper
 from frequenz.lib.notebooks.reporting.utils.helpers import (
     AggregatedComponentConfig,
@@ -49,6 +54,8 @@ def create_energy_report_df(
     aggregated_component_config: AggregatedComponentConfig | None = None,
     component_display_names: dict[str, str] | None = None,
     battery_soc_df: pd.DataFrame | None = None,
+    grid_data_source: GridDataSource = "power",
+    resolution: timedelta | None = None,
 ) -> pd.DataFrame:
     """Create a normalized Energy Report DataFrame with selected columns.
 
@@ -58,7 +65,10 @@ def create_energy_report_df(
     reduced DataFrame containing only relevant columns.
 
     Args:
-        df: Raw input table containing energy data.
+        df: Raw input table containing energy data. Power mode expects a signed
+            grid column. Energy mode expects separate grid_energy_consumed and
+            grid_energy_delivered columns, as returned by
+            MicrogridData.ac_active_power(grid_data_source="energy").
         component_types: Component types to include in the Energy Report DataFrame
                 (e.g., ``battery``, ``pv``).
         mcfg: Configuration object used to resolve component IDs.
@@ -76,6 +86,12 @@ def create_energy_report_df(
         battery_soc_df: Optional SOC data returned by ``MicrogridData.soc()``.
             When ``battery`` is among ``component_types``, its ``battery``
             column is added as ``battery_soc_pct``.
+        grid_data_source: "power" (the default) to use signed grid power, or
+            "energy" to use directional grid energy deltas.
+        resolution: Reporting period duration required when grid_data_source is
+            "energy". It must match the resampling period used to fetch the data.
+            Energy deltas are converted to average power so the canonical report
+            columns retain their existing units.
 
     Returns:
         The Energy Report DataFrame with standardized and selected columns.
@@ -108,9 +124,17 @@ def create_energy_report_df(
         energy_report_df,
         production_cols=["pv", "chp", "wind"],
         consumption_cols=["consumption"],
-        grid_cols=["grid"],
+        grid_energy_consumed_cols=["grid_energy_consumed"],
+        grid_energy_delivered_cols=["grid_energy_delivered"],
         battery_cols=["battery"],
+        grid_data_source=grid_data_source,
+        resolution=resolution,
     )
+    raw_grid_column = mapper.canonical_to_raw["grid_consumption"]
+    if grid_data_source == "power" and raw_grid_column != "grid_consumption":
+        energy_report_df = energy_report_df.drop(
+            columns=[raw_grid_column], errors="ignore"
+        )
 
     # Standardize column names (from raw to canonical)
     energy_report_df = mapper.to_canonical(energy_report_df)
