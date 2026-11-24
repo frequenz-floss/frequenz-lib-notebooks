@@ -23,7 +23,10 @@ _logger = logging.getLogger(__name__)
 
 
 def _align_series_to_index(index: pd.Index, series: pd.Series) -> pd.Series:
-    """Align a time series to a target datetime index using forward fill."""
+    """Align a time series to a target datetime index without filling.
+
+    Only exact timestamp matches get a value; every other timestamp is NaN.
+    """
     target_index = pd.DatetimeIndex(index)
     aligned = series.copy()
     aligned.index = pd.DatetimeIndex(aligned.index)
@@ -36,7 +39,7 @@ def _align_series_to_index(index: pd.Index, series: pd.Series) -> pd.Series:
         aligned.index = aligned.index.tz_convert(target_index.tz)
 
     aligned = aligned.sort_index()
-    return aligned.reindex(target_index, method="ffill")
+    return aligned.reindex(target_index)
 
 
 def _load_dotenv_files(dotenv_path: str | Sequence[str]) -> None:
